@@ -4,7 +4,7 @@ import { execFile } from 'node:child_process'
 import { relative, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import type { Context } from '@deepseek-ai/cordis'
-import type { GitCommitResult, GitDiff, GitFileStatus, GitStatus } from './contracts.ts'
+import type { GitCommit, GitCommitResult, GitDiff, GitFileStatus, GitHistory, GitStatus } from './contracts.ts'
 import { WorkbenchHttpError } from './http.ts'
 import type { WorkspaceBackend } from './workspace-backend.ts'
 
@@ -45,6 +45,20 @@ export function parsePorcelainStatus(output: string): GitFileStatus[] {
   return files
 }
 
+/** Parse the NUL-delimited fields on each newline-delimited Git log record. */
+export function parseGitHistory(output: string): GitCommit[] {
+  if (output.trim() === '') return []
+  return output.trimEnd().split('\n').map((record) => {
+    const [hash, shortHash, author, authoredAt, subject, ...extra] = record.split('\0')
+    if (hash === undefined || shortHash === undefined || author === undefined
+      || authoredAt === undefined || subject === undefined || extra.length > 0
+      || !/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(hash)) {
+      throw new WorkbenchHttpError(502, 'GIT_HISTORY_INVALID', 'Git 返回了无法识别的提交历史。')
+    }
+    return { hash, shortHash, author, authoredAt, subject }
+  })
+}
+
 /** Git status/diff/index/commit actions; every argv path is workspace-validated first. */
 export class GitBackend {
   constructor(
@@ -81,8 +95,54 @@ export class GitBackend {
     const args = staged
       ? ['diff', '--cached', '--no-ext-diff', '--', path]
       : ['diff', '--no-ext-diff', '--', path]
-    const result = await this.run(cwd, args)
-    return { path, staged, text: result.stdout }
+    let result = await this.run(cwd, args)
+    if (!staged && result.stdout === '') {
+      const untracked = await this.run(cwd, ['ls-files', '--others', '--exclude-standard', '--', path])
+      if (untracked.stdout.trim() !== '') {
+        result = await this.run(cwd, ['diff', '--no-index', '--no-ext-diff', '--', '/dev/null', path], [0, 1])
+      }
+    }
+    return {
+      kind: staged ? 'staged' : 'worktree',
+      title: path,
+      path,
+      text: result.stdout,
+    }
+  }
+
+  async history(sessionId: unknown): Promise<GitHistory> {
+    const cwd = await this.repositoryRoot(sessionId)
+    if (!await this.hasHead(cwd)) return { commits: [], truncated: false }
+    const limit = 40
+    const result = await this.run(cwd, [
+      'log', '-n', String(limit + 1), '--date=iso-strict',
+      '--format=%H%x00%h%x00%an%x00%aI%x00%s',
+    ])
+    const commits = parseGitHistory(result.stdout)
+    return { commits: commits.slice(0, limit), truncated: commits.length > limit }
+  }
+
+  async commitDiff(sessionId: unknown, revisionValue: unknown): Promise<GitDiff> {
+    if (typeof revisionValue !== 'string' || !/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(revisionValue)) {
+      throw new WorkbenchHttpError(400, 'GIT_REVISION_INVALID', '提交版本无效。')
+    }
+    const cwd = await this.repositoryRoot(sessionId)
+    const metadata = await this.run(cwd, [
+      'show', '-s', '--date=iso-strict', '--format=%H%x00%h%x00%an%x00%aI%x00%s', revisionValue,
+    ])
+    const commit = parseGitHistory(metadata.stdout)[0]
+    if (commit === undefined) throw new WorkbenchHttpError(404, 'GIT_COMMIT_NOT_FOUND', '找不到该提交。')
+    const patch = await this.run(cwd, [
+      'show', '--format=', '--stat', '--patch', '--no-ext-diff', '--no-color', '--find-renames', revisionValue, '--',
+    ])
+    this.ctx.logger.info(`workbench-layout: opened Git commit diff ${commit.shortHash}`)
+    return {
+      kind: 'commit',
+      title: commit.subject,
+      subtitle: `${commit.shortHash} · ${commit.author} · ${commit.authoredAt}`,
+      revision: commit.hash,
+      text: patch.stdout,
+    }
   }
 
   async stage(sessionId: unknown, pathValue: unknown): Promise<GitStatus> {
@@ -96,10 +156,9 @@ export class GitBackend {
   async unstage(sessionId: unknown, pathValue: unknown): Promise<GitStatus> {
     const path = await this.workspace.assertGitPath(sessionId, pathValue)
     const cwd = await this.repositoryRoot(sessionId)
-    try {
+    if (await this.hasHead(cwd)) {
       await this.run(cwd, ['restore', '--staged', '--', path])
-    } catch (error) {
-      if (!(error instanceof WorkbenchHttpError) || error.code !== 'GIT_COMMAND_FAILED') throw error
+    } else {
       await this.run(cwd, ['rm', '--cached', '--ignore-unmatch', '--', path])
     }
     this.ctx.logger.info(`workbench-layout: unstaged Git path ${JSON.stringify(path)}`)
@@ -135,7 +194,12 @@ export class GitBackend {
     return repo
   }
 
-  private async run(cwd: string, args: string[]): Promise<GitRunResult> {
+  private async hasHead(cwd: string): Promise<boolean> {
+    const result = await this.run(cwd, ['rev-parse', '--verify', 'HEAD'], [0, 1, 128])
+    return result.stdout.trim() !== ''
+  }
+
+  private async run(cwd: string, args: string[], acceptedExitCodes: readonly number[] = [0]): Promise<GitRunResult> {
     try {
       const result = await execFileAsync('git', ['-C', cwd, ...args], {
         encoding: 'utf8',
@@ -145,6 +209,18 @@ export class GitBackend {
       })
       return { stdout: result.stdout, stderr: result.stderr }
     } catch (error: unknown) {
+      const failure = error !== null && typeof error === 'object'
+        ? error as { code?: unknown; stdout?: unknown; stderr?: unknown }
+        : undefined
+      const exitCode = typeof failure?.code === 'number'
+        ? failure.code
+        : undefined
+      if (exitCode !== undefined && acceptedExitCodes.includes(exitCode)) {
+        return {
+          stdout: typeof failure?.stdout === 'string' ? failure.stdout : '',
+          stderr: typeof failure?.stderr === 'string' ? failure.stderr : '',
+        }
+      }
       const detail = error instanceof Error && 'stderr' in error && typeof error.stderr === 'string'
         ? error.stderr.trim().split(/\r?\n/u)[0]
         : undefined

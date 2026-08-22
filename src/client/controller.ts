@@ -1,7 +1,7 @@
 /** Shared browser state joining the root-scoped sidebar and Session-scoped editor. */
 
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
-import type { GitDiff, WorkspaceFile } from '../contracts.ts'
+import type { GitCommit, GitDiff, WorkspaceFile } from '../contracts.ts'
 import { WorkbenchApi } from './api.ts'
 
 export type SidebarMode = 'sessions' | 'files' | 'git'
@@ -184,6 +184,25 @@ export class WorkbenchController {
       if (requestId !== this.requestId) return
       this.store.update((state) => { state.loading = false; state.error = messageOf(error) })
       this.logger.warn(`workbench-layout: failed to load Git diff ${JSON.stringify(path)}`)
+    }
+  }
+
+  async openCommitDiff(sessionId: string, commit: GitCommit): Promise<void> {
+    this.setSession(sessionId)
+    const requestId = ++this.requestId
+    this.store.update((state) => { state.loading = true; state.error = null })
+    try {
+      const diff = await this.api.gitCommitDiff(sessionId, commit.hash)
+      if (requestId !== this.requestId) return
+      this.store.update((state) => {
+        state.diff = diff
+        state.centerMode = 'diff'
+        state.loading = false
+      })
+    } catch (error: unknown) {
+      if (requestId !== this.requestId) return
+      this.store.update((state) => { state.loading = false; state.error = messageOf(error) })
+      this.logger.warn(`workbench-layout: failed to load Git commit diff ${commit.shortHash}`)
     }
   }
 

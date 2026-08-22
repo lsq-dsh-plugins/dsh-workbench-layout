@@ -45,9 +45,27 @@ export interface GitStatus {
   message?: string
 }
 
+export interface GitCommit {
+  hash: string
+  shortHash: string
+  subject: string
+  author: string
+  authoredAt: string
+}
+
+export interface GitHistory {
+  commits: GitCommit[]
+  truncated: boolean
+}
+
+export type GitDiffKind = 'worktree' | 'staged' | 'commit'
+
 export interface GitDiff {
-  path: string
-  staged: boolean
+  kind: GitDiffKind
+  title: string
+  subtitle?: string
+  path?: string
+  revision?: string
   text: string
 }
 

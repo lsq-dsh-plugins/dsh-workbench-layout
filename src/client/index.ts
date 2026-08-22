@@ -6,6 +6,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import { WorkbenchApi } from './api.ts'
+import { ColumnResizeHandle } from './ColumnResizeHandle.tsx'
 import { WorkbenchController } from './controller.ts'
 import { installWorkbenchLayout } from './layout-styles.ts'
 import { en, zh } from './locales.ts'
@@ -59,6 +60,16 @@ export function apply(ctx: ClientContext): void {
     locale: 'workbench',
     inject: () => ({ controller }),
   }, WorkbenchEditor))
+
+  ctx.slots.inject('shell.overlay', () => ctx.slots.register({
+    name: 'shell.overlay',
+    id: 'workbench-layout-column-resize',
+    order: -100,
+    locale: 'workbench',
+    inject: () => ({
+      onCommit: (width: number) => { ctx.logger.info(`workbench-layout: conversation width changed to ${width}px`) },
+    }),
+  }, ColumnResizeHandle))
 
   installWorkbenchLayout(ctx)
   ctx.logger.info('workbench-layout: sidebar switch and file editor registered')

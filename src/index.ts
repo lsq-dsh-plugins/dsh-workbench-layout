@@ -88,6 +88,10 @@ async function dispatch(
       return git.status(body.sessionId)
     case `${WORKBENCH_API_PREFIX}/git/diff`:
       return git.diff(body.sessionId, body.path, body.staged)
+    case `${WORKBENCH_API_PREFIX}/git/history`:
+      return git.history(body.sessionId)
+    case `${WORKBENCH_API_PREFIX}/git/commit/diff`:
+      return git.commitDiff(body.sessionId, body.revision)
     case `${WORKBENCH_API_PREFIX}/git/stage`:
       return git.stage(body.sessionId, body.path)
     case `${WORKBENCH_API_PREFIX}/git/unstage`:

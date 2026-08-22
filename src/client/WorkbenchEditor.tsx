@@ -11,7 +11,6 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { UNSAVED_SWITCH_ERROR, type WorkbenchController } from './controller.ts'
-import type { WorkbenchKey } from './locales.ts'
 import { CodeEditor } from './CodeEditor.tsx'
 import { useWorkbench } from './use-workbench.ts'
 import css from './Workbench.module.css'
@@ -33,13 +32,16 @@ export function WorkbenchEditor({ sessionId, controller, t }: WorkbenchEditorPro
         <header className={css.editorHeader}>
           <div className={css.editorTitle}>
             <IconCodeOutline16 size={16} />
-            <span>{state.diff.path}</span>
-            <Pill>{t('editor.diff')}</Pill>
+            <span>{state.diff.title}</span>
+            <Pill>{diffKindText(state.diff.kind, t)}</Pill>
           </div>
           <Button size="sm" variant="toolbar" onClick={() => { controller.showFile() }}>{t('editor.backToFile')}</Button>
         </header>
+        {state.diff.subtitle !== undefined && <div className={css.diffMetadata}>{state.diff.subtitle}</div>}
         <div className={css.diffBody}>
-          <CodeBlock code={state.diff.text || 'No textual diff.'} lang="diff" copyLabel={t('editor.copy')} copiedLabel={t('editor.copied')} />
+          {state.diff.text === ''
+            ? <div className={css.diffEmpty}><FishLogo size={28} /><span>{t('editor.diffEmpty')}</span></div>
+            : <CodeBlock code={state.diff.text} lang="diff" copyLabel={t('editor.copy')} copiedLabel={t('editor.copied')} />}
         </div>
         {state.error !== null && <div className={css.editorError} role="alert">{errorText(state.error, t)}</div>}
       </section>
@@ -97,6 +99,14 @@ export function WorkbenchEditor({ sessionId, controller, t }: WorkbenchEditorPro
 
 function errorText(error: string, t: WorkbenchEditorProps['t']): string {
   return error === UNSAVED_SWITCH_ERROR ? t('editor.unsavedSwitch') : error
+}
+
+function diffKindText(kind: 'worktree' | 'staged' | 'commit', t: WorkbenchEditorProps['t']): string {
+  switch (kind) {
+    case 'worktree': return t('editor.diffWorktree')
+    case 'staged': return t('editor.diffStaged')
+    case 'commit': return t('editor.diffCommit')
+  }
 }
 
 function EditorEmpty({ text }: { text: string }) {

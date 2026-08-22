@@ -90,7 +90,7 @@ export function FileTree({ controller, sessionId, t }: FileTreeProps) {
       </div>
       {error !== null && <div className={css.error} role="alert">{error}</div>}
       {root === undefined
-        ? <div className={css.emptyState}>{t('files.loading')}</div>
+        ? error === null && <div className={css.emptyState}>{t('files.loading')}</div>
         : (
           <div className={css.tree} role="tree">
             <TreeLevel

@@ -13,7 +13,10 @@ export type WorkbenchSidebarProps = PropsRuntime<'sidebar.workspaces'> & PropsLo
 /** Sidebar replacement body; the official shell, brand, controls, and settings stay mounted. */
 export function WorkbenchSidebar({ wide, useSessions, controller, t }: WorkbenchSidebarProps) {
   const state = useWorkbench(controller)
-  const sessionId = useSessions(snapshot => snapshot.current)
+  const sessionId = useSessions((snapshot) => {
+    const current = snapshot.current
+    return current !== undefined && snapshot.byId[current]?.blank === false ? current : undefined
+  })
   if (!wide) return <div className={css.collapsedBody} aria-hidden />
   return (
     <div className={css.sidebarBody}>

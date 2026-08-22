@@ -10,7 +10,10 @@ An independent DeepSeek Harness Web plugin that keeps the official AppFrame and 
 - Expand directories lazily instead of reading the full tree at once.
 - Edit existing UTF-8 text in CodeMirror with dirty state, save/revert, per-Session draft retention, version conflict protection, atomic saves, and `Ctrl/Cmd + S`.
 - Open Markdown in the official DSH rendered view by default, with Preview and Source modes.
-- Inspect Git branch and status, view diffs, stage, unstage, and commit through explicit actions.
+- Use a compact default conversation width, drag the editor/conversation divider to resize it, double-click to reset, and retain the preference in the browser.
+- Browse Git in Changes, Staged Changes, and Commit History sections with the latest 40 commits.
+- Open working-tree, index, untracked-file, and historical-commit diffs in the middle column with a clear source label.
+- Stage, unstage, and commit through explicit actions; a successful commit refreshes history immediately.
 - Keep the original DSH conversation, composer, task status, and interaction flows in the right column.
 - Reuse DSH components, icons, typography, tokens, spacing, borders, and light/dark themes wherever possible.
 
@@ -40,7 +43,8 @@ dsh plugin --profile web remove @lsq64737/dsh-workbench-layout
 - This version edits existing UTF-8 text files; it does not create, delete, or rename files.
 - Symbolic links are not opened from the tree.
 - Session drafts live only in the current page; refreshing discards unsaved content.
-- Diffs for untracked files may be empty; their content remains available in the editor.
+- Binary changes are identified by Git without rendering binary content.
+- Commit history currently shows the latest 40 entries without pagination.
 - DSH does not yet expose a dedicated API for moving the native conversation column. The plugin therefore reorders columns through stable markers on the official AppFrame and may need an update after a future shell rewrite.
 - Very narrow windows cannot provide a comfortable width to all three columns. The middle column concedes first while the conversation remains usable.
 
@@ -58,7 +62,8 @@ npm run test:bundle
 - `src/index.ts`: Host route registration and request dispatch.
 - `src/workspace-backend.ts`: bounded directory, read, and atomic-save operations.
 - `src/git-backend.ts`: Git status, diff, index, and commit operations.
+- `src/client/column-width.ts`, `ColumnResizeHandle.tsx`: conversation-width policy, persistence, and drag interaction.
 - `src/client/controller.ts`: cross-column file, diff, and view state.
-- `src/client/FileTree.tsx`, `GitPanel.tsx`: left-column Files and Git views.
+- `src/client/FileTree.tsx`, `GitPanel.tsx`: left-column file tree, Git groups, and commit history.
 - `src/client/WorkbenchEditor.tsx`: middle source editor and Markdown preview.
 - `src/client/layout-styles.ts`: official AppFrame column-order adaptation.

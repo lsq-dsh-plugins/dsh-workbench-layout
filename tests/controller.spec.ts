@@ -101,4 +101,21 @@ describe('WorkbenchController', () => {
       sessionId: 'session-1', file: { path: 'draft.txt' }, draft: 'unsaved', dirty: true,
     })
   })
+
+  it('opens a historical commit diff in the middle column', async () => {
+    const commit = {
+      hash: 'a'.repeat(40), shortHash: 'aaaaaaa', subject: '历史提交', author: 'Tester', authoredAt: '2026-08-23T10:00:00Z',
+    }
+    const api = {
+      gitCommitDiff: vi.fn(() => Promise.resolve({
+        kind: 'commit', title: commit.subject, revision: commit.hash, text: 'diff --git',
+      })),
+    }
+    const controller = new WorkbenchController(api as never, { info: vi.fn(), warn: vi.fn() })
+    await controller.openCommitDiff('session-1', commit)
+    expect(api.gitCommitDiff).toHaveBeenCalledWith('session-1', commit.hash)
+    expect(controller.store.getSnapshot()).toMatchObject({
+      centerMode: 'diff', loading: false, diff: { kind: 'commit', revision: commit.hash },
+    })
+  })
 })

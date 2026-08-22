@@ -4,6 +4,7 @@ import type {
   DirectoryListing,
   GitCommitResult,
   GitDiff,
+  GitHistory,
   GitStatus,
   SavedWorkspaceFile,
   WorkbenchErrorBody,
@@ -38,6 +39,14 @@ export class WorkbenchApi {
 
   async gitDiff(sessionId: string, path: string, staged: boolean): Promise<GitDiff> {
     return this.post('/git/diff', { sessionId, path, staged })
+  }
+
+  async gitHistory(sessionId: string): Promise<GitHistory> {
+    return this.post('/git/history', { sessionId })
+  }
+
+  async gitCommitDiff(sessionId: string, revision: string): Promise<GitDiff> {
+    return this.post('/git/commit/diff', { sessionId, revision })
   }
 
   async gitStage(sessionId: string, path: string): Promise<GitStatus> {
