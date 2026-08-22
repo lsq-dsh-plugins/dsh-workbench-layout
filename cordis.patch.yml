@@ -1,0 +1,4 @@
+- insert:
+    - id: workbench-layout
+      name: "@lsq64737/dsh-workbench-layout"
+      inject: [webRuntime]
