@@ -91,6 +91,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconChevronRightOutline14: () => <span data-icon="chevron" />,
   IconCloseOutline16: () => <span />,
   IconCodeOutline16: () => <span />,
+  IconCopyOutline16: () => <span />,
   IconDownloadOutline16: () => <span />,
   IconEditOutline16: () => <span />,
   IconEllipsisOutline16: () => <span />,
@@ -185,6 +186,36 @@ describe('Git panel', () => {
 
     fireEvent.click(view.getByRole('button', { name: '切换到更改' }))
     expect(view.container.querySelector('[data-change-layout="tree"]')).not.toBeNull()
+  })
+
+  it('opens the commit context menu, compares with the workspace, and confirms commit actions', async () => {
+    const { controller, commit } = harness()
+    const view = renderPanel(controller)
+    await waitFor(() => { expect(view.getByRole('button', { name: '切换到提交图' })).toBeTruthy() })
+    fireEvent.click(view.getByRole('button', { name: '切换到提交图' }))
+    const row = view.getByRole('button', { name: /完善工作台.*Tester.*main/u })
+
+    fireEvent.contextMenu(row)
+    fireEvent.click(view.getByRole('button', { name: '与当前工作区比较' }))
+    await waitFor(() => { expect(controller.api.gitComparisonFiles).toHaveBeenCalledWith('workspace-1', commit.hash) })
+    expect(view.getByText('与当前工作区比较')).toBeTruthy()
+    fireEvent.click(view.getByTitle('src/graph.ts'))
+    expect(controller.openComparisonDiff).toHaveBeenCalledWith('workspace-1', commit, 'src/graph.ts')
+
+    fireEvent.click(view.getByRole('button', { name: '提交操作' }))
+    fireEvent.click(view.getByRole('button', { name: '从此提交新建分支…' }))
+    const branchDialog = view.getByRole('dialog', { name: '从指定来源新建分支' })
+    expect(branchDialog.querySelector<HTMLSelectElement>('select')?.value).toBe(commit.hash)
+    fireEvent.click(view.getByRole('button', { name: '取消' }))
+
+    fireEvent.click(view.getByRole('button', { name: '提交操作' }))
+    fireEvent.click(view.getByRole('button', { name: 'Cherry-pick 此提交…' }))
+    const actionDialog = view.getByRole('dialog', { name: 'Cherry-pick 此提交？' })
+    fireEvent.click(actionDialog.querySelector<HTMLButtonElement>('button:last-child')!)
+    await waitFor(() => {
+      expect(controller.api.gitCommitAction).toHaveBeenCalledWith('workspace-1', 'cherry-pick', commit.hash)
+    })
+    expect(controller.resetWorkspaceView).toHaveBeenCalledWith('workspace-1')
   })
 
   it('switches branches and runs explicit remote actions from DSH menus', async () => {
@@ -353,6 +384,14 @@ function harness() {
           { path: 'README.md', status: 'M' },
         ],
       })),
+      gitComparisonFiles: vi.fn(() => Promise.resolve({
+        commit,
+        files: [
+          { path: 'src/graph.ts', status: 'M' },
+          { path: 'src/new.ts', status: 'A' },
+        ],
+      })),
+      gitCommitAction: vi.fn((operation: string) => Promise.resolve({ operation, summary: `${operation} done` })),
       gitSwitchBranch: vi.fn(() => Promise.resolve({ ...status, branch: 'topic' })),
       gitCreateBranch: vi.fn(() => Promise.resolve({ ...status, branch: 'feature/graph' })),
       gitRenameBranch: vi.fn(() => Promise.resolve({ ...status, branch: 'main-renamed' })),
@@ -374,6 +413,7 @@ function harness() {
     },
     openDiff: vi.fn(() => Promise.resolve()),
     openCommitDiff: vi.fn(() => Promise.resolve()),
+    openComparisonDiff: vi.fn(() => Promise.resolve()),
     resetWorkspaceView: vi.fn(),
     closeDiffTabs: vi.fn(),
     setGitView: vi.fn((view: 'changes' | 'graph') => { workbenchStore.update({ gitView: view }) }),

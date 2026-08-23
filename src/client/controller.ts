@@ -421,6 +421,15 @@ export class WorkbenchController {
     )
   }
 
+  async openComparisonDiff(workspaceId: string, commit: GitCommit, path: string): Promise<void> {
+    await this.openDiffTab(
+      workspaceId,
+      { id: diffTabId('comparison', path, commit.hash), path, diffKind: 'comparison', revision: commit.hash },
+      () => this.api.gitComparisonFileDiff(workspaceId, commit.hash, path),
+      `Git workspace comparison ${commit.shortHash} ${JSON.stringify(path)}`,
+    )
+  }
+
   setDiffViewMode(mode: DiffViewMode): void {
     this.store.update((state) => { state.diffViewMode = mode })
     this.logger.info(`workbench-layout: Diff view mode changed to ${mode}`)

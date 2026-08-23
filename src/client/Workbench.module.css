@@ -918,12 +918,20 @@
   border-radius: 6px;
 }
 
+.commitRowShell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
 .commitRow {
   position: relative;
   display: flex;
   align-items: center;
   gap: 5px;
-  width: 100%;
+  flex: 1;
+  width: auto;
   min-width: 0;
   height: 28px;
   padding: 0 4px;
@@ -933,6 +941,33 @@
   color: var(--dsw-alias-label-primary);
   text-align: left;
   cursor: pointer;
+}
+
+.commitMenuButton {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.commitRowShell:hover .commitMenuButton,
+.commitMenuButton:focus-visible,
+.commitMenuButton[aria-expanded='true'] {
+  opacity: 1;
+}
+
+.commitMenuButton:hover {
+  background: var(--dsw-alias-interactive-bg-active);
+  color: var(--dsw-alias-brand-text);
 }
 
 .commitRow:hover,
@@ -1065,6 +1100,12 @@
   margin: 1px 0 4px calc(var(--git-row-graph-width) + 3px);
   border-left: 1px solid var(--dsw-alias-border-l1);
   padding: 2px 0 2px 5px;
+}
+
+.commitComparisonLabel {
+  padding: 3px 6px 5px;
+  color: var(--dsw-alias-label-tertiary);
+  font: var(--dsw-font-xxs-strong-12);
 }
 
 .graphFileRow {

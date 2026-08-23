@@ -114,6 +114,11 @@ function diffLabels(diff: GitFileDiff, t: TranslateNS<'workbench'>): { original:
         original: diff.parentRevision?.slice(0, 7) ?? t('editor.diffEmptyFile'),
         modified: diff.revision?.slice(0, 7) ?? t('editor.diffCommit'),
       }
+    case 'comparison':
+      return {
+        original: diff.revision?.slice(0, 7) ?? t('editor.diffCommit'),
+        modified: t('editor.diffWorkingTree'),
+      }
   }
 }
 

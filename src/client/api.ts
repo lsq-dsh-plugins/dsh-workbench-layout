@@ -5,6 +5,8 @@ import type {
   DirectoryListing,
   GitBranches,
   GitCommitFiles,
+  GitCommitAction,
+  GitCommitActionResult,
   GitCommitResult,
   GitFileDiff,
   GitGraph,
@@ -117,6 +119,18 @@ export class WorkbenchApi {
 
   async gitCommitFileDiff(workspaceId: string, revision: string, path: string): Promise<GitFileDiff> {
     return this.post('/git/commit/file', { workspaceId, revision, path })
+  }
+
+  async gitComparisonFiles(workspaceId: string, revision: string): Promise<GitCommitFiles> {
+    return this.post('/git/comparison/files', { workspaceId, revision })
+  }
+
+  async gitComparisonFileDiff(workspaceId: string, revision: string, path: string): Promise<GitFileDiff> {
+    return this.post('/git/comparison/file', { workspaceId, revision, path })
+  }
+
+  async gitCommitAction(workspaceId: string, operation: GitCommitAction, revision: string): Promise<GitCommitActionResult> {
+    return this.post('/git/commit/action', { workspaceId, operation, revision })
   }
 
   async gitStage(workspaceId: string, path: string): Promise<GitStatus> {

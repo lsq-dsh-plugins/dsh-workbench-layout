@@ -14,7 +14,13 @@ import type {
 import type { WorkbenchController } from './controller.ts'
 import { GitChangesView } from './GitChangesView.tsx'
 import { GitBranchDialog, type GitBranchDialogMode } from './GitBranchDialog.tsx'
-import { GitGraphView, type CommitFilesState } from './GitGraphView.tsx'
+import { GitCommitActionDialog, type GitCommitActionRequest } from './GitCommitActionDialog.tsx'
+import {
+  GitGraphView,
+  type CommitFilesState,
+  type GitCommitDetailKind,
+  type GitCommitMenuAction,
+} from './GitGraphView.tsx'
 import { GitRepositoryToolbar } from './GitRepositoryToolbar.tsx'
 import { GitRemoteDialog, type GitRemoteDialogMode, type GitRemoteDraft } from './GitRemoteDialog.tsx'
 import { useWorkbench } from './use-workbench.ts'
@@ -41,19 +47,25 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
   const [branches, setBranches] = useState<GitBranches | null>(null)
   const [graph, setGraph] = useState<GitGraph | null>(null)
   const [expandedCommit, setExpandedCommit] = useState<string | null>(null)
+  const [expandedKind, setExpandedKind] = useState<GitCommitDetailKind>('commit')
   const [commitFiles, setCommitFiles] = useState<Record<string, CommitFilesState>>({})
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [message, setMessage] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<string | null>(null)
-  const [branchDialog, setBranchDialog] = useState<GitBranchDialogMode | null>(null)
+  const [branchDialog, setBranchDialog] = useState<{
+    mode: GitBranchDialogMode
+    source?: { ref: string; label: string }
+  } | null>(null)
   const [branchDialogError, setBranchDialogError] = useState<string | null>(null)
   const [remoteDialog, setRemoteDialog] = useState<GitRemoteDialogMode | null>(null)
   const [remotes, setRemotes] = useState<GitRemotes | null>(null)
   const [remoteDialogError, setRemoteDialogError] = useState<string | null>(null)
   const [discardRequest, setDiscardRequest] = useState<{ scope: 'all' } | { scope: 'file'; file: GitFileStatus } | null>(null)
   const [discardAcknowledged, setDiscardAcknowledged] = useState(false)
+  const [commitActionRequest, setCommitActionRequest] = useState<GitCommitActionRequest | null>(null)
+  const [commitActionError, setCommitActionError] = useState<string | null>(null)
 
   const refresh = useCallback(async (): Promise<void> => {
     if (workspaceId === undefined) return
@@ -71,6 +83,7 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
       setBranches(nextBranches)
       setCommitFiles({})
       setExpandedCommit(null)
+      setExpandedKind('commit')
     } catch (reason: unknown) {
       if (request === refreshId.current) setError(messageOf(reason))
     } finally {
@@ -88,6 +101,7 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
     setError(null)
     setResult(null)
     setExpandedCommit(null)
+    setExpandedKind('commit')
     setCommitFiles({})
     setBranchDialog(null)
     setBranchDialogError(null)
@@ -96,6 +110,8 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
     setRemoteDialogError(null)
     setDiscardRequest(null)
     setDiscardAcknowledged(false)
+    setCommitActionRequest(null)
+    setCommitActionError(null)
     void refresh()
   }, [refresh])
 
@@ -206,26 +222,82 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
     }
   }
 
-  const toggleCommit = async (commitValue: GitCommit): Promise<void> => {
+  const showCommitDetails = async (commitValue: GitCommit, kind: GitCommitDetailKind, toggle = true): Promise<void> => {
     if (workspaceId === undefined) return
     const targetWorkspace = workspaceId
-    if (expandedCommit === commitValue.hash) {
-      setExpandedCommit(null)
+    if (expandedCommit === commitValue.hash && expandedKind === kind) {
+      if (toggle) setExpandedCommit(null)
       return
     }
     setExpandedCommit(commitValue.hash)
-    if (commitFiles[commitValue.hash] !== undefined) return
-    setCommitFiles(current => ({ ...current, [commitValue.hash]: { state: 'loading' } }))
+    setExpandedKind(kind)
+    const key = `${kind}:${commitValue.hash}`
+    if (commitFiles[key] !== undefined) return
+    setCommitFiles(current => ({ ...current, [key]: { state: 'loading' } }))
     try {
-      const value = await controller.api.gitCommitFiles(targetWorkspace, commitValue.hash)
+      const value = kind === 'commit'
+        ? await controller.api.gitCommitFiles(targetWorkspace, commitValue.hash)
+        : await controller.api.gitComparisonFiles(targetWorkspace, commitValue.hash)
       if (activeWorkspace.current !== targetWorkspace) return
-      setCommitFiles(current => ({ ...current, [commitValue.hash]: { state: 'ready', value } }))
+      setCommitFiles(current => ({ ...current, [key]: { state: 'ready', value } }))
     } catch (reason: unknown) {
       if (activeWorkspace.current !== targetWorkspace) return
       setCommitFiles(current => ({
         ...current,
-        [commitValue.hash]: { state: 'error', message: messageOf(reason) },
+        [key]: { state: 'error', message: messageOf(reason) },
       }))
+    }
+  }
+
+  const commitMenuAction = async (action: GitCommitMenuAction, commitValue: GitCommit): Promise<void> => {
+    if (action === 'copy') {
+      try {
+        await copyText(commitValue.hash)
+        setResult(t('git.commitMenu.copied', { hash: commitValue.shortHash }))
+        setError(null)
+      } catch {
+        setError(t('git.commitMenu.copyFailed'))
+      }
+      return
+    }
+    if (action === 'branch') {
+      setBranchDialogError(null)
+      setBranchDialog({
+        mode: 'create-from',
+        source: { ref: commitValue.hash, label: `${commitValue.shortHash} · ${commitValue.subject}` },
+      })
+      return
+    }
+    if (action === 'compare') {
+      await showCommitDetails(commitValue, 'comparison', false)
+      return
+    }
+    if (workbench.tabs.some(tab => tab.kind === 'file' && tab.dirty)) {
+      setError(t('git.unsavedOperation'))
+      return
+    }
+    setCommitActionError(null)
+    setCommitActionRequest({ action, commit: commitValue })
+  }
+
+  const confirmCommitAction = async (): Promise<void> => {
+    if (workspaceId === undefined || commitActionRequest === null) return
+    const targetWorkspace = workspaceId
+    const request = commitActionRequest
+    setBusy(`commit-${request.action}`)
+    setCommitActionError(null)
+    setResult(null)
+    try {
+      const value = await controller.api.gitCommitAction(targetWorkspace, request.action, request.commit.hash)
+      controller.resetWorkspaceView(targetWorkspace)
+      if (activeWorkspace.current !== targetWorkspace) return
+      setCommitActionRequest(null)
+      setResult(value.summary)
+      await refresh()
+    } catch (reason: unknown) {
+      if (activeWorkspace.current === targetWorkspace) setCommitActionError(messageOf(reason))
+    } finally {
+      if (activeWorkspace.current === targetWorkspace) setBusy(null)
     }
   }
 
@@ -257,7 +329,7 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
   const manageBranch = async (nameOrRef: string, source?: string): Promise<void> => {
     if (workspaceId === undefined || branchDialog === null) return
     const targetWorkspace = workspaceId
-    const operation = branchDialog
+    const operation = branchDialog.mode
     const switchesWorktree = operation === 'create' || operation === 'create-from'
     if (switchesWorktree && workbench.tabs.some(tab => tab.kind === 'file' && tab.dirty)) {
       setBranchDialogError(t('git.unsavedOperation'))
@@ -410,7 +482,7 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
           controller.setGitFileLayout(view, layout)
         }}
         onSwitchBranch={ref => { void switchBranch(ref) }}
-        onOpenBranchDialog={mode => { setBranchDialogError(null); setBranchDialog(mode) }}
+        onOpenBranchDialog={mode => { setBranchDialogError(null); setBranchDialog({ mode }) }}
         onRemoteOperation={operation => { void remoteOperation(operation) }}
         onOpenRemoteDialog={mode => { void openRemoteDialog(mode) }}
         onRefresh={() => {
@@ -459,19 +531,26 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
         <GitGraphView
           graph={graph}
           expandedCommit={expandedCommit}
+          expandedKind={expandedKind}
           commitFiles={commitFiles}
           fileLayout={graphFileLayout}
           selectedRevision={activeDiff?.revision}
           selectedPath={activeDiff?.path}
-          onToggle={commitValue => { void toggleCommit(commitValue) }}
-          onOpen={(commitValue, path) => { void controller.openCommitDiff(workspaceId, commitValue, path) }}
+          selectedKind={activeDiff?.kind === 'commit' || activeDiff?.kind === 'comparison' ? activeDiff.kind : undefined}
+          onToggle={commitValue => { void showCommitDetails(commitValue, 'commit') }}
+          onOpen={(commitValue, path) => {
+            if (expandedKind === 'comparison') void controller.openComparisonDiff(workspaceId, commitValue, path)
+            else void controller.openCommitDiff(workspaceId, commitValue, path)
+          }}
+          onMenuAction={(action, commitValue) => { void commitMenuAction(action, commitValue) }}
           t={t}
         />
       )}
       <GitBranchDialog
-        mode={branchDialog}
+        mode={branchDialog?.mode ?? null}
         status={status}
         branches={branches}
+        {...branchDialog?.source === undefined ? {} : { initialSource: branchDialog.source }}
         busy={busy?.startsWith('branch-') === true}
         error={branchDialogError}
         onClose={() => { if (busy === null) setBranchDialog(null) }}
@@ -505,6 +584,14 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
         onCancel={() => { if (busy !== 'discard') setDiscardRequest(null) }}
         onConfirm={() => { void confirmDiscard() }}
       />
+      <GitCommitActionDialog
+        request={commitActionRequest}
+        busy={busy?.startsWith('commit-') === true}
+        error={commitActionError}
+        onClose={() => { if (busy?.startsWith('commit-') !== true) setCommitActionRequest(null) }}
+        onConfirm={() => { void confirmCommitAction() }}
+        t={t}
+      />
     </div>
   )
 }
@@ -519,4 +606,20 @@ function hasWorktreeChange(file: GitFileStatus): boolean {
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+async function copyText(value: string): Promise<void> {
+  if (navigator.clipboard?.writeText !== undefined) {
+    await navigator.clipboard.writeText(value)
+    return
+  }
+  const input = document.createElement('textarea')
+  input.value = value
+  input.style.position = 'fixed'
+  input.style.opacity = '0'
+  document.body.append(input)
+  input.select()
+  const copied = document.execCommand?.('copy') === true
+  input.remove()
+  if (!copied) throw new Error('Clipboard unavailable')
 }

@@ -8,6 +8,8 @@ import type {
   GitBranch,
   GitBranches,
   GitCommit,
+  GitCommitAction,
+  GitCommitActionResult,
   GitCommitFile,
   GitCommitFiles,
   GitCommitResult,
@@ -31,6 +33,7 @@ const execFileAsync = promisify(execFile)
 const REVISION_PATTERN = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u
 const REMOTE_OPERATIONS = new Set<GitRemoteOperation>(['fetch', 'pull', 'push', 'sync'])
 const TARGET_REMOTE_OPERATIONS = new Set<GitTargetRemoteOperation>(['fetch', 'pull', 'push'])
+const COMMIT_ACTIONS = new Set<GitCommitAction>(['cherry-pick', 'revert'])
 
 export interface GitLimits {
   timeoutMs: number
@@ -597,6 +600,77 @@ export class GitBackend {
     }
   }
 
+  async comparisonFiles(workspaceId: unknown, revisionValue: unknown): Promise<GitCommitFiles> {
+    const cwd = await this.repositoryRoot(workspaceId)
+    const revision = requireRevision(revisionValue)
+    const commit = await this.loadCommit(cwd, revision)
+    const files = parseGitNameStatus((await this.run(cwd, [
+      'diff', '--name-status', '-z', '--find-renames', '--find-copies', revision, '--',
+    ])).stdout)
+    const listed = new Set(files.map(file => file.path))
+    const untracked = (await this.status(workspaceId)).files
+      .filter(file => file.index === '?' && !listed.has(file.path))
+      .map(file => ({ path: file.path, status: 'A' }))
+    this.ctx.logger.info(`workbench-layout: compared Git commit ${commit.shortHash} with the current workspace`)
+    return { commit, files: [...files, ...untracked] }
+  }
+
+  async comparisonFileDiff(workspaceId: unknown, revisionValue: unknown, pathValue: unknown): Promise<GitFileDiff> {
+    const path = await this.workspace.assertGitPath(workspaceId, pathValue)
+    const cwd = await this.repositoryRoot(workspaceId)
+    const details = await this.comparisonFiles(workspaceId, revisionValue)
+    const file = details.files.find(candidate => candidate.path === path)
+    if (file === undefined) throw new WorkbenchHttpError(404, 'GIT_CHANGE_NOT_FOUND', '该文件不在提交与当前工作区的比较中。')
+    const original = await this.readGitBlobMaybe(cwd, `${details.commit.hash}:${file.originalPath ?? file.path}`)
+    const modified = file.status === 'D' ? emptyGitText() : await this.workspace.readGitText(workspaceId, file.path)
+    const stat = original.text === '' && !original.binary && file.status === 'A'
+      ? modified.binary ? { path, binary: true } : { path, additions: contentLineCount(modified.text), deletions: 0, binary: false }
+      : parseGitNumstat((await this.run(cwd, [
+          'diff', '--numstat', '-z', '--find-renames', '--find-copies', details.commit.hash, '--',
+          ...file.originalPath === undefined ? [file.path] : [file.originalPath, file.path],
+        ])).stdout)[0]
+    const binary = original.binary || modified.binary || stat?.binary === true
+    this.ctx.logger.info(`workbench-layout: opened workspace comparison for ${details.commit.shortHash} ${JSON.stringify(path)}`)
+    return {
+      kind: 'comparison',
+      path,
+      ...(file.originalPath === undefined ? {} : { originalPath: file.originalPath }),
+      status: normalizeStatus(file.status),
+      revision: details.commit.hash,
+      commit: details.commit,
+      original: binary ? '' : original.text,
+      modified: binary ? '' : modified.text,
+      binary,
+      ...(stat?.additions === undefined ? {} : { additions: stat.additions }),
+      ...(stat?.deletions === undefined ? {} : { deletions: stat.deletions }),
+    }
+  }
+
+  async commitAction(workspaceId: unknown, operationValue: unknown, revisionValue: unknown): Promise<GitCommitActionResult> {
+    if (typeof operationValue !== 'string' || !COMMIT_ACTIONS.has(operationValue as GitCommitAction)) {
+      throw new WorkbenchHttpError(400, 'GIT_COMMIT_ACTION_INVALID', '不支持该提交操作。')
+    }
+    const operation = operationValue as GitCommitAction
+    const revision = requireRevision(revisionValue)
+    const cwd = await this.repositoryRoot(workspaceId)
+    const commit = await this.loadCommit(cwd, revision)
+    if ((await this.status(workspaceId)).files.length > 0) {
+      throw new WorkbenchHttpError(409, 'GIT_WORKTREE_NOT_CLEAN', '请先提交、暂存或放弃当前更改，再执行提交操作。')
+    }
+    try {
+      const result = await this.run(cwd, operation === 'cherry-pick'
+        ? ['cherry-pick', revision]
+        : ['revert', '--no-edit', revision])
+      const summary = result.stdout.trim().split(/\r?\n/u)[0] ?? `${operation} completed`
+      this.ctx.logger.info(`workbench-layout: completed explicit Git ${operation} for ${commit.shortHash}`)
+      return { operation, summary }
+    } catch (error: unknown) {
+      await this.run(cwd, [operation, '--abort'], [0, 128])
+      this.ctx.logger.info(`workbench-layout: aborted conflicted Git ${operation} for ${commit.shortHash}`)
+      throw error
+    }
+  }
+
   async stage(workspaceId: unknown, pathValue: unknown): Promise<GitStatus> {
     const path = await this.workspace.assertGitPath(workspaceId, pathValue)
     const cwd = await this.repositoryRoot(workspaceId)
@@ -712,12 +786,7 @@ export class GitBackend {
 
   private async loadCommitFiles(cwd: string, revisionValue: unknown): Promise<GitCommitFiles> {
     const revision = requireRevision(revisionValue)
-    const metadata = await this.run(cwd, [
-      'show', '-s', '--date=iso-strict', '--decorate=full',
-      '--format=%H%x00%h%x00%P%x00%an%x00%aI%x00%s%x00%D', revision,
-    ])
-    const commit = parseGitGraph(metadata.stdout)[0]
-    if (commit === undefined) throw new WorkbenchHttpError(404, 'GIT_COMMIT_NOT_FOUND', '找不到该提交。')
+    const commit = await this.loadCommit(cwd, revision)
     const parentRevision = commit.parents[0]
     const result = parentRevision === undefined
       ? await this.run(cwd, [
@@ -733,6 +802,16 @@ export class GitBackend {
       ...(parentRevision === undefined ? {} : { parentRevision }),
       files: parseGitNameStatus(result.stdout),
     }
+  }
+
+  private async loadCommit(cwd: string, revision: string): Promise<GitCommit> {
+    const metadata = await this.run(cwd, [
+      'show', '-s', '--date=iso-strict', '--decorate=full',
+      '--format=%H%x00%h%x00%P%x00%an%x00%aI%x00%s%x00%D', revision,
+    ])
+    const commit = parseGitGraph(metadata.stdout)[0]
+    if (commit === undefined) throw new WorkbenchHttpError(404, 'GIT_COMMIT_NOT_FOUND', '找不到该提交。')
+    return commit
   }
 
   private async commitStat(cwd: string, details: GitCommitFiles, file: GitCommitFile): Promise<GitNumstat | undefined> {

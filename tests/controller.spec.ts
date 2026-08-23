@@ -188,7 +188,7 @@ describe('WorkbenchController', () => {
     expect(controller.store.getSnapshot().tabs.find(tab => tab.path === 'first.ts')).toMatchObject({ dirty: false })
   })
 
-  it('opens a Graph commit Diff without discarding file tabs', async () => {
+  it('opens commit and workspace-comparison Diffs as distinct tabs without discarding files', async () => {
     const commit = {
       hash: 'a'.repeat(40), shortHash: 'aaaaaaa', parents: ['b'.repeat(40)], subject: '图中提交', author: 'Tester', authoredAt: '2026-08-23T10:00:00Z',
       references: [],
@@ -199,15 +199,21 @@ describe('WorkbenchController', () => {
         kind: 'commit', path: 'src/a.ts', status: 'M', revision: commit.hash,
         original: 'before', modified: 'after', binary: false,
       })),
+      gitComparisonFileDiff: vi.fn(() => Promise.resolve({
+        kind: 'comparison', path: 'src/a.ts', status: 'M', revision: commit.hash,
+        original: 'before', modified: 'workspace', binary: false,
+      })),
     }
     const controller = createController(api)
     await controller.openFile('workspace-1', 'kept.ts')
     await controller.openCommitDiff('workspace-1', commit, 'src/a.ts')
+    await controller.openComparisonDiff('workspace-1', commit, 'src/a.ts')
     expect(controller.store.getSnapshot().tabs).toEqual([
       expect.objectContaining({ kind: 'file', path: 'kept.ts' }),
-      expect.objectContaining({ kind: 'diff', path: 'src/a.ts', diff: expect.objectContaining({ path: 'src/a.ts' }) }),
+      expect.objectContaining({ kind: 'diff', diffKind: 'commit', path: 'src/a.ts' }),
+      expect.objectContaining({ kind: 'diff', diffKind: 'comparison', path: 'src/a.ts', diff: expect.objectContaining({ modified: 'workspace' }) }),
     ])
-    expect(activeTab(controller)).toMatchObject({ kind: 'diff', path: 'src/a.ts' })
+    expect(activeTab(controller)).toMatchObject({ kind: 'diff', diffKind: 'comparison', path: 'src/a.ts' })
     controller.selectTab(fileTab(controller, 'kept.ts')!.id)
     expect(activeTab(controller)?.path).toBe('kept.ts')
   })

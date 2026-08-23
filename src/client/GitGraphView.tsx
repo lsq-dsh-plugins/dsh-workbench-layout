@@ -1,5 +1,14 @@
+import { useState } from 'react'
 import type { CSSProperties } from 'react'
-import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  IconCodeOutline16,
+  IconCopyOutline16,
+  IconEllipsisOutline16,
+  IconPlusOutline16,
+  IconRefreshOutline16,
+  Menu,
+  Tooltip,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { GitCommit, GitCommitFiles, GitGraph } from '../contracts.ts'
 import { GitCommitFilesView } from './GitCommitFilesView.tsx'
@@ -26,15 +35,21 @@ export type CommitFilesState =
   | { state: 'ready'; value: GitCommitFiles }
   | { state: 'error'; message: string }
 
+export type GitCommitDetailKind = 'commit' | 'comparison'
+export type GitCommitMenuAction = 'copy' | 'branch' | 'cherry-pick' | 'revert' | 'compare'
+
 interface GitGraphViewProps {
   graph: GitGraph | null
   expandedCommit: string | null
+  expandedKind: GitCommitDetailKind
   commitFiles: Record<string, CommitFilesState>
   fileLayout: GitFileLayout
   selectedRevision: string | undefined
   selectedPath: string | undefined
+  selectedKind: GitCommitDetailKind | undefined
   onToggle: (commit: GitCommit) => void
   onOpen: (commit: GitCommit, path: string) => void
+  onMenuAction: (action: GitCommitMenuAction, commit: GitCommit) => void
   t: TranslateNS<'workbench'>
 }
 
@@ -53,12 +68,15 @@ export function GitGraphView(props: GitGraphViewProps) {
               row={row}
               graphWidth={graphWidthFor(row.visibleLaneCount)}
               expanded={props.expandedCommit === row.commit.hash}
-              files={props.commitFiles[row.commit.hash]}
+              detailKind={props.expandedKind}
+              files={props.commitFiles[`${props.expandedKind}:${row.commit.hash}`]}
               fileLayout={props.fileLayout}
               selectedRevision={props.selectedRevision}
               selectedPath={props.selectedPath}
+              selectedKind={props.selectedKind}
               onToggle={() => { props.onToggle(row.commit) }}
               onOpen={path => { props.onOpen(row.commit, path) }}
+              onMenuAction={action => { props.onMenuAction(action, row.commit) }}
               t={props.t}
             />
           ))}
@@ -71,15 +89,19 @@ function CommitEntry(props: {
   row: GitGraphRow
   graphWidth: number
   expanded: boolean
+  detailKind: GitCommitDetailKind
   files: CommitFilesState | undefined
   fileLayout: GitFileLayout
   selectedRevision: string | undefined
   selectedPath: string | undefined
+  selectedKind: GitCommitDetailKind | undefined
   onToggle: () => void
   onOpen: (path: string) => void
+  onMenuAction: (action: GitCommitMenuAction) => void
   t: TranslateNS<'workbench'>
 }) {
   const commit = props.row.commit
+  const [menuOpen, setMenuOpen] = useState(false)
   const graphStyle = { '--git-row-graph-width': `${props.graphWidth}px` } as CSSProperties
   return (
     <div
@@ -89,27 +111,57 @@ function CommitEntry(props: {
       style={graphStyle}
     >
       <GraphLayer row={props.row} width={props.graphWidth} />
-      <Tooltip label={() => commitTooltip(commit, props.t)} side="right" delayMs={450} maxWidth={380}>
-        <button type="button" className={css.commitRow} aria-expanded={props.expanded} onClick={props.onToggle}>
-          <span className={css.gitGraphSpacer} aria-hidden="true" />
-          <span className={css.commitSubject} data-commit-subject="">{commit.subject}</span>
-          <span className={css.commitAuthor} data-commit-author="">{commit.author}</span>
-          {commit.references.length > 0 && (
-            <span className={css.commitRefs}>
-              {commit.references.slice(0, 2).map(reference => (
-                <GitReferenceBadge
-                  key={`${reference.kind}:${reference.name}`}
-                  reference={reference}
-                  color={graphColor(props.row.nodeColor)}
-                />
-              ))}
-              {commit.references.length > 2 && <span className={css.commitRefMore}>+{commit.references.length - 2}</span>}
-            </span>
+      <div className={css.commitRowShell} onContextMenu={(event) => { event.preventDefault(); setMenuOpen(true) }}>
+        <Tooltip label={() => commitTooltip(commit, props.t)} side="right" delayMs={450} maxWidth={380}>
+          <button type="button" className={css.commitRow} aria-expanded={props.expanded} onClick={props.onToggle}>
+            <span className={css.gitGraphSpacer} aria-hidden="true" />
+            <span className={css.commitSubject} data-commit-subject="">{commit.subject}</span>
+            <span className={css.commitAuthor} data-commit-author="">{commit.author}</span>
+            {commit.references.length > 0 && (
+              <span className={css.commitRefs}>
+                {commit.references.slice(0, 2).map(reference => (
+                  <GitReferenceBadge
+                    key={`${reference.kind}:${reference.name}`}
+                    reference={reference}
+                    color={graphColor(props.row.nodeColor)}
+                  />
+                ))}
+                {commit.references.length > 2 && <span className={css.commitRefMore}>+{commit.references.length - 2}</span>}
+              </span>
+            )}
+          </button>
+        </Tooltip>
+        <Menu
+          open={menuOpen}
+          onClose={() => { setMenuOpen(false) }}
+          items={[
+            { id: 'copy', label: props.t('git.commitMenu.copy'), icon: <IconCopyOutline16 size={14} /> },
+            { id: 'branch', label: props.t('git.commitMenu.branch'), icon: <IconPlusOutline16 size={14} /> },
+            { type: 'separator', id: 'history-separator' },
+            { id: 'cherry-pick', label: props.t('git.commitMenu.cherryPick'), icon: <IconPlusOutline16 size={14} /> },
+            { id: 'revert', label: props.t('git.commitMenu.revertCommit'), icon: <IconRefreshOutline16 size={14} /> },
+            { type: 'separator', id: 'compare-separator' },
+            { id: 'compare', label: props.t('git.commitMenu.compare'), icon: <IconCodeOutline16 size={14} /> },
+          ]}
+          onSelect={(id) => {
+            setMenuOpen(false)
+            if (id === 'copy' || id === 'branch' || id === 'cherry-pick' || id === 'revert' || id === 'compare') props.onMenuAction(id)
+          }}
+          align="end"
+          dense
+          portal
+          anchor={(
+            <Tooltip label={props.t('git.commitMenu.more')} side="bottom" delayMs={450}>
+              <button type="button" className={css.commitMenuButton} aria-label={props.t('git.commitMenu.more')} aria-expanded={menuOpen} onClick={() => { setMenuOpen(value => !value) }}>
+                <IconEllipsisOutline16 size={14} />
+              </button>
+            </Tooltip>
           )}
-        </button>
-      </Tooltip>
+        />
+      </div>
       {props.expanded && (
         <div className={css.commitFiles}>
+          {props.detailKind === 'comparison' && <div className={css.commitComparisonLabel}>{props.t('git.commitMenu.comparisonFiles')}</div>}
           {props.files === undefined || props.files.state === 'loading'
             ? <div className={css.gitSectionEmpty}>{props.t('git.commitFilesLoading')}</div>
             : props.files.state === 'error'
@@ -120,7 +172,7 @@ function CommitEntry(props: {
                   <GitCommitFilesView
                     files={props.files.value.files}
                     layout={props.fileLayout}
-                    selectedPath={props.selectedRevision === commit.hash ? props.selectedPath : undefined}
+                    selectedPath={props.selectedRevision === commit.hash && props.selectedKind === props.detailKind ? props.selectedPath : undefined}
                     onOpen={props.onOpen}
                   />
                 )}

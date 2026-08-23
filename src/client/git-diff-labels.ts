@@ -7,5 +7,6 @@ export function diffKindText(kind: GitFileDiff['kind'], t: TranslateNS<'workbenc
     case 'worktree': return t('editor.diffWorktree')
     case 'staged': return t('editor.diffStaged')
     case 'commit': return t('editor.diffCommit')
+    case 'comparison': return t('editor.diffComparison')
   }
 }

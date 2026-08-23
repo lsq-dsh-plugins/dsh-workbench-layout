@@ -136,6 +136,12 @@ async function dispatch(
       return git.commitFiles(body.workspaceId, body.revision)
     case `${WORKBENCH_API_PREFIX}/git/commit/file`:
       return git.commitFileDiff(body.workspaceId, body.revision, body.path)
+    case `${WORKBENCH_API_PREFIX}/git/comparison/files`:
+      return git.comparisonFiles(body.workspaceId, body.revision)
+    case `${WORKBENCH_API_PREFIX}/git/comparison/file`:
+      return git.comparisonFileDiff(body.workspaceId, body.revision, body.path)
+    case `${WORKBENCH_API_PREFIX}/git/commit/action`:
+      return git.commitAction(body.workspaceId, body.operation, body.revision)
     case `${WORKBENCH_API_PREFIX}/git/stage`:
       return git.stage(body.workspaceId, body.path)
     case `${WORKBENCH_API_PREFIX}/git/stage-all`:

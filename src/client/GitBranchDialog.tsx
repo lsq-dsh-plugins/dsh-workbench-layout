@@ -12,6 +12,7 @@ interface GitBranchDialogProps {
   branches: GitBranches | null
   busy: boolean
   error: string | null
+  initialSource?: { ref: string; label: string }
   onClose: () => void
   onSubmit: (nameOrRef: string, source?: string) => void
   t: TranslateNS<'workbench'>
@@ -21,6 +22,9 @@ interface GitBranchDialogProps {
 export function GitBranchDialog(props: GitBranchDialogProps) {
   const [name, setName] = useState('')
   const sources = props.branches?.branches ?? []
+  const sourceOptions = props.initialSource === undefined
+    ? sources.map(branch => ({ ref: branch.ref, label: branch.name }))
+    : [props.initialSource]
   const deletable = useMemo(
     () => sources.filter(branch => branch.kind === 'local' && !branch.current),
     [sources],
@@ -31,9 +35,9 @@ export function GitBranchDialog(props: GitBranchDialogProps) {
   useEffect(() => {
     if (props.mode === null) return
     setName(props.mode === 'rename' ? props.status?.branch ?? '' : '')
-    setSource(sources.find(branch => branch.current)?.ref ?? sources[0]?.ref ?? '')
+    setSource(props.initialSource?.ref ?? sources.find(branch => branch.current)?.ref ?? sources[0]?.ref ?? '')
     setDeleteRef(deletable[0]?.ref ?? '')
-  }, [props.mode, props.status?.branch, sources, deletable])
+  }, [props.mode, props.status?.branch, props.initialSource, sources, deletable])
 
   if (props.mode === null) return null
   const title = props.t(`git.branchDialog.${props.mode}.title`)
@@ -90,8 +94,8 @@ export function GitBranchDialog(props: GitBranchDialogProps) {
         {props.mode === 'create-from' && (
           <label className={css.gitDialogField}>
             <span>{props.t('git.branchDialog.source')}</span>
-            <select value={source} disabled={props.busy} onChange={event => { setSource(event.currentTarget.value) }}>
-              {sources.map(branch => <option key={branch.ref} value={branch.ref}>{branch.name}</option>)}
+            <select value={source} disabled={props.busy || props.initialSource !== undefined} onChange={event => { setSource(event.currentTarget.value) }}>
+              {sourceOptions.map(option => <option key={option.ref} value={option.ref}>{option.label}</option>)}
             </select>
           </label>
         )}

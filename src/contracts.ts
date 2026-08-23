@@ -87,7 +87,7 @@ export interface GitGraph {
   truncated: boolean
 }
 
-export type GitDiffKind = 'worktree' | 'staged' | 'commit'
+export type GitDiffKind = 'worktree' | 'staged' | 'commit' | 'comparison'
 
 export interface GitCommitFile {
   path: string
@@ -117,6 +117,13 @@ export interface GitFileDiff {
 }
 
 export interface GitCommitResult {
+  summary: string
+}
+
+export type GitCommitAction = 'cherry-pick' | 'revert'
+
+export interface GitCommitActionResult {
+  operation: GitCommitAction
   summary: string
 }
 

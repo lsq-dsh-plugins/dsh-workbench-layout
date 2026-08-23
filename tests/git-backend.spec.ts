@@ -190,6 +190,50 @@ describe('GitBackend single-file diffs', () => {
     expect(fixture.logger.info).toHaveBeenCalledWith('workbench-layout: discarded all Git worktree changes and untracked files')
   })
 
+  it('compares one commit with tracked and untracked workspace files', async () => {
+    const fixture = await createRepository()
+    await writeFile(join(fixture.root, 'tracked.txt'), 'base\n')
+    git(fixture.root, ['add', '.'])
+    git(fixture.root, ['commit', '--quiet', '-m', 'baseline'])
+    const revision = gitOutput(fixture.root, ['rev-parse', 'HEAD'])
+    await writeFile(join(fixture.root, 'tracked.txt'), 'base\nchanged\n')
+    await writeFile(join(fixture.root, 'untracked.txt'), 'new\n')
+
+    const comparison = await fixture.backend.comparisonFiles('workspace-1', revision)
+    expect(comparison.files).toEqual(expect.arrayContaining([
+      { path: 'tracked.txt', status: 'M' },
+      { path: 'untracked.txt', status: 'A' },
+    ]))
+    await expect(fixture.backend.comparisonFileDiff('workspace-1', revision, 'tracked.txt')).resolves.toMatchObject({
+      kind: 'comparison', revision, path: 'tracked.txt', original: 'base\n', modified: 'base\nchanged\n', additions: 1, deletions: 0,
+    })
+    await expect(fixture.backend.comparisonFileDiff('workspace-1', revision, 'untracked.txt')).resolves.toMatchObject({
+      kind: 'comparison', revision, path: 'untracked.txt', original: '', modified: 'new\n', additions: 1, deletions: 0,
+    })
+  })
+
+  it('cherry-picks and reverts a chosen clean commit while aborting unsafe dirty runs', async () => {
+    const fixture = await createRepository()
+    await writeFile(join(fixture.root, 'base.txt'), 'base\n')
+    git(fixture.root, ['add', '.'])
+    git(fixture.root, ['commit', '--quiet', '-m', 'baseline'])
+    git(fixture.root, ['switch', '--quiet', '-c', 'feature'])
+    await writeFile(join(fixture.root, 'feature.txt'), 'feature\n')
+    git(fixture.root, ['add', '.'])
+    git(fixture.root, ['commit', '--quiet', '-m', 'feature commit'])
+    const revision = gitOutput(fixture.root, ['rev-parse', 'HEAD'])
+    git(fixture.root, ['switch', '--quiet', 'main'])
+
+    await expect(fixture.backend.commitAction('workspace-1', 'cherry-pick', revision)).resolves.toMatchObject({ operation: 'cherry-pick' })
+    await expect(readFile(join(fixture.root, 'feature.txt'), 'utf8')).resolves.toBe('feature\n')
+    await expect(fixture.backend.commitAction('workspace-1', 'revert', revision)).resolves.toMatchObject({ operation: 'revert' })
+    await expect(readFile(join(fixture.root, 'feature.txt'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+
+    await writeFile(join(fixture.root, 'dirty.txt'), 'dirty\n')
+    await expect(fixture.backend.commitAction('workspace-1', 'cherry-pick', revision)).rejects.toMatchObject({ code: 'GIT_WORKTREE_NOT_CLEAN' })
+    expect(fixture.logger.info).toHaveBeenCalledWith(expect.stringContaining('completed explicit Git cherry-pick'))
+  })
+
   it('returns all branch tips and both parents of a merge commit for the graph', async () => {
     const fixture = await createRepository()
     await writeFile(join(fixture.root, 'base.txt'), 'base\n')
