@@ -11,8 +11,10 @@ An independent DeepSeek Harness Web plugin that keeps the official AppFrame and 
 - Edit existing UTF-8 text in CodeMirror with dirty state, save/revert, per-Session draft retention, version conflict protection, atomic saves, and `Ctrl/Cmd + S`.
 - Open Markdown in the official DSH rendered view by default, with Preview and Source modes.
 - Use DSH AppFrame's native track sizing and drag handling between the editor and conversation. The divider keeps the same undecorated hit area as the left divider, with the official 300–520px range and 360px default.
-- Follow the VS Code source-control model in the left column with Changes and History tabs. Changes separates Staged Changes from the working tree and shows each file's name, directory, status, and contextual action.
-- Expand individual commits to browse their file lists. Selecting a working-tree, staged, or historical file opens only that file in the middle column instead of concatenating an entire commit.
+- Follow the VS Code source-control model with Changes and History tabs. Changes separates staged files from the working tree and switches between a flat list and a collapsible directory tree.
+- Keep each history item to one line containing only branch/tag references, subject, and author. Hover for the full hash and timestamp; select the row to expand its changed files in place.
+- Selecting a working-tree, staged, or historical file opens only that file in the middle column instead of concatenating an entire commit.
+- Browse and switch local or remote branches, see upstream incoming/outgoing counts, and explicitly Fetch, fast-forward Pull, Push, publish the current branch, or Sync by pulling then pushing.
 - Render read-only diffs with CodeMirror MergeView: side-by-side by default, with line numbers, red/green change blocks, collapsed unchanged regions, and change counts. Inline mode is selectable and becomes automatic in a narrow editor column.
 - Stage, unstage, and commit through explicit actions; a successful commit refreshes history immediately.
 - Keep the original DSH conversation, composer, task status, and interaction flows in the right column.
@@ -36,6 +38,7 @@ dsh plugin --profile web remove @lsq64737/dsh-workbench-layout
 - Traversal, workspace escape, and symbolic links are rejected. The file editor reads text only; Git diff reports binary files without transferring their raw bytes.
 - Saves use DSH filesystem version tokens and a `workspace-write` policy, so external edits are not silently overwritten.
 - Git uses fixed argv without a shell. A commit runs only after an explicit Commit action.
+- Branch and remote commands run only after explicit UI actions and disable terminal credential prompts. Pull and Sync are fast-forward only and never auto-merge, stash, or overwrite changes.
 - Git requires the Session workspace to be the repository root, avoiding commits that include staged content outside the workspace.
 - The API follows DSH's trusted-host, same-origin, and cross-site request checks, accepts JSON POST only, and bounds file, directory, and Git output sizes.
 
@@ -46,6 +49,8 @@ dsh plugin --profile web remove @lsq64737/dsh-workbench-layout
 - Session drafts live only in the current page; refreshing discards unsaved content.
 - Binary changes are identified by Git without rendering binary content.
 - Commit history currently shows the latest 40 entries without pagination.
+- Remote operations use Git credentials already configured on the system. The plugin does not collect or store remote usernames, passwords, or tokens.
+- Existing branches can be switched; branch creation, renaming, and deletion are not exposed yet.
 - DSH does not yet expose a dedicated API for moving the native conversation column. The plugin therefore reorders columns through stable markers on the official AppFrame and may need an update after a future shell rewrite.
 - When a narrow window triggers AppFrame's native concession rule, the file editor temporarily closes and the conversation returns to the middle. The three-column layout returns automatically after widening.
 
@@ -62,10 +67,12 @@ npm run test:bundle
 
 - `src/index.ts`: Host route registration and request dispatch.
 - `src/workspace-backend.ts`: bounded directory, read, and atomic-save operations.
-- `src/git-backend.ts`: Git status, commit file lists, per-file before/after content, index, and commit operations.
+- `src/git-backend.ts`: Git status, branches, remote synchronization, commit file lists, per-file before/after content, index, and commit operations.
 - `src/client/controller.ts`: cross-column file, diff, and view state.
 - `src/client/session-layout.ts`: Session binding to AppFrame's native details-track state.
-- `src/client/FileTree.tsx`, `GitPanel.tsx`: left-column file tree and source-control panel with change groups and expandable history.
+- `src/client/FileTree.tsx`, `GitPanel.tsx`: left-column file tree and source-control state orchestration.
+- `src/client/GitChangesView.tsx`, `git-tree.ts`: change groups, list/tree layouts, and per-file actions.
+- `src/client/GitHistoryView.tsx`, `GitRepositoryToolbar.tsx`: compact history, commit details, branch picker, and remote action menus.
 - `src/client/WorkbenchEditor.tsx`: middle source editor, Markdown preview, and diff entry point.
 - `src/client/GitDiffEditor.tsx`, `DiffSurface.tsx`: per-file diff toolbar, adaptive layout, and CodeMirror diff renderer.
 - `src/client/layout-styles.ts`: official AppFrame column-order and native-divider presentation adaptation.

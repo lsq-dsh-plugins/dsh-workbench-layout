@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import {
   GitBackend,
+  parseGitBranches,
   parseGitHistory,
   parseGitNameStatus,
   parseGitNumstat,
@@ -28,9 +29,17 @@ describe('Git output parsers', () => {
     ])
 
     const hash = 'a'.repeat(40)
-    const record = [hash, 'abc1234', 'Tester', '2026-08-23T10:00:00+08:00', 'Refine UI'].join('\0')
+    const record = [
+      hash, 'abc1234', 'Tester', '2026-08-23T10:00:00+08:00', 'Refine UI',
+      'HEAD -> refs/heads/main, refs/remotes/origin/main, tag: refs/tags/v1',
+    ].join('\0')
     expect(parseGitHistory(`${record}\n`)).toEqual([{
       hash, shortHash: 'abc1234', author: 'Tester', authoredAt: '2026-08-23T10:00:00+08:00', subject: 'Refine UI',
+      references: [
+        { name: 'main', kind: 'head' },
+        { name: 'origin/main', kind: 'remote' },
+        { name: 'v1', kind: 'tag' },
+      ],
     }])
     expect(() => parseGitHistory('malformed')).toThrow(/提交历史/u)
 
@@ -43,6 +52,18 @@ describe('Git output parsers', () => {
       { path: 'same.ts', additions: 3, deletions: 2, binary: false },
       { path: 'asset.bin', binary: true },
       { path: 'new.ts', originalPath: 'old.ts', additions: 1, deletions: 0, binary: false },
+    ])
+
+    const branches = [
+      ['refs/heads/main', 'main', '*', 'origin/main', ''].join('\0'),
+      ['refs/heads/topic', 'topic', ' ', '', ''].join('\0'),
+      ['refs/remotes/origin/HEAD', 'origin/HEAD', ' ', '', 'refs/remotes/origin/main'].join('\0'),
+      ['refs/remotes/origin/main', 'origin/main', ' ', '', ''].join('\0'),
+    ].join('\n')
+    expect(parseGitBranches(`${branches}\n`)).toEqual([
+      { ref: 'refs/heads/main', name: 'main', kind: 'local', current: true, upstream: 'origin/main' },
+      { ref: 'refs/heads/topic', name: 'topic', kind: 'local', current: false },
+      { ref: 'refs/remotes/origin/main', name: 'origin/main', kind: 'remote', current: false },
     ])
   })
 })
@@ -125,6 +146,78 @@ describe('GitBackend single-file diffs', () => {
     const diff = await fixture.backend.diff('session-1', 'asset.bin', false)
     expect(diff).toMatchObject({ path: 'asset.bin', binary: true, original: '', modified: '' })
   })
+
+  it('lists and switches local and remote branches without accepting arbitrary refs', async () => {
+    const fixture = await createRepository()
+    await writeFile(join(fixture.root, 'base.txt'), 'base\n')
+    git(fixture.root, ['add', '.'])
+    git(fixture.root, ['commit', '--quiet', '-m', 'baseline'])
+    git(fixture.root, ['branch', 'topic'])
+
+    const local = await fixture.backend.branches('session-1')
+    expect(local).toMatchObject({ current: 'main', detached: false })
+    expect(local.branches).toEqual(expect.arrayContaining([
+      expect.objectContaining({ ref: 'refs/heads/main', current: true }),
+      expect.objectContaining({ ref: 'refs/heads/topic', current: false }),
+    ]))
+    await expect(fixture.backend.switchBranch('session-1', 'refs/heads/missing')).rejects.toMatchObject({
+      code: 'GIT_BRANCH_NOT_FOUND',
+    })
+    await expect(fixture.backend.switchBranch('session-1', 'refs/heads/topic')).resolves.toMatchObject({ branch: 'topic' })
+
+    const remote = await createBareRepository()
+    git(fixture.root, ['remote', 'add', 'origin', remote])
+    await expect(fixture.backend.remoteOperation('session-1', 'push')).resolves.toEqual({ operation: 'push' })
+    await expect(fixture.backend.status('session-1')).resolves.toMatchObject({ upstream: 'origin/topic' })
+    git(fixture.root, ['push', '--quiet', 'origin', 'main:main'])
+    git(fixture.root, ['branch', '-D', 'main'])
+    git(fixture.root, ['fetch', '--quiet', 'origin'])
+    const remoteBranch = (await fixture.backend.branches('session-1')).branches
+      .find(branch => branch.ref === 'refs/remotes/origin/main')
+    expect(remoteBranch).toMatchObject({ name: 'origin/main', kind: 'remote' })
+    await expect(fixture.backend.switchBranch('session-1', remoteBranch?.ref)).resolves.toMatchObject({ branch: 'main' })
+  })
+
+  it('fetches, pulls, pushes, and syncs against an isolated local remote', async () => {
+    const fixture = await createRepository()
+    await writeFile(join(fixture.root, 'shared.txt'), 'base\n')
+    git(fixture.root, ['add', '.'])
+    git(fixture.root, ['commit', '--quiet', '-m', 'baseline'])
+    const remote = await createBareRepository()
+    git(fixture.root, ['remote', 'add', 'origin', remote])
+    git(fixture.root, ['push', '--quiet', '--set-upstream', 'origin', 'main'])
+
+    const peer = await mkdtemp(join(tmpdir(), 'dsh-workbench-peer-'))
+    temporaryDirectories.push(peer)
+    git(peer, ['clone', '--quiet', remote, '.'])
+    configureIdentity(peer)
+    await writeFile(join(peer, 'shared.txt'), 'from peer\n')
+    git(peer, ['add', '.'])
+    git(peer, ['commit', '--quiet', '-m', 'peer update'])
+    git(peer, ['push', '--quiet'])
+
+    await expect(fixture.backend.remoteOperation('session-1', 'fetch')).resolves.toEqual({ operation: 'fetch' })
+    await expect(fixture.backend.status('session-1')).resolves.toMatchObject({
+      branch: 'main', upstream: 'origin/main', ahead: 0, behind: 1, hasRemote: true,
+    })
+    await expect(fixture.backend.remoteOperation('session-1', 'pull')).resolves.toEqual({ operation: 'pull' })
+    await expect(readFile(join(fixture.root, 'shared.txt'), 'utf8')).resolves.toBe('from peer\n')
+
+    await writeFile(join(fixture.root, 'local.txt'), 'local\n')
+    git(fixture.root, ['add', '.'])
+    await fixture.backend.commit('session-1', 'local update')
+    await expect(fixture.backend.remoteOperation('session-1', 'push')).resolves.toEqual({ operation: 'push' })
+    await expect(fixture.backend.status('session-1')).resolves.toMatchObject({ ahead: 0, behind: 0 })
+
+    git(peer, ['pull', '--quiet', '--ff-only'])
+    await writeFile(join(peer, 'sync.txt'), 'sync\n')
+    git(peer, ['add', '.'])
+    git(peer, ['commit', '--quiet', '-m', 'sync update'])
+    git(peer, ['push', '--quiet'])
+    await expect(fixture.backend.remoteOperation('session-1', 'sync')).resolves.toEqual({ operation: 'sync' })
+    await expect(readFile(join(fixture.root, 'sync.txt'), 'utf8')).resolves.toBe('sync\n')
+    expect(fixture.logger.info).toHaveBeenCalledWith('workbench-layout: completed explicit Git remote operation sync')
+  })
 })
 
 async function createRepository(): Promise<{
@@ -134,9 +227,8 @@ async function createRepository(): Promise<{
 }> {
   const root = await mkdtemp(join(tmpdir(), 'dsh-workbench-test-'))
   temporaryDirectories.push(root)
-  git(root, ['init', '--quiet'])
-  git(root, ['config', 'user.email', 'workbench@example.invalid'])
-  git(root, ['config', 'user.name', 'Workbench Test'])
+  git(root, ['init', '--quiet', '--initial-branch=main'])
+  configureIdentity(root)
   const logger = { info: vi.fn(), warn: vi.fn() }
   const workspace = {
     rootProcessPath: vi.fn(() => Promise.resolve({ cwd: root, sessionId: 'session-1' })),
@@ -156,6 +248,18 @@ async function createRepository(): Promise<{
     maxOutputBytes: 1024 * 1024,
   })
   return { root, backend, logger }
+}
+
+async function createBareRepository(): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-workbench-remote-'))
+  temporaryDirectories.push(root)
+  git(root, ['init', '--bare', '--quiet', '--initial-branch=main'])
+  return root
+}
+
+function configureIdentity(root: string): void {
+  git(root, ['config', 'user.email', 'workbench@example.invalid'])
+  git(root, ['config', 'user.name', 'Workbench Test'])
 }
 
 function git(root: string, args: string[]): void {

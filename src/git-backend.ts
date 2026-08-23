@@ -5,6 +5,8 @@ import { relative, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import type { Context } from '@deepseek-ai/cordis'
 import type {
+  GitBranch,
+  GitBranches,
   GitCommit,
   GitCommitFile,
   GitCommitFiles,
@@ -12,6 +14,9 @@ import type {
   GitFileDiff,
   GitFileStatus,
   GitHistory,
+  GitReference,
+  GitRemoteOperation,
+  GitRemoteResult,
   GitStatus,
 } from './contracts.ts'
 import { WorkbenchHttpError } from './http.ts'
@@ -19,6 +24,7 @@ import type { WorkspaceBackend, WorkspaceGitText } from './workspace-backend.ts'
 
 const execFileAsync = promisify(execFile)
 const REVISION_PATTERN = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u
+const REMOTE_OPERATIONS = new Set<GitRemoteOperation>(['fetch', 'pull', 'push', 'sync'])
 
 export interface GitLimits {
   timeoutMs: number
@@ -47,6 +53,27 @@ export interface GitNumstat {
   additions?: number
   deletions?: number
   binary: boolean
+}
+
+/** 将 `--decorate=full` 的引用转换成可直接渲染的分支/标签标志。 */
+export function parseGitReferences(value: string): GitReference[] {
+  if (value === '') return []
+  const references: GitReference[] = []
+  for (const raw of value.split(', ')) {
+    if (raw.startsWith('HEAD -> refs/heads/')) {
+      references.push({ name: raw.slice('HEAD -> refs/heads/'.length), kind: 'head' })
+    } else if (raw === 'HEAD') {
+      references.push({ name: 'HEAD', kind: 'head' })
+    } else if (raw.startsWith('refs/heads/')) {
+      references.push({ name: raw.slice('refs/heads/'.length), kind: 'local' })
+    } else if (raw.startsWith('refs/remotes/')) {
+      const name = raw.slice('refs/remotes/'.length)
+      if (!name.endsWith('/HEAD')) references.push({ name, kind: 'remote' })
+    } else if (raw.startsWith('tag: refs/tags/')) {
+      references.push({ name: raw.slice('tag: refs/tags/'.length), kind: 'tag' })
+    }
+  }
+  return references
 }
 
 /** 解析 `git status --porcelain=v1 -z`，保留重命名前后的路径。 */
@@ -78,14 +105,42 @@ export function parsePorcelainStatus(output: string): GitFileStatus[] {
 export function parseGitHistory(output: string): GitCommit[] {
   if (output.trim() === '') return []
   return output.trimEnd().split('\n').map((record) => {
-    const [hash, shortHash, author, authoredAt, subject, ...extra] = record.split('\0')
+    const [hash, shortHash, author, authoredAt, subject, decorations, ...extra] = record.split('\0')
     if (hash === undefined || shortHash === undefined || author === undefined
-      || authoredAt === undefined || subject === undefined || extra.length > 0
+      || authoredAt === undefined || subject === undefined || decorations === undefined || extra.length > 0
       || !REVISION_PATTERN.test(hash)) {
       throw new WorkbenchHttpError(502, 'GIT_HISTORY_INVALID', 'Git 返回了无法识别的提交历史。')
     }
-    return { hash, shortHash, author, authoredAt, subject }
+    return { hash, shortHash, author, authoredAt, subject, references: parseGitReferences(decorations) }
   })
+}
+
+/** 解析本地与远程分支；符号引用（例如 origin/HEAD）不会成为可切换项。 */
+export function parseGitBranches(output: string): GitBranch[] {
+  if (output.trim() === '') return []
+  const branches: GitBranch[] = []
+  for (const record of output.trimEnd().split('\n')) {
+    const [ref, name, head, upstream, symref, ...extra] = record.split('\0')
+    if (ref === undefined || name === undefined || head === undefined || upstream === undefined
+      || symref === undefined || extra.length > 0 || (head !== ' ' && head !== '*')) {
+      throw new WorkbenchHttpError(502, 'GIT_BRANCHES_INVALID', 'Git 返回了无法识别的分支列表。')
+    }
+    if (symref !== '') continue
+    const kind = ref.startsWith('refs/heads/') ? 'local' : ref.startsWith('refs/remotes/') ? 'remote' : undefined
+    if (kind === undefined || name === '') {
+      throw new WorkbenchHttpError(502, 'GIT_BRANCHES_INVALID', 'Git 返回了无法识别的分支列表。')
+    }
+    branches.push({
+      ref,
+      name,
+      kind,
+      current: head === '*',
+      ...(upstream === '' ? {} : { upstream }),
+    })
+  }
+  return branches.sort((left, right) => Number(right.current) - Number(left.current)
+    || Number(left.kind === 'remote') - Number(right.kind === 'remote')
+    || left.name.localeCompare(right.name))
 }
 
 /** 解析 `--name-status -z`，一个历史条目只代表一个文件。 */
@@ -170,14 +225,30 @@ export class GitBackend {
       }
       throw error
     }
-    const [status, branch] = await Promise.all([
+    const [status, branch, remotes] = await Promise.all([
       this.run(cwd, ['status', '--porcelain=v1', '-z', '--untracked-files=all']),
       this.run(cwd, ['branch', '--show-current']),
+      this.run(cwd, ['remote']),
     ])
+    const branchName = branch.stdout.trim()
+    const remoteNames = remotes.stdout.split(/\r?\n/u).map(name => name.trim()).filter(name => name !== '')
+    const hasHead = await this.hasHead(cwd)
+    const upstreamResult = hasHead && branchName !== ''
+      ? await this.run(cwd, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'], [0, 128])
+      : undefined
+    const upstream = upstreamResult?.exitCode === 0 ? upstreamResult.stdout.trim() : ''
+    const sync = upstream === ''
+      ? undefined
+      : parseAheadBehind((await this.run(cwd, ['rev-list', '--left-right', '--count', 'HEAD...@{upstream}'])).stdout)
     return {
       available: true,
       files: parsePorcelainStatus(status.stdout),
-      ...(branch.stdout.trim() === '' ? {} : { branch: branch.stdout.trim() }),
+      ...(branchName === '' ? {} : { branch: branchName }),
+      detached: hasHead && branchName === '',
+      hasRemote: remoteNames.length > 0,
+      remotes: remoteNames,
+      ...(upstream === '' ? {} : { upstream }),
+      ...(sync === undefined ? {} : sync),
     }
   }
 
@@ -217,11 +288,79 @@ export class GitBackend {
     if (!await this.hasHead(cwd)) return { commits: [], truncated: false }
     const limit = 40
     const result = await this.run(cwd, [
-      'log', '-n', String(limit + 1), '--date=iso-strict',
-      '--format=%H%x00%h%x00%an%x00%aI%x00%s',
+      'log', '-n', String(limit + 1), '--date=iso-strict', '--decorate=full',
+      '--format=%H%x00%h%x00%an%x00%aI%x00%s%x00%D',
     ])
     const commits = parseGitHistory(result.stdout)
     return { commits: commits.slice(0, limit), truncated: commits.length > limit }
+  }
+
+  async branches(sessionId: unknown): Promise<GitBranches> {
+    const cwd = await this.repositoryRoot(sessionId)
+    const result = await this.run(cwd, [
+      'for-each-ref',
+      '--format=%(refname)%00%(refname:short)%00%(HEAD)%00%(upstream:short)%00%(symref)',
+      'refs/heads', 'refs/remotes',
+    ])
+    const branches = parseGitBranches(result.stdout)
+    const current = branches.find(branch => branch.current)?.name
+    return {
+      ...(current === undefined ? {} : { current }),
+      detached: current === undefined && await this.hasHead(cwd),
+      branches,
+    }
+  }
+
+  async switchBranch(sessionId: unknown, refValue: unknown): Promise<GitStatus> {
+    if (typeof refValue !== 'string' || refValue === '') {
+      throw new WorkbenchHttpError(400, 'GIT_BRANCH_REQUIRED', '请选择要切换的分支。')
+    }
+    const cwd = await this.repositoryRoot(sessionId)
+    const available = await this.branches(sessionId)
+    const target = available.branches.find(branch => branch.ref === refValue)
+    if (target === undefined) throw new WorkbenchHttpError(404, 'GIT_BRANCH_NOT_FOUND', '找不到所选分支。')
+    if (target.current) return this.status(sessionId)
+
+    if (target.kind === 'local') {
+      await this.run(cwd, ['switch', '--', target.name])
+    } else {
+      const remoteNames = (await this.run(cwd, ['remote'])).stdout.split(/\r?\n/u)
+        .map(name => name.trim()).filter(name => name !== '').sort((left, right) => right.length - left.length)
+      const remote = remoteNames.find(name => target.ref.startsWith(`refs/remotes/${name}/`))
+      if (remote === undefined) throw new WorkbenchHttpError(409, 'GIT_REMOTE_UNAVAILABLE', '所选远程分支的远程地址已不存在。')
+      const localName = target.ref.slice(`refs/remotes/${remote}/`.length)
+      const local = available.branches.find(branch => branch.kind === 'local' && branch.name === localName)
+      if (local === undefined) await this.run(cwd, ['switch', '--track', '--', target.name])
+      else await this.run(cwd, ['switch', '--', local.name])
+    }
+    this.ctx.logger.info(`workbench-layout: switched Git branch to ${JSON.stringify(target.name)}`)
+    return this.status(sessionId)
+  }
+
+  async remoteOperation(sessionId: unknown, operationValue: unknown): Promise<GitRemoteResult> {
+    if (typeof operationValue !== 'string' || !REMOTE_OPERATIONS.has(operationValue as GitRemoteOperation)) {
+      throw new WorkbenchHttpError(400, 'GIT_REMOTE_OPERATION_INVALID', '不支持该远程 Git 操作。')
+    }
+    const operation = operationValue as GitRemoteOperation
+    const cwd = await this.repositoryRoot(sessionId)
+    const status = await this.status(sessionId)
+    if (status.hasRemote !== true) throw new WorkbenchHttpError(409, 'GIT_REMOTE_UNAVAILABLE', '当前仓库没有配置远程地址。')
+    if ((operation === 'pull' || operation === 'sync') && status.upstream === undefined) {
+      throw new WorkbenchHttpError(409, 'GIT_UPSTREAM_UNAVAILABLE', '当前分支没有配置上游分支。')
+    }
+
+    if (operation === 'fetch') await this.run(cwd, ['fetch', '--all', '--prune'])
+    if (operation === 'pull' || operation === 'sync') await this.run(cwd, ['pull', '--ff-only'])
+    if (operation === 'push' && status.upstream === undefined) {
+      if (status.branch === undefined || status.remotes?.length !== 1) {
+        throw new WorkbenchHttpError(409, 'GIT_UPSTREAM_UNAVAILABLE', '当前分支没有上游；存在多个远程时不会自动选择推送目标。')
+      }
+      await this.run(cwd, ['push', '--set-upstream', '--', status.remotes[0]!, status.branch])
+    } else if (operation === 'push' || operation === 'sync') {
+      await this.run(cwd, ['push'])
+    }
+    this.ctx.logger.info(`workbench-layout: completed explicit Git remote operation ${operation}`)
+    return { operation }
   }
 
   async commitFiles(sessionId: unknown, revisionValue: unknown): Promise<GitCommitFiles> {
@@ -341,7 +480,8 @@ export class GitBackend {
   private async loadCommitFiles(cwd: string, revisionValue: unknown): Promise<GitCommitFiles> {
     const revision = requireRevision(revisionValue)
     const metadata = await this.run(cwd, [
-      'show', '-s', '--date=iso-strict', '--format=%H%x00%h%x00%an%x00%aI%x00%s', revision,
+      'show', '-s', '--date=iso-strict', '--decorate=full',
+      '--format=%H%x00%h%x00%an%x00%aI%x00%s%x00%D', revision,
     ])
     const commit = parseGitHistory(metadata.stdout)[0]
     if (commit === undefined) throw new WorkbenchHttpError(404, 'GIT_COMMIT_NOT_FOUND', '找不到该提交。')
@@ -425,6 +565,7 @@ export class GitBackend {
     try {
       const result = await execFileAsync('git', ['-C', cwd, ...args], {
         encoding: 'utf8',
+        env: nonInteractiveGitEnvironment(),
         maxBuffer: this.limits.maxOutputBytes,
         timeout: this.limits.timeoutMs,
         windowsHide: true,
@@ -443,6 +584,7 @@ export class GitBackend {
     return new Promise((resolveRun, rejectRun) => {
       execFile('git', ['-C', cwd, ...args], {
         encoding: null,
+        env: nonInteractiveGitEnvironment(),
         maxBuffer: this.limits.maxOutputBytes,
         timeout: this.limits.timeoutMs,
         windowsHide: true,
@@ -477,6 +619,24 @@ function failureFields(error: unknown): { exitCode?: number; stdout: string; std
     ...(typeof failure?.code === 'number' ? { exitCode: failure.code } : {}),
     stdout: typeof failure?.stdout === 'string' ? failure.stdout : '',
     stderr: typeof failure?.stderr === 'string' ? failure.stderr : '',
+  }
+}
+
+function parseAheadBehind(output: string): { ahead: number; behind: number } {
+  const [aheadText, behindText, ...extra] = output.trim().split(/\s+/u)
+  const ahead = Number(aheadText)
+  const behind = Number(behindText)
+  if (extra.length > 0 || !Number.isSafeInteger(ahead) || ahead < 0 || !Number.isSafeInteger(behind) || behind < 0) {
+    throw new WorkbenchHttpError(502, 'GIT_SYNC_STATUS_INVALID', 'Git 返回了无法识别的同步状态。')
+  }
+  return { ahead, behind }
+}
+
+function nonInteractiveGitEnvironment(): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    GIT_TERMINAL_PROMPT: '0',
+    GCM_INTERACTIVE: 'Never',
   }
 }
 

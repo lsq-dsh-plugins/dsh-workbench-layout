@@ -41,8 +41,21 @@ export interface GitFileStatus {
 export interface GitStatus {
   available: boolean
   branch?: string
+  detached?: boolean
+  upstream?: string
+  ahead?: number
+  behind?: number
+  hasRemote?: boolean
+  remotes?: string[]
   files: GitFileStatus[]
   message?: string
+}
+
+export type GitReferenceKind = 'head' | 'local' | 'remote' | 'tag'
+
+export interface GitReference {
+  name: string
+  kind: GitReferenceKind
 }
 
 export interface GitCommit {
@@ -51,6 +64,7 @@ export interface GitCommit {
   subject: string
   author: string
   authoredAt: string
+  references: GitReference[]
 }
 
 export interface GitHistory {
@@ -89,6 +103,28 @@ export interface GitFileDiff {
 
 export interface GitCommitResult {
   summary: string
+}
+
+export type GitBranchKind = 'local' | 'remote'
+
+export interface GitBranch {
+  ref: string
+  name: string
+  kind: GitBranchKind
+  current: boolean
+  upstream?: string
+}
+
+export interface GitBranches {
+  current?: string
+  detached: boolean
+  branches: GitBranch[]
+}
+
+export type GitRemoteOperation = 'fetch' | 'pull' | 'push' | 'sync'
+
+export interface GitRemoteResult {
+  operation: GitRemoteOperation
 }
 
 export interface WorkbenchErrorBody {

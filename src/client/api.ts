@@ -2,10 +2,13 @@
 
 import type {
   DirectoryListing,
+  GitBranches,
   GitCommitFiles,
   GitCommitResult,
   GitFileDiff,
   GitHistory,
+  GitRemoteOperation,
+  GitRemoteResult,
   GitStatus,
   SavedWorkspaceFile,
   WorkbenchErrorBody,
@@ -44,6 +47,18 @@ export class WorkbenchApi {
 
   async gitHistory(sessionId: string): Promise<GitHistory> {
     return this.post('/git/history', { sessionId })
+  }
+
+  async gitBranches(sessionId: string): Promise<GitBranches> {
+    return this.post('/git/branches', { sessionId })
+  }
+
+  async gitSwitchBranch(sessionId: string, ref: string): Promise<GitStatus> {
+    return this.post('/git/branch/switch', { sessionId, ref })
+  }
+
+  async gitRemoteOperation(sessionId: string, operation: GitRemoteOperation): Promise<GitRemoteResult> {
+    return this.post('/git/remote', { sessionId, operation })
   }
 
   async gitCommitFiles(sessionId: string, revision: string): Promise<GitCommitFiles> {

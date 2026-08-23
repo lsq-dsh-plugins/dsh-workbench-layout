@@ -229,6 +229,23 @@ export class WorkbenchController {
   showFile(): void {
     this.store.update((state) => { state.centerMode = 'file' })
   }
+
+  /** 分支切换或拉取后清空可能已失效的文件快照。 */
+  resetWorkspaceView(): void {
+    this.requestId += 1
+    this.store.update((state) => {
+      state.file = null
+      state.draft = ''
+      state.dirty = false
+      state.preview = false
+      state.diff = null
+      state.centerMode = 'file'
+      state.loading = false
+      state.saving = false
+      state.error = null
+    })
+    this.logger.info('workbench-layout: cleared editor after Git changed the workspace')
+  }
 }
 
 function messageOf(error: unknown): string {

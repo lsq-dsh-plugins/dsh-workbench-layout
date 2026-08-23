@@ -90,6 +90,12 @@ async function dispatch(
       return git.diff(body.sessionId, body.path, body.staged)
     case `${WORKBENCH_API_PREFIX}/git/history`:
       return git.history(body.sessionId)
+    case `${WORKBENCH_API_PREFIX}/git/branches`:
+      return git.branches(body.sessionId)
+    case `${WORKBENCH_API_PREFIX}/git/branch/switch`:
+      return git.switchBranch(body.sessionId, body.ref)
+    case `${WORKBENCH_API_PREFIX}/git/remote`:
+      return git.remoteOperation(body.sessionId, body.operation)
     case `${WORKBENCH_API_PREFIX}/git/commit/files`:
       return git.commitFiles(body.sessionId, body.revision)
     case `${WORKBENCH_API_PREFIX}/git/commit/file`:

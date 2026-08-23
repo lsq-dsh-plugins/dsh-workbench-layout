@@ -1,18 +1,18 @@
-import { useCallback, useEffect, useState } from 'react'
-import {
-  Button,
-  IconBranchOutline16,
-  IconChevronDownOutline14,
-  IconChevronRightOutline14,
-  IconCloseOutline16,
-  IconCodeOutline16,
-  IconPlusOutline16,
-  IconRefreshOutline14,
-  Tooltip,
-} from '@deepseek-ai/dsh-client-ui-primitives'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
-import type { GitCommit, GitCommitFiles, GitFileStatus, GitHistory, GitStatus } from '../contracts.ts'
+import type {
+  GitBranches,
+  GitCommit,
+  GitFileStatus,
+  GitHistory,
+  GitRemoteOperation,
+  GitStatus,
+} from '../contracts.ts'
 import type { WorkbenchController } from './controller.ts'
+import { GitChangesView, type GitChangeLayout } from './GitChangesView.tsx'
+import { GitHistoryView, type CommitFilesState } from './GitHistoryView.tsx'
+import { GitRepositoryToolbar } from './GitRepositoryToolbar.tsx'
 import { useWorkbench } from './use-workbench.ts'
 import css from './Workbench.module.css'
 
@@ -23,44 +23,51 @@ interface GitPanelProps {
 }
 
 type GitView = 'changes' | 'history'
-type CommitFilesState =
-  | { state: 'loading' }
-  | { state: 'ready'; value: GitCommitFiles }
-  | { state: 'error'; message: string }
 
-/** 参考 VS Code Source Control 组织更改、暂存区与历史提交。 */
+/** 组合源码管理状态；具体的更改、历史和仓库工具栏各自保持独立。 */
 export function GitPanel({ controller, sessionId, t }: GitPanelProps) {
   const workbench = useWorkbench(controller)
+  const refreshId = useRef(0)
   const [view, setView] = useState<GitView>('changes')
+  const [changeLayout, setChangeLayout] = useState<GitChangeLayout>('list')
   const [status, setStatus] = useState<GitStatus | null>(null)
+  const [branches, setBranches] = useState<GitBranches | null>(null)
   const [history, setHistory] = useState<GitHistory | null>(null)
   const [expandedCommit, setExpandedCommit] = useState<string | null>(null)
   const [commitFiles, setCommitFiles] = useState<Record<string, CommitFilesState>>({})
   const [loading, setLoading] = useState(false)
-  const [committing, setCommitting] = useState(false)
+  const [busy, setBusy] = useState<string | null>(null)
   const [message, setMessage] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<string | null>(null)
 
   const refresh = useCallback(async (): Promise<void> => {
     if (sessionId === undefined) return
+    const request = ++refreshId.current
     setLoading(true)
     setError(null)
     try {
       const nextStatus = await controller.api.gitStatus(sessionId)
+      const [nextHistory, nextBranches] = nextStatus.available
+        ? await Promise.all([controller.api.gitHistory(sessionId), controller.api.gitBranches(sessionId)])
+        : [null, null]
+      if (request !== refreshId.current) return
       setStatus(nextStatus)
-      setHistory(nextStatus.available ? await controller.api.gitHistory(sessionId) : null)
+      setHistory(nextHistory)
+      setBranches(nextBranches)
       setCommitFiles({})
       setExpandedCommit(null)
     } catch (reason: unknown) {
-      setError(messageOf(reason))
+      if (request === refreshId.current) setError(messageOf(reason))
     } finally {
-      setLoading(false)
+      if (request === refreshId.current) setLoading(false)
     }
   }, [controller, sessionId])
 
   useEffect(() => {
+    refreshId.current += 1
     setStatus(null)
+    setBranches(null)
     setHistory(null)
     setResult(null)
     setExpandedCommit(null)
@@ -95,7 +102,7 @@ export function GitPanel({ controller, sessionId, t }: GitPanelProps) {
 
   const commit = async (): Promise<void> => {
     if (sessionId === undefined) return
-    setCommitting(true)
+    setBusy('commit')
     setError(null)
     setResult(null)
     try {
@@ -107,7 +114,7 @@ export function GitPanel({ controller, sessionId, t }: GitPanelProps) {
     } catch (reason: unknown) {
       setError(messageOf(reason))
     } finally {
-      setCommitting(false)
+      setBusy(null)
     }
   }
 
@@ -131,19 +138,66 @@ export function GitPanel({ controller, sessionId, t }: GitPanelProps) {
     }
   }
 
+  const switchBranch = async (ref: string): Promise<void> => {
+    if (sessionId === undefined) return
+    if (workbench.dirty) {
+      setError(t('git.unsavedOperation'))
+      return
+    }
+    const target = branches?.branches.find(branch => branch.ref === ref)
+    setBusy('switch')
+    setError(null)
+    setResult(null)
+    try {
+      await controller.api.gitSwitchBranch(sessionId, ref)
+      controller.resetWorkspaceView()
+      setResult(`${t('git.switchedBranch')} ${target?.name ?? ref}`)
+      await refresh()
+    } catch (reason: unknown) {
+      setError(messageOf(reason))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const remoteOperation = async (operation: GitRemoteOperation): Promise<void> => {
+    if (sessionId === undefined) return
+    if ((operation === 'pull' || operation === 'sync') && workbench.dirty) {
+      setError(t('git.unsavedOperation'))
+      return
+    }
+    setBusy(operation)
+    setError(null)
+    setResult(null)
+    try {
+      await controller.api.gitRemoteOperation(sessionId, operation)
+      if (operation === 'pull' || operation === 'sync') controller.resetWorkspaceView()
+      setResult(t(`git.${operation}Done`))
+      await refresh()
+    } catch (reason: unknown) {
+      setError(messageOf(reason))
+    } finally {
+      setBusy(null)
+    }
+  }
+
   if (sessionId === undefined) return <div className={css.emptyState}>{t('git.emptySession')}</div>
   const stagedFiles = status?.files.filter(isStaged) ?? []
   const changedFiles = status?.files.filter(hasWorktreeChange) ?? []
   return (
     <div className={css.panelBody}>
-      <div className={css.panelHeader}>
-        <span className={css.gitTitle}><IconBranchOutline16 size={16} />{status?.branch ?? t('git.title')}</span>
-        <Tooltip label={t('git.refresh')} delayMs={500}>
-          <button type="button" className={css.iconButton} aria-label={t('git.refresh')} onClick={() => { void refresh() }}>
-            <IconRefreshOutline14 size={14} />
-          </button>
-        </Tooltip>
-      </div>
+      <GitRepositoryToolbar
+        status={status}
+        branches={branches}
+        showViewOptions={view === 'changes'}
+        changeLayout={changeLayout}
+        busy={busy}
+        onChangeLayout={setChangeLayout}
+        onSwitchBranch={ref => { void switchBranch(ref) }}
+        onRemoteOperation={operation => { void remoteOperation(operation) }}
+        onRefresh={() => { void refresh() }}
+        t={t}
+      />
       <div className={css.gitViewTabs} role="tablist" aria-label={t('git.title')}>
         <button type="button" role="tab" aria-selected={view === 'changes'} data-active={view === 'changes' || undefined} onClick={() => { setView('changes') }}>
           {t('git.changesTab')}<span>{stagedFiles.length + changedFiles.length}</span>
@@ -166,44 +220,25 @@ export function GitPanel({ controller, sessionId, t }: GitPanelProps) {
               rows={2}
               onChange={event => { setMessage(event.currentTarget.value) }}
             />
-            <Button variant="primary" size="sm" disabled={stagedFiles.length === 0 || message.trim() === '' || committing} onClick={() => { void commit() }}>
-              {committing ? t('git.committing') : t('git.commit')}
+            <Button variant="primary" size="sm" disabled={stagedFiles.length === 0 || message.trim() === '' || busy !== null} onClick={() => { void commit() }}>
+              {busy === 'commit' ? t('git.committing') : t('git.commit')}
             </Button>
           </div>
-          <div className={css.gitContent}>
-            <ChangeSection title={t('git.staged')} files={stagedFiles} empty={t('git.noStaged')}>
-              {file => (
-                <GitChangeRow
-                  key={`staged:${file.path}`}
-                  file={file}
-                  status={normalizeStatus(file.index)}
-                  selected={workbench.diff?.kind === 'staged' && workbench.diff.path === file.path}
-                  onDiff={() => { void controller.openDiff(sessionId, file.path, true) }}
-                  onAction={() => { void unstage(file) }}
-                  actionLabel={t('git.unstage')}
-                  actionIcon={<IconCloseOutline16 size={14} />}
-                />
-              )}
-            </ChangeSection>
-            <ChangeSection title={t('git.changes')} files={changedFiles} empty={t('git.noChanges')}>
-              {file => (
-                <GitChangeRow
-                  key={`worktree:${file.path}`}
-                  file={file}
-                  status={normalizeStatus(file.worktree === ' ' ? file.index : file.worktree)}
-                  selected={workbench.diff?.kind === 'worktree' && workbench.diff.path === file.path}
-                  onDiff={() => { void controller.openDiff(sessionId, file.path, false) }}
-                  onAction={() => { void stage(file) }}
-                  actionLabel={t('git.stage')}
-                  actionIcon={<IconPlusOutline16 size={14} />}
-                />
-              )}
-            </ChangeSection>
-          </div>
+          <GitChangesView
+            stagedFiles={stagedFiles}
+            changedFiles={changedFiles}
+            layout={changeLayout}
+            selectedKind={workbench.diff?.kind === 'staged' || workbench.diff?.kind === 'worktree' ? workbench.diff.kind : undefined}
+            selectedPath={workbench.diff?.path}
+            onOpen={(file, staged) => { void controller.openDiff(sessionId, file.path, staged) }}
+            onStage={file => { void stage(file) }}
+            onUnstage={file => { void unstage(file) }}
+            t={t}
+          />
         </>
       )}
       {status?.available === true && view === 'history' && (
-        <HistoryView
+        <GitHistoryView
           history={history}
           expandedCommit={expandedCommit}
           commitFiles={commitFiles}
@@ -218,146 +253,12 @@ export function GitPanel({ controller, sessionId, t }: GitPanelProps) {
   )
 }
 
-function ChangeSection(props: {
-  title: string
-  files: GitFileStatus[]
-  empty: string
-  children: (file: GitFileStatus) => React.ReactNode
-}) {
-  const [expanded, setExpanded] = useState(true)
-  return (
-    <section className={css.gitSection}>
-      <button type="button" className={css.gitSectionHeader} aria-expanded={expanded} onClick={() => { setExpanded(value => !value) }}>
-        {expanded ? <IconChevronDownOutline14 size={14} /> : <IconChevronRightOutline14 size={14} />}
-        <span>{props.title}</span><span className={css.gitCount}>{props.files.length}</span>
-      </button>
-      {expanded && (props.files.length === 0
-        ? <div className={css.gitSectionEmpty}>{props.empty}</div>
-        : props.files.map(props.children))}
-    </section>
-  )
-}
-
-function GitChangeRow(props: {
-  file: GitFileStatus
-  status: string
-  selected: boolean
-  onDiff: () => void
-  onAction: () => void
-  actionLabel: string
-  actionIcon: React.ReactNode
-}) {
-  const renamed = props.file.originalPath !== undefined && props.file.originalPath !== props.file.path
-  return (
-    <div className={css.gitChangeRow} data-selected={props.selected || undefined}>
-      <button type="button" className={css.gitChangeMain} onClick={props.onDiff} title={renamed ? `${props.file.originalPath} → ${props.file.path}` : props.file.path}>
-        <IconCodeOutline16 size={15} />
-        <span className={css.gitFileText}>
-          <span className={css.rowName}>{fileName(props.file.path)}</span>
-          <span className={css.gitFileDirectory}>{directoryName(props.file.path)}</span>
-        </span>
-        <span className={css.statusBadge} data-status={props.status}>{props.status}</span>
-      </button>
-      <Tooltip label={props.actionLabel} delayMs={400}>
-        <button type="button" className={css.gitRowAction} aria-label={`${props.actionLabel} ${props.file.path}`} onClick={props.onAction}>
-          {props.actionIcon}
-        </button>
-      </Tooltip>
-    </div>
-  )
-}
-
-function HistoryView(props: {
-  history: GitHistory | null
-  expandedCommit: string | null
-  commitFiles: Record<string, CommitFilesState>
-  selectedRevision: string | undefined
-  selectedPath: string | undefined
-  onToggle: (commit: GitCommit) => void
-  onOpen: (commit: GitCommit, path: string) => void
-  t: TranslateNS<'workbench'>
-}) {
-  return (
-    <div className={css.gitHistory}>
-      {props.history === null
-        ? <div className={css.gitSectionEmpty}>{props.t('git.historyLoading')}</div>
-        : props.history.commits.length === 0
-          ? <div className={css.gitSectionEmpty}>{props.t('git.noHistory')}</div>
-          : props.history.commits.map(commit => {
-              const expanded = props.expandedCommit === commit.hash
-              const files = props.commitFiles[commit.hash]
-              return (
-                <div key={commit.hash} className={css.commitEntry}>
-                  <button type="button" className={css.commitRow} aria-expanded={expanded} onClick={() => { props.onToggle(commit) }}>
-                    <span className={css.commitChevron}>{expanded ? <IconChevronDownOutline14 size={14} /> : <IconChevronRightOutline14 size={14} />}</span>
-                    <span className={css.commitGraph}><span /></span>
-                    <span className={css.commitContent}>
-                      <span className={css.commitSubject}>{commit.subject}</span>
-                      <span className={css.commitHash}>{commit.shortHash}</span>
-                      <span className={css.commitMeta}>{commit.author} · {formatCommitTime(commit.authoredAt)}</span>
-                    </span>
-                  </button>
-                  {expanded && (
-                    <div className={css.commitFiles}>
-                      {files === undefined || files.state === 'loading'
-                        ? <div className={css.gitSectionEmpty}>{props.t('git.commitFilesLoading')}</div>
-                        : files.state === 'error'
-                          ? <div className={css.error} role="alert">{files.message}</div>
-                          : files.value.files.length === 0
-                            ? <div className={css.gitSectionEmpty}>{props.t('git.noCommitFiles')}</div>
-                            : files.value.files.map(file => (
-                              <button
-                                type="button"
-                                key={`${commit.hash}:${file.path}`}
-                                className={css.historyFileRow}
-                                data-selected={props.selectedRevision === commit.hash && props.selectedPath === file.path || undefined}
-                                title={file.originalPath === undefined ? file.path : `${file.originalPath} → ${file.path}`}
-                                onClick={() => { props.onOpen(commit, file.path) }}
-                              >
-                                <IconCodeOutline16 size={14} />
-                                <span className={css.gitFileText}>
-                                  <span className={css.rowName}>{fileName(file.path)}</span>
-                                  <span className={css.gitFileDirectory}>{directoryName(file.path)}</span>
-                                </span>
-                                <span className={css.statusBadge} data-status={normalizeStatus(file.status)}>{normalizeStatus(file.status)}</span>
-                              </button>
-                            ))}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-      {props.history?.truncated === true && <div className={css.gitSectionEmpty}>{props.t('git.historyTruncated')}</div>}
-    </div>
-  )
-}
-
 function isStaged(file: GitFileStatus): boolean {
   return file.index !== ' ' && file.index !== '?'
 }
 
 function hasWorktreeChange(file: GitFileStatus): boolean {
   return file.worktree !== ' ' || file.index === '?'
-}
-
-function normalizeStatus(status: string): string {
-  return status === '?' ? 'U' : status === ' ' ? 'M' : status
-}
-
-function fileName(path: string): string {
-  return path.split('/').at(-1) ?? path
-}
-
-function directoryName(path: string): string {
-  const boundary = path.lastIndexOf('/')
-  return boundary < 0 ? '' : path.slice(0, boundary)
-}
-
-function formatCommitTime(value: string): string {
-  const date = new Date(value)
-  return Number.isNaN(date.valueOf()) ? value : new Intl.DateTimeFormat(undefined, {
-    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-  }).format(date)
 }
 
 function messageOf(error: unknown): string {

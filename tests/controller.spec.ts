@@ -105,6 +105,7 @@ describe('WorkbenchController', () => {
   it('opens a historical commit diff in the middle column', async () => {
     const commit = {
       hash: 'a'.repeat(40), shortHash: 'aaaaaaa', subject: '历史提交', author: 'Tester', authoredAt: '2026-08-23T10:00:00Z',
+      references: [],
     }
     const api = {
       gitCommitFileDiff: vi.fn(() => Promise.resolve({
@@ -149,5 +150,21 @@ describe('WorkbenchController', () => {
     controller.setDiffViewMode('inline')
     expect(controller.store.getSnapshot().diffViewMode).toBe('inline')
     expect(logger.info).toHaveBeenCalledWith('workbench-layout: Diff view mode changed to inline')
+  })
+
+  it('clears stale file and Diff snapshots after Git changes the workspace', async () => {
+    const logger = { info: vi.fn(), warn: vi.fn() }
+    const api = {
+      readFile: vi.fn(() => Promise.resolve({
+        path: 'src/a.ts', content: 'before', version: '1', size: 6, markdown: false,
+      })),
+    }
+    const controller = new WorkbenchController(api as never, logger)
+    await controller.openFile('session-1', 'src/a.ts')
+    controller.resetWorkspaceView()
+    expect(controller.store.getSnapshot()).toMatchObject({
+      file: null, draft: '', dirty: false, diff: null, centerMode: 'file', loading: false,
+    })
+    expect(logger.info).toHaveBeenCalledWith('workbench-layout: cleared editor after Git changed the workspace')
   })
 })
