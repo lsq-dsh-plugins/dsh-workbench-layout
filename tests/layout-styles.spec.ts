@@ -2,7 +2,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-import { resolveFallbackDetailsWidth } from '../src/client/fallback-details-layout.ts'
+import { readNativeSidebarWidth, resolveFallbackDetailsWidth } from '../src/client/fallback-details-layout.ts'
 import { installWorkbenchLayout } from '../src/client/layout-styles.ts'
 
 afterEach(() => {
@@ -17,8 +17,17 @@ describe('workbench layout presentation', () => {
     expect(resolveFallbackDetailsWidth(1200, 280, 360)).toBe(0)
   })
 
+  it('reads AppFrame sidebar geometry from its inline grid before fallback CSS', () => {
+    const frame = document.createElement('div')
+    const sidebar = document.createElement('div')
+    frame.style.gridTemplateColumns = '56px minmax(0, 1fr) 0px'
+    vi.spyOn(sidebar, 'getBoundingClientRect').mockReturnValue(rect(280))
+
+    expect(readNativeSidebarWidth(frame, sidebar)).toBe(56)
+  })
+
   it('keeps the native active-Session track untouched', () => {
-    const { frame } = appFrameFixture('active')
+    const { frame } = appFrameFixture('active', 312)
     frame.removeAttribute('data-details-collapsed')
     document.body.appendChild(frame)
     let dispose: (() => void) | undefined
@@ -61,11 +70,38 @@ describe('workbench layout presentation', () => {
     dispose?.()
     expect(frame.querySelector('[data-dsh-workbench-fallback-handle]')).toBeNull()
   })
+
+  it('mirrors sidebar collapse, expansion and drag widths during a blank Session', async () => {
+    const { frame } = appFrameFixture('hero')
+    document.body.appendChild(frame)
+    let dispose: (() => void) | undefined
+    const ctx = contextWithDispose(value => { dispose = value })
+
+    installWorkbenchLayout(ctx)
+    expect(frame.style.getPropertyValue('--dsh-workbench-fallback-sidebar-width')).toBe('280px')
+
+    frame.style.gridTemplateColumns = '56px minmax(0, 1fr) 0px'
+    frame.toggleAttribute('data-sidebar-collapsed', true)
+    await vi.waitFor(() => {
+      expect(frame.style.getPropertyValue('--dsh-workbench-fallback-sidebar-width')).toBe('56px')
+    })
+    expect(frame.style.getPropertyValue('--dsh-workbench-fallback-details-width')).toBe('360px')
+
+    frame.style.gridTemplateColumns = '344px minmax(0, 1fr) 0px'
+    frame.removeAttribute('data-sidebar-collapsed')
+    await vi.waitFor(() => {
+      expect(frame.style.getPropertyValue('--dsh-workbench-fallback-sidebar-width')).toBe('344px')
+    })
+    expect(ctx.logger.info).toHaveBeenCalledWith(expect.stringContaining('collapsed sidebar track at 56px'))
+    expect(ctx.logger.info).toHaveBeenCalledWith(expect.stringContaining('expanded sidebar track at 344px'))
+
+    dispose?.()
+  })
 })
 
-function appFrameFixture(phase: 'hero' | 'active') {
+function appFrameFixture(phase: 'hero' | 'active', sidebarWidth = 280) {
   const frame = document.createElement('div')
-  frame.style.gridTemplateColumns = '312px minmax(0, 1fr) 0px'
+  frame.style.gridTemplateColumns = `${sidebarWidth}px minmax(0, 1fr) 0px`
   frame.toggleAttribute('data-details-collapsed', true)
   const sidebar = document.createElement('div')
   const conversationColumn = document.createElement('div')
@@ -78,7 +114,7 @@ function appFrameFixture(phase: 'hero' | 'active') {
   overlay.dataset.shellOverlay = ''
   frame.append(sidebar, conversationColumn, details, overlay)
   vi.spyOn(frame, 'getBoundingClientRect').mockReturnValue(rect(1400))
-  vi.spyOn(sidebar, 'getBoundingClientRect').mockReturnValue(rect(280))
+  vi.spyOn(sidebar, 'getBoundingClientRect').mockReturnValue(rect(sidebarWidth))
   return { frame, conversation }
 }
 

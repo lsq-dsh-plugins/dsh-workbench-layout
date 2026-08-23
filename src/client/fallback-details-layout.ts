@@ -11,6 +11,8 @@ const DETAILS_MIN = 300
 const DETAILS_MAX = 520
 const DETAILS_DEFAULT = 360
 
+const FIRST_PIXEL_TRACK = /^\s*(\d+(?:\.\d+)?)px(?:\s|$)/u
+
 export interface FallbackDetailsLogger {
   info(message: string): void
 }
@@ -29,6 +31,16 @@ export function resolveFallbackDetailsWidth(
   const available = Math.floor(frameWidth - sidebarWidth - CENTER_MIN)
   if (available < DETAILS_MIN) return 0
   return Math.min(clampDetailsWidth(preferredWidth), available)
+}
+
+/** Read the sidebar track resolved by AppFrame before fallback CSS reorders it. */
+export function readNativeSidebarWidth(frame: HTMLElement, sidebar: HTMLElement): number {
+  const match = FIRST_PIXEL_TRACK.exec(frame.style.gridTemplateColumns)
+  const inlineWidth = match === null ? Number.NaN : Number(match[1])
+  const width = Number.isFinite(inlineWidth) && inlineWidth > 0
+    ? inlineWidth
+    : sidebar.getBoundingClientRect().width
+  return Math.max(0, Math.round(width))
 }
 
 /**
@@ -56,6 +68,7 @@ export function createFallbackDetailsTrack(
   let dragBase = DETAILS_DEFAULT
   let latestPointer = 0
   let dragFrame: number | null = null
+  let sidebarCollapsed: boolean | undefined
 
   const setActive = (next: boolean): void => {
     if (active === next) return
@@ -67,10 +80,11 @@ export function createFallbackDetailsTrack(
 
   const clearPresentation = (): void => {
     frame.removeAttribute(FALLBACK_DETAILS_ATTRIBUTE)
-    frame.style.removeProperty(FALLBACK_SIDEBAR_WIDTH)
-    frame.style.removeProperty(FALLBACK_DETAILS_WIDTH)
+    removeStyleProperty(frame, FALLBACK_SIDEBAR_WIDTH)
+    removeStyleProperty(frame, FALLBACK_DETAILS_WIDTH)
     handle.hidden = true
     renderedWidth = 0
+    sidebarCollapsed = undefined
     setActive(false)
   }
 
@@ -86,9 +100,10 @@ export function createFallbackDetailsTrack(
       return
     }
 
+    const sidebarWidth = readNativeSidebarWidth(frame, sidebar)
     const width = resolveFallbackDetailsWidth(
       frame.getBoundingClientRect().width,
-      sidebar.getBoundingClientRect().width,
+      sidebarWidth,
       preferredWidth,
     )
     if (width === 0) {
@@ -97,12 +112,17 @@ export function createFallbackDetailsTrack(
     }
 
     renderedWidth = width
-    frame.style.setProperty(FALLBACK_SIDEBAR_WIDTH, `${Math.round(sidebar.getBoundingClientRect().width)}px`)
-    frame.style.setProperty(FALLBACK_DETAILS_WIDTH, `${width}px`)
+    setStyleProperty(frame, FALLBACK_SIDEBAR_WIDTH, `${sidebarWidth}px`)
+    setStyleProperty(frame, FALLBACK_DETAILS_WIDTH, `${width}px`)
     frame.setAttribute(FALLBACK_DETAILS_ATTRIBUTE, '')
     handle.setAttribute('aria-valuenow', String(width))
     handle.hidden = false
     setActive(true)
+    const nextSidebarCollapsed = frame.hasAttribute('data-sidebar-collapsed')
+    if (sidebarCollapsed !== nextSidebarCollapsed) {
+      sidebarCollapsed = nextSidebarCollapsed
+      logger.info(`workbench-layout: synchronized blank-Session ${nextSidebarCollapsed ? 'collapsed' : 'expanded'} sidebar track at ${sidebarWidth}px`)
+    }
   }
 
   const applyPointer = (clientX: number): void => {
@@ -145,12 +165,17 @@ export function createFallbackDetailsTrack(
   handle.addEventListener('pointerup', finishDrag)
   handle.addEventListener('pointercancel', finishDrag)
 
-  const mutationObserver = new MutationObserver(reconcile)
+  const mutationObserver = new MutationObserver((records) => {
+    const relevant = records.some(record => record.type === 'childList'
+      || record.attributeName !== 'style'
+      || record.target === frame)
+    if (relevant) reconcile()
+  })
   mutationObserver.observe(frame, {
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ['data-phase', 'data-details-collapsed'],
+    attributeFilter: ['data-phase', 'data-details-collapsed', 'data-sidebar-collapsed', 'style'],
   })
   const resizeObserver = typeof ResizeObserver === 'undefined'
     ? undefined
@@ -166,8 +191,8 @@ export function createFallbackDetailsTrack(
       if (dragFrame !== null) cancelAnimationFrame(dragFrame)
       frame.removeAttribute(FALLBACK_DETAILS_ATTRIBUTE)
       frame.removeAttribute(FALLBACK_DRAGGING_ATTRIBUTE)
-      frame.style.removeProperty(FALLBACK_SIDEBAR_WIDTH)
-      frame.style.removeProperty(FALLBACK_DETAILS_WIDTH)
+      removeStyleProperty(frame, FALLBACK_SIDEBAR_WIDTH)
+      removeStyleProperty(frame, FALLBACK_DETAILS_WIDTH)
       handle.remove()
     },
   }
@@ -175,4 +200,15 @@ export function createFallbackDetailsTrack(
 
 function clampDetailsWidth(width: number): number {
   return Math.min(DETAILS_MAX, Math.max(DETAILS_MIN, Math.round(width)))
+}
+
+/** Avoid self-triggering the style observer when the mirrored value is unchanged. */
+function setStyleProperty(element: HTMLElement, property: string, value: string): void {
+  if (element.style.getPropertyValue(property) === value) return
+  element.style.setProperty(property, value)
+}
+
+function removeStyleProperty(element: HTMLElement, property: string): void {
+  if (element.style.getPropertyValue(property) === '') return
+  element.style.removeProperty(property)
 }
