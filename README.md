@@ -9,7 +9,7 @@ An independent DeepSeek Harness Web plugin that keeps the official AppFrame and 
 - Switch the left column among Sessions, Files, and Git. Sessions releases the region back to the native DSH workspace browser.
 - Expand directories lazily instead of reading the full tree at once.
 - Edit existing UTF-8 text in CodeMirror with dirty state, save/revert, per-Workspace draft retention, version conflict protection, atomic saves, and `Ctrl/Cmd + S`.
-- Bind files, editor selection, drafts, diffs, and Git state to DSH's official Workspace id. Switching conversations inside one Workspace preserves the workbench; changing Workspace switches the entire workbench state.
+- Bind files, editor selection, drafts, diffs, and Git state to DSH's official Workspace id. Switching conversations inside one Workspace preserves the workbench; changing Workspace switches the entire workbench state. With no current Session, before a Session has any messages, or while a Session is not yet accounted to a Workspace, the workbench uses DSH's official recent Workspace so files and Git remain available.
 - Open Markdown in the official DSH rendered view by default, with Preview and Source modes.
 - Use DSH AppFrame's native track sizing and drag handling between the editor and conversation. The divider keeps the same undecorated hit area as the left divider, with the official 300–520px range and 360px default.
 - Follow the VS Code source-control model with Changes and History tabs. Changes separates staged files from the working tree and switches between a flat list and a collapsible directory tree.
@@ -70,7 +70,7 @@ npm run test:bundle
 - `src/workspace-backend.ts`: bounded directory, read, and atomic-save operations.
 - `src/git-backend.ts`: Git status, branches, remote synchronization, commit file lists, per-file before/after content, index, and commit operations.
 - `src/client/controller.ts`: cross-column file, diff, and view state.
-- `src/client/workspace-binding.ts`: official Session-to-Workspace membership resolution.
+- `src/client/workspace-binding.ts`: official Session membership resolution with the official recent-Workspace fallback for no-Session surfaces.
 - `src/client/workspace-layout.ts`: Workspace binding to AppFrame's native details-track state.
 - `src/client/FileTree.tsx`, `GitPanel.tsx`: left-column file tree and source-control state orchestration.
 - `src/client/GitChangesView.tsx`, `git-tree.ts`: change groups, list/tree layouts, and per-file actions.

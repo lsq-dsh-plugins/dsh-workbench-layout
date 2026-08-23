@@ -22,7 +22,7 @@ export function createWorkbenchWorkspaceActivator(
     controller.setWorkspace(workspaceId)
     layout.openDetails()
     logger.info(workspaceId === undefined
-      ? 'workbench-layout: activated native AppFrame details track without a registered workspace'
+      ? 'workbench-layout: activated native AppFrame details track without an available registered workspace'
       : `workbench-layout: activated native AppFrame details track for workspace ${JSON.stringify(workspaceId)}`)
   }
 }

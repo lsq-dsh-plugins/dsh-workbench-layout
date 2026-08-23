@@ -9,7 +9,7 @@
 - 左栏通过“会话 / 文件 / Git”切换；“会话”会恢复 DSH 原生工作区与会话列表。
 - 文件目录按需展开，不会一次读取整棵目录树。
 - 中栏使用 CodeMirror 编辑 UTF-8 文本，支持未保存状态、保存/还原、按工作区保留草稿、版本冲突保护、原子保存和 `Ctrl/Cmd + S`。
-- 文件、编辑器选择、草稿、Diff 与 Git 状态绑定到 DSH 官方工作区 id；在同一工作区的不同会话之间切换会保留工作台，只有切换工作区才会切换整套状态。
+- 文件、编辑器选择、草稿、Diff 与 Git 状态绑定到 DSH 官方工作区 id；在同一工作区的不同会话之间切换会保留工作台，只有切换工作区才会切换整套状态。没有当前会话、会话尚未产生消息或会话暂未归属工作区时，工作台使用 DSH 官方最近工作区，因此仍可浏览文件与 Git。
 - Markdown 文件首次打开默认显示 DSH 官方 Markdown 渲染结果，可在“预览 / 源码”之间切换。
 - 中右栏直接使用 DSH AppFrame 原生列宽和拖拽处理；分隔线与左中栏保持相同的无装饰热区，宽度遵循官方 300–520px 约束与 360px 默认值。
 - Git 左栏按 VS Code 的源码管理习惯分成“更改 / 历史”标签；更改页区分“已暂存”和“工作区”，并可在扁平列表与可折叠目录树之间切换。
@@ -70,7 +70,7 @@ npm run test:bundle
 - `src/workspace-backend.ts`：受控的目录、读取和原子保存。
 - `src/git-backend.ts`：Git 状态、分支、远程同步、提交文件清单、单文件前后版本、暂存和提交。
 - `src/client/controller.ts`：跨栏文件、Diff 和视图状态。
-- `src/client/workspace-binding.ts`：按 DSH 官方成员关系解析会话所属工作区。
+- `src/client/workspace-binding.ts`：优先按 DSH 官方成员关系解析会话所属工作区，并在无会话状态下回退到官方最近工作区。
 - `src/client/workspace-layout.ts`：工作区与 AppFrame 原生详情列状态绑定。
 - `src/client/FileTree.tsx`、`GitPanel.tsx`：左栏文件树和源码管理状态编排。
 - `src/client/GitChangesView.tsx`、`git-tree.ts`：更改分组、列表/目录树和文件操作。

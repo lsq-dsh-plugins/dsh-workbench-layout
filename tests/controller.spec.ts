@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
-import { workspaceIdForSession } from '../src/client/workspace-binding.ts'
+import { resolveWorkbenchWorkspaceId } from '../src/client/workspace-binding.ts'
 
 vi.mock('@deepseek-ai/dsh-client-runtime/client', () => ({
   createSnapshotStore: <T,>(initial: T) => {
@@ -117,7 +117,7 @@ describe('WorkbenchController', () => {
       workspaceId: 'workspace-shared',
       sessionIds: ['conversation-one', 'conversation-two'],
     }]
-    controller.setWorkspace(workspaceIdForSession(workspaces, 'conversation-two'))
+    controller.setWorkspace(resolveWorkbenchWorkspaceId(workspaces, 'conversation-two', 'workspace-shared'))
 
     expect(controller.store.getSnapshot()).toMatchObject({
       workspaceId: 'workspace-shared', file: { path: 'shared.txt' }, draft: 'shared draft', dirty: true,

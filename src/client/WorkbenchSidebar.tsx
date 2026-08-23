@@ -5,7 +5,7 @@ import type { WorkbenchKey } from './locales.ts'
 import { FileTree } from './FileTree.tsx'
 import { GitPanel } from './GitPanel.tsx'
 import { useWorkbench } from './use-workbench.ts'
-import { workspaceIdForSession } from './workspace-binding.ts'
+import { resolveWorkbenchWorkspaceId } from './workspace-binding.ts'
 import css from './Workbench.module.css'
 
 export type WorkbenchSidebarProps = PropsRuntime<'sidebar.workspaces'> & PropsLocale<'workbench'> & {
@@ -16,7 +16,11 @@ export type WorkbenchSidebarProps = PropsRuntime<'sidebar.workspaces'> & PropsLo
 export function WorkbenchSidebar({ wide, useSessions, useWorkspaces, controller, t }: WorkbenchSidebarProps) {
   const state = useWorkbench(controller)
   const sessionId = useSessions(snapshot => snapshot.current)
-  const workspaceId = useWorkspaces(snapshot => workspaceIdForSession(snapshot.items, sessionId))
+  const workspaceId = useWorkspaces(snapshot => resolveWorkbenchWorkspaceId(
+    snapshot.items,
+    sessionId,
+    snapshot.recentWorkspaceId,
+  ))
   useEffect(() => { controller.setWorkspace(workspaceId) }, [controller, workspaceId])
   if (!wide) return <div className={css.collapsedBody} aria-hidden />
   return (

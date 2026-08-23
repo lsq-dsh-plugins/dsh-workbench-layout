@@ -1,15 +1,25 @@
-/** Resolve the official Workspace that owns the current DSH Session. */
+/** Resolve the official Workspace that should own the workbench surfaces. */
 
 export interface WorkspaceMembership {
   workspaceId: string
   sessionIds: readonly string[]
 }
 
-/** Return the stable Workspace id for a Session, never a path-derived alias. */
-export function workspaceIdForSession(
+/**
+ * Follow the current Session's Workspace when it has one, then use DSH's
+ * official recent-Workspace projection for the no-Session and blank-Session
+ * surfaces. Never derive an identity from a filesystem path.
+ */
+export function resolveWorkbenchWorkspaceId(
   workspaces: readonly WorkspaceMembership[],
   sessionId: string | undefined,
+  recentWorkspaceId: string | undefined,
 ): string | undefined {
-  if (sessionId === undefined) return undefined
-  return workspaces.find(workspace => workspace.sessionIds.includes(sessionId))?.workspaceId
+  const sessionWorkspaceId = sessionId === undefined
+    ? undefined
+    : workspaces.find(workspace => workspace.sessionIds.includes(sessionId))?.workspaceId
+  if (sessionWorkspaceId !== undefined) return sessionWorkspaceId
+  return workspaces.some(workspace => workspace.workspaceId === recentWorkspaceId)
+    ? recentWorkspaceId
+    : undefined
 }

@@ -12,7 +12,7 @@ import { UNSAVED_SWITCH_ERROR, type WorkbenchController } from './controller.ts'
 import { CodeEditor } from './CodeEditor.tsx'
 import { GitDiffEditor } from './GitDiffEditor.tsx'
 import { useWorkbench } from './use-workbench.ts'
-import { workspaceIdForSession } from './workspace-binding.ts'
+import { resolveWorkbenchWorkspaceId } from './workspace-binding.ts'
 import css from './Workbench.module.css'
 
 export type WorkbenchEditorProps = PropsRuntime<'details'> & PropsLocale<'workbench'> & {
@@ -23,7 +23,11 @@ export type WorkbenchEditorProps = PropsRuntime<'details'> & PropsLocale<'workbe
 /** Middle file surface, with Markdown preview as the default mode. */
 export function WorkbenchEditor({ sessionId, useWorkspaces, controller, activateWorkspace, t }: WorkbenchEditorProps) {
   const state = useWorkbench(controller)
-  const workspaceId = useWorkspaces(snapshot => workspaceIdForSession(snapshot.items, sessionId))
+  const workspaceId = useWorkspaces(snapshot => resolveWorkbenchWorkspaceId(
+    snapshot.items,
+    sessionId,
+    snapshot.recentWorkspaceId,
+  ))
   useEffect(() => { activateWorkspace(workspaceId) }, [activateWorkspace, workspaceId])
 
   if (workspaceId === undefined) return <EditorEmpty text={t('editor.emptyWorkspace')} />
