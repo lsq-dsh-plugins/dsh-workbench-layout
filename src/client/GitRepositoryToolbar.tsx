@@ -23,6 +23,7 @@ import type { GitView } from './controller.ts'
 import type { GitFileLayout } from './git-tree.ts'
 import { IconSourceControlOutline16 } from './SourceControlIcon.tsx'
 import type { GitBranchDialogMode } from './GitBranchDialog.tsx'
+import type { GitRemoteDialogMode } from './GitRemoteDialog.tsx'
 import css from './Workbench.module.css'
 
 interface GitRepositoryToolbarProps {
@@ -36,6 +37,7 @@ interface GitRepositoryToolbarProps {
   onSwitchBranch: (ref: string) => void
   onOpenBranchDialog: (mode: GitBranchDialogMode) => void
   onRemoteOperation: (operation: GitRemoteOperation) => void
+  onOpenRemoteDialog: (mode: GitRemoteDialogMode) => void
   onRefresh: () => void
   t: TranslateNS<'workbench'>
 }
@@ -178,6 +180,9 @@ function ActionsMenu(props: GitRepositoryToolbarProps) {
         { id: 'push', label: props.status?.upstream === undefined ? props.t('git.publishBranch') : props.t('git.push'), icon: <IconSendOutline16 size={14} />, disabled: !hasRemote },
         { id: 'sync', label: props.t('git.sync'), icon: <IconRefreshOutline16 size={14} />, disabled: !hasUpstream },
         { type: 'separator', id: 'remote-separator' },
+        { id: 'target-remote', label: props.t('git.targetRemote'), icon: <IconSendOutline16 size={14} />, disabled: !hasRemote },
+        { id: 'manage-remotes', label: props.t('git.manageRemotes'), icon: <IconPersonalizationOutline16 size={14} /> },
+        { type: 'separator', id: 'remote-management-separator' },
         { id: 'rename-branch', label: props.t('git.renameBranch'), icon: <IconEditOutline16 size={14} />, disabled: props.status?.branch === undefined },
         { id: 'delete-branch', label: props.t('git.deleteBranch'), icon: <IconTrashOutline16 size={14} />, disabled: (props.branches?.branches.filter(branch => branch.kind === 'local' && !branch.current).length ?? 0) === 0 },
         { type: 'separator', id: 'branch-management-separator' },
@@ -186,6 +191,8 @@ function ActionsMenu(props: GitRepositoryToolbarProps) {
       onSelect={(id) => {
         setOpen(false)
         if (id === 'refresh') props.onRefresh()
+        else if (id === 'target-remote') props.onOpenRemoteDialog('target')
+        else if (id === 'manage-remotes') props.onOpenRemoteDialog('manage')
         else if (id === 'rename-branch') props.onOpenBranchDialog('rename')
         else if (id === 'delete-branch') props.onOpenBranchDialog('delete')
         else if (id === 'fetch' || id === 'pull' || id === 'push' || id === 'sync') props.onRemoteOperation(id)

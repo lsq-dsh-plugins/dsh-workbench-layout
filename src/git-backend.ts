@@ -16,9 +16,13 @@ import type {
   GitFileStatus,
   GitGraph,
   GitReference,
+  GitRemote,
   GitRemoteOperation,
   GitRemoteResult,
+  GitRemotes,
   GitStatus,
+  GitTargetRemoteOperation,
+  GitTargetRemoteResult,
 } from './contracts.ts'
 import { WorkbenchHttpError } from './http.ts'
 import type { WorkspaceBackend, WorkspaceGitText } from './workspace-backend.ts'
@@ -26,6 +30,7 @@ import type { WorkspaceBackend, WorkspaceGitText } from './workspace-backend.ts'
 const execFileAsync = promisify(execFile)
 const REVISION_PATTERN = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u
 const REMOTE_OPERATIONS = new Set<GitRemoteOperation>(['fetch', 'pull', 'push', 'sync'])
+const TARGET_REMOTE_OPERATIONS = new Set<GitTargetRemoteOperation>(['fetch', 'pull', 'push'])
 
 export interface GitLimits {
   timeoutMs: number
@@ -458,6 +463,100 @@ export class GitBackend {
     return { operation }
   }
 
+  async remotes(workspaceId: unknown): Promise<GitRemotes> {
+    const cwd = await this.repositoryRoot(workspaceId)
+    const names = await this.remoteNames(cwd)
+    const remotes: GitRemote[] = []
+    for (const name of names) {
+      const fetchUrl = (await this.run(cwd, ['config', '--get', `remote.${name}.url`], [0, 1])).stdout.trim()
+      const pushConfig = (await this.run(cwd, ['config', '--get', `remote.${name}.pushurl`], [0, 1])).stdout.trim()
+      remotes.push({
+        name,
+        fetchUrl,
+        pushUrl: pushConfig === '' ? fetchUrl : pushConfig,
+        separatePushUrl: pushConfig !== '',
+      })
+    }
+    return { remotes }
+  }
+
+  async addRemote(workspaceId: unknown, nameValue: unknown, fetchUrlValue: unknown, pushUrlValue?: unknown): Promise<GitRemotes> {
+    const cwd = await this.repositoryRoot(workspaceId)
+    const name = await this.requireRemoteName(cwd, nameValue)
+    const fetchUrl = requireRemoteUrl(fetchUrlValue)
+    const pushUrl = requireOptionalRemoteUrl(pushUrlValue)
+    await this.run(cwd, ['remote', 'add', '--', name, fetchUrl])
+    try {
+      if (pushUrl !== undefined && pushUrl !== fetchUrl) await this.run(cwd, ['remote', 'set-url', '--push', name, pushUrl])
+    } catch (error: unknown) {
+      await this.run(cwd, ['remote', 'remove', name], [0, 2, 128])
+      throw error
+    }
+    this.ctx.logger.info(`workbench-layout: added Git remote ${JSON.stringify(name)}`)
+    return this.remotes(workspaceId)
+  }
+
+  async updateRemote(
+    workspaceId: unknown,
+    currentNameValue: unknown,
+    nameValue: unknown,
+    fetchUrlValue: unknown,
+    pushUrlValue?: unknown,
+  ): Promise<GitRemotes> {
+    const cwd = await this.repositoryRoot(workspaceId)
+    const currentName = await this.requireRemote(cwd, currentNameValue)
+    const name = typeof nameValue === 'string' && nameValue.trim() === currentName
+      ? currentName
+      : await this.requireRemoteName(cwd, nameValue)
+    const fetchUrl = requireRemoteUrl(fetchUrlValue)
+    const pushUrl = requireOptionalRemoteUrl(pushUrlValue)
+    await this.run(cwd, ['remote', 'set-url', currentName, fetchUrl])
+    if (pushUrl === undefined || pushUrl === fetchUrl) {
+      await this.run(cwd, ['config', '--unset-all', `remote.${currentName}.pushurl`], [0, 5])
+    } else {
+      await this.run(cwd, ['remote', 'set-url', '--push', currentName, pushUrl])
+    }
+    if (name !== currentName) await this.run(cwd, ['remote', 'rename', currentName, name])
+    this.ctx.logger.info(`workbench-layout: updated Git remote ${JSON.stringify(currentName)} as ${JSON.stringify(name)}`)
+    return this.remotes(workspaceId)
+  }
+
+  async deleteRemote(workspaceId: unknown, nameValue: unknown): Promise<GitRemotes> {
+    const cwd = await this.repositoryRoot(workspaceId)
+    const name = await this.requireRemote(cwd, nameValue)
+    await this.run(cwd, ['remote', 'remove', name])
+    this.ctx.logger.info(`workbench-layout: removed Git remote ${JSON.stringify(name)}`)
+    return this.remotes(workspaceId)
+  }
+
+  async targetRemoteOperation(
+    workspaceId: unknown,
+    operationValue: unknown,
+    remoteValue: unknown,
+    branchValue?: unknown,
+  ): Promise<GitTargetRemoteResult> {
+    if (typeof operationValue !== 'string' || !TARGET_REMOTE_OPERATIONS.has(operationValue as GitTargetRemoteOperation)) {
+      throw new WorkbenchHttpError(400, 'GIT_REMOTE_OPERATION_INVALID', '不支持该指定远端 Git 操作。')
+    }
+    const operation = operationValue as GitTargetRemoteOperation
+    const cwd = await this.repositoryRoot(workspaceId)
+    const remote = await this.requireRemote(cwd, remoteValue)
+    if (operation === 'fetch') {
+      await this.run(cwd, ['fetch', '--prune', '--', remote])
+      this.ctx.logger.info(`workbench-layout: fetched explicit Git remote ${JSON.stringify(remote)}`)
+      return { operation, remote }
+    }
+    const status = await this.status(workspaceId)
+    if (status.branch === undefined) {
+      throw new WorkbenchHttpError(409, 'GIT_BRANCH_CURRENT_UNAVAILABLE', '游离 HEAD 状态下不能拉取或推送当前分支。')
+    }
+    const branch = await this.requireRefName(cwd, branchValue ?? status.branch)
+    if (operation === 'pull') await this.run(cwd, ['pull', '--ff-only', '--', remote, branch])
+    else await this.run(cwd, ['push', '--set-upstream', '--', remote, `${status.branch}:${branch}`])
+    this.ctx.logger.info(`workbench-layout: completed explicit Git ${operation} with remote ${JSON.stringify(remote)} branch ${JSON.stringify(branch)}`)
+    return { operation, remote, branch }
+  }
+
   async commitFiles(workspaceId: unknown, revisionValue: unknown): Promise<GitCommitFiles> {
     const cwd = await this.repositoryRoot(workspaceId)
     const details = await this.loadCommitFiles(cwd, revisionValue)
@@ -667,6 +766,42 @@ export class GitBackend {
     return name
   }
 
+  private async remoteNames(cwd: string): Promise<string[]> {
+    return (await this.run(cwd, ['remote'])).stdout.split(/\r?\n/u).map(name => name.trim()).filter(name => name !== '')
+  }
+
+  private async requireRemote(cwd: string, value: unknown): Promise<string> {
+    if (typeof value !== 'string' || value === '') {
+      throw new WorkbenchHttpError(400, 'GIT_REMOTE_REQUIRED', '请选择远端。')
+    }
+    const name = (await this.remoteNames(cwd)).find(candidate => candidate === value)
+    if (name === undefined) throw new WorkbenchHttpError(404, 'GIT_REMOTE_UNAVAILABLE', '找不到所选远端。')
+    return name
+  }
+
+  private async requireRemoteName(cwd: string, value: unknown): Promise<string> {
+    if (typeof value !== 'string' || value.trim() === '' || value.length > 255) {
+      throw new WorkbenchHttpError(400, 'GIT_REMOTE_NAME_INVALID', '请输入有效的远端名称。')
+    }
+    const name = value.trim()
+    const valid = await this.run(cwd, ['check-ref-format', `refs/remotes/${name}/probe`], [0, 1, 128])
+    if (valid.exitCode !== 0) throw new WorkbenchHttpError(400, 'GIT_REMOTE_NAME_INVALID', '远端名称不符合 Git 规则。')
+    if ((await this.remoteNames(cwd)).includes(name)) {
+      throw new WorkbenchHttpError(409, 'GIT_REMOTE_EXISTS', '同名远端已经存在。')
+    }
+    return name
+  }
+
+  private async requireRefName(cwd: string, value: unknown): Promise<string> {
+    if (typeof value !== 'string' || value.trim() === '' || value.length > 255) {
+      throw new WorkbenchHttpError(400, 'GIT_BRANCH_NAME_INVALID', '请输入有效的远端分支名称。')
+    }
+    const name = value.trim()
+    const valid = await this.run(cwd, ['check-ref-format', '--branch', name], [0, 1, 128])
+    if (valid.exitCode !== 0) throw new WorkbenchHttpError(400, 'GIT_BRANCH_NAME_INVALID', '远端分支名称不符合 Git 规则。')
+    return name
+  }
+
   private async run(
     cwd: string,
     args: string[],
@@ -756,6 +891,18 @@ function requireRevision(value: unknown): string {
     throw new WorkbenchHttpError(400, 'GIT_REVISION_INVALID', '提交版本无效。')
   }
   return value
+}
+
+function requireRemoteUrl(value: unknown): string {
+  if (typeof value !== 'string' || value.trim() === '' || value.length > 4096 || /[\0\r\n]/u.test(value)) {
+    throw new WorkbenchHttpError(400, 'GIT_REMOTE_URL_INVALID', '请输入有效的远端地址。')
+  }
+  return value.trim()
+}
+
+function requireOptionalRemoteUrl(value: unknown): string | undefined {
+  if (value === undefined || value === null || value === '') return undefined
+  return requireRemoteUrl(value)
 }
 
 function emptyGitText(): GitText {

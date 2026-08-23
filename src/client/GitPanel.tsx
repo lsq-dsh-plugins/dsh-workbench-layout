@@ -7,13 +7,16 @@ import type {
   GitFileStatus,
   GitGraph,
   GitRemoteOperation,
+  GitRemotes,
   GitStatus,
+  GitTargetRemoteOperation,
 } from '../contracts.ts'
 import type { WorkbenchController } from './controller.ts'
 import { GitChangesView } from './GitChangesView.tsx'
 import { GitBranchDialog, type GitBranchDialogMode } from './GitBranchDialog.tsx'
 import { GitGraphView, type CommitFilesState } from './GitGraphView.tsx'
 import { GitRepositoryToolbar } from './GitRepositoryToolbar.tsx'
+import { GitRemoteDialog, type GitRemoteDialogMode, type GitRemoteDraft } from './GitRemoteDialog.tsx'
 import { useWorkbench } from './use-workbench.ts'
 import css from './Workbench.module.css'
 
@@ -46,6 +49,9 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
   const [result, setResult] = useState<string | null>(null)
   const [branchDialog, setBranchDialog] = useState<GitBranchDialogMode | null>(null)
   const [branchDialogError, setBranchDialogError] = useState<string | null>(null)
+  const [remoteDialog, setRemoteDialog] = useState<GitRemoteDialogMode | null>(null)
+  const [remotes, setRemotes] = useState<GitRemotes | null>(null)
+  const [remoteDialogError, setRemoteDialogError] = useState<string | null>(null)
 
   const refresh = useCallback(async (): Promise<void> => {
     if (workspaceId === undefined) return
@@ -83,6 +89,9 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
     setCommitFiles({})
     setBranchDialog(null)
     setBranchDialogError(null)
+    setRemoteDialog(null)
+    setRemotes(null)
+    setRemoteDialogError(null)
     void refresh()
   }, [refresh])
 
@@ -242,6 +251,87 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
     }
   }
 
+  const openRemoteDialog = async (mode: GitRemoteDialogMode): Promise<void> => {
+    if (workspaceId === undefined) return
+    const targetWorkspace = workspaceId
+    setRemoteDialog(mode)
+    setRemotes(null)
+    setRemoteDialogError(null)
+    try {
+      const value = await controller.api.gitRemotes(targetWorkspace)
+      if (activeWorkspace.current === targetWorkspace) setRemotes(value)
+    } catch (reason: unknown) {
+      if (activeWorkspace.current === targetWorkspace) setRemoteDialogError(messageOf(reason))
+    }
+  }
+
+  const saveRemote = async (draft: GitRemoteDraft): Promise<void> => {
+    if (workspaceId === undefined) return
+    const targetWorkspace = workspaceId
+    setBusy('remote-config')
+    setRemoteDialogError(null)
+    try {
+      const value = draft.currentName === undefined
+        ? await controller.api.gitAddRemote(targetWorkspace, draft)
+        : await controller.api.gitUpdateRemote(targetWorkspace, draft.currentName, draft)
+      if (activeWorkspace.current !== targetWorkspace) return
+      setRemotes(value)
+      setRemoteDialog(null)
+      setResult(t('git.remoteDialog.saved'))
+      await refresh()
+    } catch (reason: unknown) {
+      if (activeWorkspace.current === targetWorkspace) setRemoteDialogError(messageOf(reason))
+    } finally {
+      if (activeWorkspace.current === targetWorkspace) setBusy(null)
+    }
+  }
+
+  const deleteRemote = async (name: string): Promise<void> => {
+    if (workspaceId === undefined) return
+    const targetWorkspace = workspaceId
+    setBusy('remote-config')
+    setRemoteDialogError(null)
+    try {
+      const value = await controller.api.gitDeleteRemote(targetWorkspace, name)
+      if (activeWorkspace.current !== targetWorkspace) return
+      setRemotes(value)
+      setRemoteDialog(null)
+      setResult(t('git.remoteDialog.deleted'))
+      await refresh()
+    } catch (reason: unknown) {
+      if (activeWorkspace.current === targetWorkspace) setRemoteDialogError(messageOf(reason))
+    } finally {
+      if (activeWorkspace.current === targetWorkspace) setBusy(null)
+    }
+  }
+
+  const targetRemoteOperation = async (
+    operation: GitTargetRemoteOperation,
+    remote: string,
+    branch?: string,
+  ): Promise<void> => {
+    if (workspaceId === undefined) return
+    const targetWorkspace = workspaceId
+    if (operation === 'pull' && workbench.tabs.some(tab => tab.kind === 'file' && tab.dirty)) {
+      setRemoteDialogError(t('git.unsavedOperation'))
+      return
+    }
+    setBusy(`remote-${operation}`)
+    setRemoteDialogError(null)
+    try {
+      await controller.api.gitTargetRemoteOperation(targetWorkspace, operation, remote, branch)
+      if (operation === 'pull') controller.resetWorkspaceView(targetWorkspace)
+      if (activeWorkspace.current !== targetWorkspace) return
+      setRemoteDialog(null)
+      setResult(t(`git.remoteDialog.target.${operation}Done`, { remote }))
+      await refresh()
+    } catch (reason: unknown) {
+      if (activeWorkspace.current === targetWorkspace) setRemoteDialogError(messageOf(reason))
+    } finally {
+      if (activeWorkspace.current === targetWorkspace) setBusy(null)
+    }
+  }
+
   if (workspaceId === undefined) return <div className={css.emptyState}>{t('git.emptyWorkspace')}</div>
   const stagedFiles = status?.files.filter(isStaged) ?? []
   const changedFiles = status?.files.filter(hasWorktreeChange) ?? []
@@ -262,6 +352,7 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
         onSwitchBranch={ref => { void switchBranch(ref) }}
         onOpenBranchDialog={mode => { setBranchDialogError(null); setBranchDialog(mode) }}
         onRemoteOperation={operation => { void remoteOperation(operation) }}
+        onOpenRemoteDialog={mode => { void openRemoteDialog(mode) }}
         onRefresh={() => {
           controller.closeDiffTabs(workspaceId)
           void refresh()
@@ -320,6 +411,18 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
         error={branchDialogError}
         onClose={() => { if (busy === null) setBranchDialog(null) }}
         onSubmit={(nameOrRef, source) => { void manageBranch(nameOrRef, source) }}
+        t={t}
+      />
+      <GitRemoteDialog
+        mode={remoteDialog}
+        remotes={remotes}
+        status={status}
+        busy={busy?.startsWith('remote-') === true}
+        error={remoteDialogError}
+        onClose={() => { if (busy === null) setRemoteDialog(null) }}
+        onSave={draft => { void saveRemote(draft) }}
+        onDelete={name => { void deleteRemote(name) }}
+        onRun={(operation, remote, branch) => { void targetRemoteOperation(operation, remote, branch) }}
         t={t}
       />
     </div>

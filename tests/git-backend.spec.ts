@@ -301,6 +301,51 @@ describe('GitBackend single-file diffs', () => {
     await expect(readFile(join(fixture.root, 'sync.txt'), 'utf8')).resolves.toBe('sync\n')
     expect(fixture.logger.info).toHaveBeenCalledWith('workbench-layout: completed explicit Git remote operation sync')
   })
+
+  it('adds, edits, renames, lists, and removes remote configuration', async () => {
+    const fixture = await createRepository()
+    const fetchRemote = await createBareRepository()
+    const pushRemote = await createBareRepository()
+
+    await expect(fixture.backend.addRemote('workspace-1', 'origin', fetchRemote, pushRemote)).resolves.toEqual({
+      remotes: [{ name: 'origin', fetchUrl: fetchRemote, pushUrl: pushRemote, separatePushUrl: true }],
+    })
+    await expect(fixture.backend.updateRemote('workspace-1', 'origin', 'upstream', pushRemote, '')).resolves.toEqual({
+      remotes: [{ name: 'upstream', fetchUrl: pushRemote, pushUrl: pushRemote, separatePushUrl: false }],
+    })
+    await expect(fixture.backend.addRemote('workspace-1', 'upstream', fetchRemote)).rejects.toMatchObject({ code: 'GIT_REMOTE_EXISTS' })
+    await expect(fixture.backend.deleteRemote('workspace-1', 'upstream')).resolves.toEqual({ remotes: [] })
+    expect(fixture.logger.info).toHaveBeenCalledWith(expect.stringContaining('removed Git remote'))
+  })
+
+  it('fetches, fast-forward pulls, and pushes a chosen remote and branch', async () => {
+    const fixture = await createRepository()
+    await writeFile(join(fixture.root, 'shared.txt'), 'base\n')
+    git(fixture.root, ['add', '.'])
+    git(fixture.root, ['commit', '--quiet', '-m', 'baseline'])
+    const remote = await createBareRepository()
+    await fixture.backend.addRemote('workspace-1', 'origin', remote)
+    await expect(fixture.backend.targetRemoteOperation('workspace-1', 'push', 'origin', 'main')).resolves.toEqual({
+      operation: 'push', remote: 'origin', branch: 'main',
+    })
+
+    const peer = await mkdtemp(join(tmpdir(), 'dsh-workbench-target-peer-'))
+    temporaryDirectories.push(peer)
+    git(peer, ['clone', '--quiet', remote, '.'])
+    configureIdentity(peer)
+    await writeFile(join(peer, 'shared.txt'), 'remote update\n')
+    git(peer, ['add', '.'])
+    git(peer, ['commit', '--quiet', '-m', 'remote update'])
+    git(peer, ['push', '--quiet'])
+
+    await expect(fixture.backend.targetRemoteOperation('workspace-1', 'fetch', 'origin')).resolves.toEqual({
+      operation: 'fetch', remote: 'origin',
+    })
+    await expect(fixture.backend.targetRemoteOperation('workspace-1', 'pull', 'origin', 'main')).resolves.toEqual({
+      operation: 'pull', remote: 'origin', branch: 'main',
+    })
+    await expect(readFile(join(fixture.root, 'shared.txt'), 'utf8')).resolves.toBe('remote update\n')
+  })
 })
 
 async function createRepository(): Promise<{

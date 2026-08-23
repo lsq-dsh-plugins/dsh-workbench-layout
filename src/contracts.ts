@@ -142,6 +142,25 @@ export interface GitRemoteResult {
   operation: GitRemoteOperation
 }
 
+export interface GitRemote {
+  name: string
+  fetchUrl: string
+  pushUrl: string
+  separatePushUrl: boolean
+}
+
+export interface GitRemotes {
+  remotes: GitRemote[]
+}
+
+export type GitTargetRemoteOperation = 'fetch' | 'pull' | 'push'
+
+export interface GitTargetRemoteResult {
+  operation: GitTargetRemoteOperation
+  remote: string
+  branch?: string
+}
+
 export interface WorkbenchErrorBody {
   error: {
     code: string

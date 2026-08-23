@@ -122,6 +122,16 @@ async function dispatch(
       return git.deleteBranch(body.workspaceId, body.ref)
     case `${WORKBENCH_API_PREFIX}/git/remote`:
       return git.remoteOperation(body.workspaceId, body.operation)
+    case `${WORKBENCH_API_PREFIX}/git/remotes`:
+      return git.remotes(body.workspaceId)
+    case `${WORKBENCH_API_PREFIX}/git/remote/add`:
+      return git.addRemote(body.workspaceId, body.name, body.fetchUrl, body.pushUrl)
+    case `${WORKBENCH_API_PREFIX}/git/remote/update`:
+      return git.updateRemote(body.workspaceId, body.currentName, body.name, body.fetchUrl, body.pushUrl)
+    case `${WORKBENCH_API_PREFIX}/git/remote/delete`:
+      return git.deleteRemote(body.workspaceId, body.name)
+    case `${WORKBENCH_API_PREFIX}/git/remote/target`:
+      return git.targetRemoteOperation(body.workspaceId, body.operation, body.remote, body.branch)
     case `${WORKBENCH_API_PREFIX}/git/commit/files`:
       return git.commitFiles(body.workspaceId, body.revision)
     case `${WORKBENCH_API_PREFIX}/git/commit/file`:

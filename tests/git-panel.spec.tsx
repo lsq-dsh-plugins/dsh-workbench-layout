@@ -53,6 +53,23 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Modal: ({ open, title, children, footer }: { open: boolean; title: string; children?: React.ReactNode; footer?: React.ReactNode }) => (
     open ? <div role="dialog" aria-label={title}>{children}{footer}</div> : null
   ),
+  RiskConfirmation: ({ open, title, acknowledgeLabel, cancelLabel, confirmLabel, acknowledged, onAcknowledgedChange, onCancel, onConfirm }: {
+    open: boolean
+    title: string
+    acknowledgeLabel: string
+    cancelLabel: string
+    confirmLabel: string
+    acknowledged: boolean
+    onAcknowledgedChange: (value: boolean) => void
+    onCancel: () => void
+    onConfirm: () => void
+  }) => open ? (
+    <div role="dialog" aria-label={title}>
+      <label><input type="checkbox" checked={acknowledged} onChange={event => { onAcknowledgedChange(event.currentTarget.checked) }} />{acknowledgeLabel}</label>
+      <button type="button" onClick={onCancel}>{cancelLabel}</button>
+      <button type="button" disabled={!acknowledged} onClick={onConfirm}>{confirmLabel}</button>
+    </div>
+  ) : null,
   Tooltip: ({ children, label }: { children: React.ReactNode; label: string | (() => string) }) => (
     <span data-tooltip={typeof label === 'function' ? label() : label}>{children}</span>
   ),
@@ -223,6 +240,33 @@ describe('Git panel', () => {
     await waitFor(() => { expect(controller.api.gitDeleteBranch).toHaveBeenCalledWith('workspace-1', 'refs/heads/topic') })
   })
 
+  it('adds remote configuration and runs an operation against the chosen remote', async () => {
+    const { controller } = harness()
+    const view = renderPanel(controller)
+    await waitFor(() => { expect(view.getByRole('button', { name: '更多 Git 操作' })).toBeTruthy() })
+
+    fireEvent.click(view.getByRole('button', { name: '更多 Git 操作' }))
+    fireEvent.click(view.getByRole('button', { name: '管理远端…' }))
+    const manageDialog = await view.findByRole('dialog', { name: '管理 Git 远端' })
+    fireEvent.change(view.getByLabelText('远端名称'), { target: { value: 'backup' } })
+    fireEvent.change(view.getByLabelText('抓取地址'), { target: { value: 'https://example.invalid/repo.git' } })
+    fireEvent.click(view.getByRole('button', { name: '保存远端' }))
+    await waitFor(() => {
+      expect(controller.api.gitAddRemote).toHaveBeenCalledWith('workspace-1', {
+        name: 'backup', fetchUrl: 'https://example.invalid/repo.git', pushUrl: '',
+      })
+    })
+    expect(manageDialog).toBeTruthy()
+
+    fireEvent.click(view.getByRole('button', { name: '更多 Git 操作' }))
+    fireEvent.click(view.getByRole('button', { name: '指定远端操作…' }))
+    await view.findByRole('dialog', { name: '指定远端操作' })
+    fireEvent.click(view.getByRole('button', { name: '抓取' }))
+    await waitFor(() => {
+      expect(controller.api.gitTargetRemoteOperation).toHaveBeenCalledWith('workspace-1', 'fetch', 'origin', undefined)
+    })
+  })
+
   it('blocks workspace-changing Git operations while the editor has an unsaved draft', async () => {
     workbenchStore.update({ tabs: [
       { id: 'file:a.ts', kind: 'file', dirty: false },
@@ -297,6 +341,13 @@ function harness() {
       gitRenameBranch: vi.fn(() => Promise.resolve({ ...status, branch: 'main-renamed' })),
       gitDeleteBranch: vi.fn(() => Promise.resolve(status)),
       gitRemoteOperation: vi.fn((operation: string) => Promise.resolve({ operation })),
+      gitRemotes: vi.fn(() => Promise.resolve({
+        remotes: [{ name: 'origin', fetchUrl: 'https://example.invalid/origin.git', pushUrl: 'https://example.invalid/origin.git', separatePushUrl: false }],
+      })),
+      gitAddRemote: vi.fn(() => Promise.resolve({ remotes: [] })),
+      gitUpdateRemote: vi.fn(() => Promise.resolve({ remotes: [] })),
+      gitDeleteRemote: vi.fn(() => Promise.resolve({ remotes: [] })),
+      gitTargetRemoteOperation: vi.fn((operation: string, remote: string, branch?: string) => Promise.resolve({ operation, remote, branch })),
     },
     openDiff: vi.fn(() => Promise.resolve()),
     openCommitDiff: vi.fn(() => Promise.resolve()),

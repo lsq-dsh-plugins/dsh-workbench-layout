@@ -9,8 +9,12 @@ import type {
   GitFileDiff,
   GitGraph,
   GitRemoteOperation,
+  GitRemote,
   GitRemoteResult,
+  GitRemotes,
   GitStatus,
+  GitTargetRemoteOperation,
+  GitTargetRemoteResult,
   SavedWorkspaceFile,
   WorkbenchErrorBody,
   WorkspaceFile,
@@ -80,6 +84,31 @@ export class WorkbenchApi {
 
   async gitRemoteOperation(workspaceId: string, operation: GitRemoteOperation): Promise<GitRemoteResult> {
     return this.post('/git/remote', { workspaceId, operation })
+  }
+
+  async gitRemotes(workspaceId: string): Promise<GitRemotes> {
+    return this.post('/git/remotes', { workspaceId })
+  }
+
+  async gitAddRemote(workspaceId: string, remote: Omit<GitRemote, 'separatePushUrl'>): Promise<GitRemotes> {
+    return this.post('/git/remote/add', { workspaceId, ...remote })
+  }
+
+  async gitUpdateRemote(workspaceId: string, currentName: string, remote: Omit<GitRemote, 'separatePushUrl'>): Promise<GitRemotes> {
+    return this.post('/git/remote/update', { workspaceId, currentName, ...remote })
+  }
+
+  async gitDeleteRemote(workspaceId: string, name: string): Promise<GitRemotes> {
+    return this.post('/git/remote/delete', { workspaceId, name })
+  }
+
+  async gitTargetRemoteOperation(
+    workspaceId: string,
+    operation: GitTargetRemoteOperation,
+    remote: string,
+    branch?: string,
+  ): Promise<GitTargetRemoteResult> {
+    return this.post('/git/remote/target', { workspaceId, operation, remote, branch })
   }
 
   async gitCommitFiles(workspaceId: string, revision: string): Promise<GitCommitFiles> {
