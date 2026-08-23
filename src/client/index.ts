@@ -63,5 +63,5 @@ export function apply(ctx: ClientContext): void {
   }, WorkbenchEditor))
 
   installWorkbenchLayout(ctx, controller.store)
-  ctx.logger.info('workbench-layout: sidebar switch and file editor registered')
+  ctx.logger.info('workbench-layout: sidebar switch, file editor, and native-toned Git feedback registered')
 }

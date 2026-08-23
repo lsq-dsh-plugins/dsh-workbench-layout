@@ -468,8 +468,11 @@
 }
 
 .success {
-  background: var(--dsw-alias-state-success-secondary);
-  color: var(--dsw-alias-state-success-primary);
+  margin-bottom: 6px;
+  padding-block: 6px;
+  border-radius: 8px;
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
 }
 
 .gitContent {

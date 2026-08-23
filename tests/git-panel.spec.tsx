@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { GitPanel } from '../src/client/GitPanel.tsx'
 import { zh } from '../src/client/locales.ts'
@@ -52,6 +54,15 @@ beforeEach(() => { workbenchState.tabs = [] })
 afterEach(() => { cleanup() })
 
 describe('Git panel', () => {
+  it('uses the native neutral notice surface for successful Git feedback', () => {
+    const stylesheet = readFileSync(resolve(process.cwd(), 'src/client/Workbench.module.css'), 'utf8')
+    const successRule = stylesheet.match(/\.success\s*\{[^}]+\}/u)?.[0]
+
+    expect(successRule).toContain('background: var(--dsw-alias-interactive-bg-hover)')
+    expect(successRule).toContain('color: var(--dsw-alias-label-primary)')
+    expect(successRule).not.toContain('state-success-secondary')
+  })
+
   it('switches list/tree layouts and opens only the selected change', async () => {
     const { controller } = harness()
     const view = renderPanel(controller)
