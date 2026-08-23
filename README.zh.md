@@ -64,8 +64,6 @@ dsh plugin --profile web remove @lsq64737/dsh-workbench-layout
 
 ## 开发命令
 
-仓库根目录的 `AGENTS.md` 是项目级开发提示词，要求后续修改优先核对并沿用 DSH 官方组件、图标、设计令牌、布局和动效，同时约束模块拆分、测试、隐私与发布边界。
-
 ```sh
 npm run typecheck
 npm test

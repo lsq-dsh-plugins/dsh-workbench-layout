@@ -64,8 +64,6 @@ dsh plugin --profile web remove @lsq64737/dsh-workbench-layout
 
 ## Development
 
-The repository-root `AGENTS.md` is the project-specific development prompt. It requires future changes to inspect and follow DSH's official components, icons, design tokens, layout, and motion first, while defining modularity, testing, privacy, and release boundaries.
-
 ```sh
 npm run typecheck
 npm test
