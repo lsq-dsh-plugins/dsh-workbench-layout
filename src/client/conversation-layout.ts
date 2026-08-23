@@ -12,6 +12,7 @@ const VIEWPORT_PADDING = 12
 const MENU_GAP = 8
 const MODEL_MENU_SELECTOR = "[data-slot='conversation.input.model'] [role='menu']"
 const MODEL_TRIGGER_SELECTOR = "button[aria-haspopup='menu']"
+const CONVERSATION_SLOT_SELECTOR = ":scope > [data-slot='conversation']"
 const SESSION_HEADER_UTILITIES_SELECTOR = "[data-slot='conversation.session.header.utilities']"
 const SESSION_LOG_LABEL = 'Session log'
 
@@ -197,7 +198,9 @@ export function createConversationLayout(
 }
 
 function findConversationRoot(column: HTMLElement): HTMLElement | null {
-  for (const child of column.children) {
+  const conversationSlot = column.querySelector<HTMLElement>(CONVERSATION_SLOT_SELECTOR)
+  if (conversationSlot === null) return null
+  for (const child of conversationSlot.children) {
     if (!(child instanceof HTMLElement) || !child.hasAttribute('data-phase')) continue
     const ownsScrollBody = Array.from(child.children).some(grandchild =>
       grandchild instanceof HTMLElement && grandchild.hasAttribute('data-conversation-scroll'))

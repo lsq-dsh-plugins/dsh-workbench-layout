@@ -2,6 +2,10 @@
 
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  EDITOR_TRANSITION_END_EVENT,
+  EDITOR_TRANSITION_START_EVENT,
+} from '../src/client/editor-track-transition.ts'
 import { zh } from '../src/client/locales.ts'
 import { TerminalSurface } from '../src/client/TerminalSurface.tsx'
 
@@ -12,6 +16,7 @@ const terminalHarness = vi.hoisted(() => ({
     dispose: ReturnType<typeof vi.fn>
     emitData(data: string): void
   }>,
+  fitInstances: [] as Array<{ fit: ReturnType<typeof vi.fn> }>,
 }))
 
 vi.mock('@xterm/xterm', () => ({
@@ -34,18 +39,29 @@ vi.mock('@xterm/xterm', () => ({
     emitData(data: string) { this.dataListener?.(data) }
   },
 }))
-vi.mock('@xterm/addon-fit', () => ({ FitAddon: class { fit() {} } }))
+vi.mock('@xterm/addon-fit', () => ({
+  FitAddon: class {
+    readonly fit = vi.fn()
+    constructor() { terminalHarness.fitInstances.push(this) }
+  },
+}))
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Button: ({ children, size: _size, variant: _variant, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { size?: string; variant?: string }) => <button {...props}>{children}</button>,
 }))
 
 beforeEach(() => {
   terminalHarness.instances.length = 0
+  terminalHarness.fitInstances.length = 0
   FakeWebSocket.instances.length = 0
+  FakeResizeObserver.instances.length = 0
   vi.stubGlobal('WebSocket', FakeWebSocket)
+  vi.stubGlobal('ResizeObserver', FakeResizeObserver)
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(800)
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(600)
 })
 afterEach(() => {
   cleanup()
+  vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
 
@@ -96,6 +112,34 @@ describe('中栏终端画布', () => {
     fireEvent.click(view.getByRole('button', { name: '重新启动' }))
     expect(controller.restartTerminal).toHaveBeenCalledWith('terminal:2')
   })
+
+  it('中栏显隐过渡期间冻结网格，并在稳定端点只适配一次', () => {
+    const frame = document.createElement('div')
+    const container = document.createElement('div')
+    frame.appendChild(container)
+    document.body.appendChild(frame)
+    render(
+      <TerminalSurface
+        tab={{ id: 'terminal:3', kind: 'terminal', sequence: 3, generation: 0, status: 'running', error: null }}
+        workspaceId="workspace-1"
+        active
+        controller={controllerFake() as never}
+        t={translate}
+      />,
+      { container },
+    )
+    const fit = terminalHarness.fitInstances[0]!.fit
+    const resizeObserver = FakeResizeObserver.instances[0]!
+    const fitsBeforeTransition = fit.mock.calls.length
+
+    act(() => { frame.dispatchEvent(new CustomEvent(EDITOR_TRANSITION_START_EVENT, { bubbles: true })) })
+    act(() => { resizeObserver.trigger() })
+    act(() => { resizeObserver.trigger() })
+    expect(fit).toHaveBeenCalledTimes(fitsBeforeTransition)
+
+    act(() => { frame.dispatchEvent(new CustomEvent(EDITOR_TRANSITION_END_EVENT, { bubbles: true })) })
+    expect(fit).toHaveBeenCalledTimes(fitsBeforeTransition + 1)
+  })
 })
 
 function controllerFake() {
@@ -132,5 +176,17 @@ class FakeWebSocket extends EventTarget {
   }
   message(value: unknown): void {
     this.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(value) }))
+  }
+}
+
+class FakeResizeObserver {
+  static readonly instances: FakeResizeObserver[] = []
+  readonly observe = vi.fn()
+  readonly disconnect = vi.fn()
+  constructor(private readonly callback: ResizeObserverCallback) {
+    FakeResizeObserver.instances.push(this)
+  }
+  trigger(): void {
+    this.callback([], this as unknown as ResizeObserver)
   }
 }

@@ -6,6 +6,8 @@ export const EDITOR_TRANSITION_ATTRIBUTE = 'data-dsh-workbench-editor-transition
 export const TRANSITION_SIDEBAR_WIDTH = '--dsh-workbench-transition-sidebar-width'
 export const TRANSITION_EDITOR_WIDTH = '--dsh-workbench-transition-editor-width'
 export const TRANSITION_CONVERSATION_WIDTH = '--dsh-workbench-transition-conversation-width'
+export const EDITOR_TRANSITION_START_EVENT = 'dsh-workbench:editor-transition-start'
+export const EDITOR_TRANSITION_END_EVENT = 'dsh-workbench:editor-transition-end'
 
 const DETAILS_DEFAULT = 360
 const TRANSITION_FALLBACK_MS = 360
@@ -33,12 +35,15 @@ export function createEditorTrackTransition(
   let targetExpanded = initiallyExpanded
   let animationFrame: number | null = null
   let fallbackTimer: number | null = null
+  let targetApplied = false
+  let transitionAnnounced = false
 
   const cancelPending = (): void => {
     if (animationFrame !== null) cancelAnimationFrame(animationFrame)
     if (fallbackTimer !== null) window.clearTimeout(fallbackTimer)
     animationFrame = null
     fallbackTimer = null
+    targetApplied = false
   }
 
   const clearPresentation = (): void => {
@@ -51,10 +56,14 @@ export function createEditorTrackTransition(
 
   const finish = (): void => {
     clearPresentation()
+    if (transitionAnnounced) {
+      transitionAnnounced = false
+      frame.dispatchEvent(new CustomEvent(EDITOR_TRANSITION_END_EVENT, { bubbles: true }))
+    }
   }
 
   const onTransitionEnd = (event: TransitionEvent): void => {
-    if (event.target !== frame || event.propertyName !== 'grid-template-columns') return
+    if (!targetApplied || event.target !== frame || event.propertyName !== 'grid-template-columns') return
     finish()
   }
   frame.addEventListener('transitionend', onTransitionEnd)
@@ -69,7 +78,7 @@ export function createEditorTrackTransition(
       || !(conversation instanceof HTMLElement)
       || !(editor instanceof HTMLElement)
       || prefersReducedMotion()) {
-      clearPresentation()
+      finish()
       return
     }
 
@@ -79,7 +88,7 @@ export function createEditorTrackTransition(
     const editorWidth = Math.round(editor.getBoundingClientRect().width)
     const availableWidth = Math.max(0, frameWidth - sidebarWidth)
     if (frameWidth <= 0 || sidebarWidth <= 0 || availableWidth <= 0) {
-      clearPresentation()
+      finish()
       return
     }
 
@@ -88,28 +97,38 @@ export function createEditorTrackTransition(
     setPixels(frame, TRANSITION_EDITOR_WIDTH, Math.min(editorWidth, availableWidth))
     setPixels(frame, TRANSITION_CONVERSATION_WIDTH, Math.min(conversationWidth, availableWidth))
     frame.setAttribute(EDITOR_TRANSITION_ATTRIBUTE, '')
+    if (!transitionAnnounced) {
+      transitionAnnounced = true
+      frame.dispatchEvent(new CustomEvent(EDITOR_TRANSITION_START_EVENT, { bubbles: true }))
+    }
 
+    /* Two frames are intentional: the first lets the browser paint the
+       geometry-equivalent reordered start; the second writes the target.
+       A single rAF is still before that first paint and gets coalesced. */
     animationFrame = requestAnimationFrame(() => {
-      animationFrame = null
-      const currentFrameWidth = Math.round(frame.getBoundingClientRect().width)
-      const currentSidebarWidth = Math.round(sidebar.getBoundingClientRect().width)
-      const currentAvailableWidth = Math.max(0, currentFrameWidth - currentSidebarWidth)
-      const targetConversationWidth = next
-        ? resolveExpandedConversationWidth(frame, currentAvailableWidth)
-        : currentAvailableWidth
-      setPixels(frame, TRANSITION_SIDEBAR_WIDTH, currentSidebarWidth)
-      setPixels(frame, TRANSITION_EDITOR_WIDTH, Math.max(0, currentAvailableWidth - targetConversationWidth))
-      setPixels(frame, TRANSITION_CONVERSATION_WIDTH, targetConversationWidth)
-      fallbackTimer = window.setTimeout(finish, TRANSITION_FALLBACK_MS)
+      animationFrame = requestAnimationFrame(() => {
+        animationFrame = null
+        const currentFrameWidth = Math.round(frame.getBoundingClientRect().width)
+        const currentSidebarWidth = Math.round(sidebar.getBoundingClientRect().width)
+        const currentAvailableWidth = Math.max(0, currentFrameWidth - currentSidebarWidth)
+        const targetConversationWidth = next
+          ? resolveExpandedConversationWidth(frame, currentAvailableWidth)
+          : currentAvailableWidth
+        setPixels(frame, TRANSITION_SIDEBAR_WIDTH, currentSidebarWidth)
+        setPixels(frame, TRANSITION_EDITOR_WIDTH, Math.max(0, currentAvailableWidth - targetConversationWidth))
+        setPixels(frame, TRANSITION_CONVERSATION_WIDTH, targetConversationWidth)
+        targetApplied = true
+        fallbackTimer = window.setTimeout(finish, TRANSITION_FALLBACK_MS)
+      })
     })
-    logger.info(`workbench-layout: synchronized ${next ? 'expand' : 'collapse'} transition for middle editor tracks`)
+    logger.info(`workbench-layout: synchronized two-frame ${next ? 'expand' : 'collapse'} transition for middle editor tracks`)
   }
 
   return {
     setExpanded,
     dispose: () => {
       frame.removeEventListener('transitionend', onTransitionEnd)
-      clearPresentation()
+      finish()
     },
   }
 }

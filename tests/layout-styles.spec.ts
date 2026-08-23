@@ -53,9 +53,9 @@ describe('workbench layout presentation', () => {
     expect(style?.textContent).toContain("[data-slot='conversation.input.model'] > div {\n  flex: 0 1 auto;")
     expect(style?.textContent).toContain("button[aria-haspopup='menu'] {\n  width: auto;")
     expect(style?.textContent).toContain('padding-inline: 8px')
-    expect(style?.textContent).toContain(`:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) > [${CONVERSATION_ROOT_ATTRIBUTE}]`)
-    expect(style?.textContent).toContain(`:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[data-dsh-workbench-fallback-details] > :nth-child(2) > [${CONVERSATION_ROOT_ATTRIBUTE}]`)
-    expect(style?.textContent).toContain(`[${EDITOR_TRANSITION_ATTRIBUTE}] > :nth-child(2) > [${CONVERSATION_ROOT_ATTRIBUTE}]`)
+    expect(style?.textContent).toContain(`:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}]`)
+    expect(style?.textContent).toContain(`:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[data-dsh-workbench-fallback-details] > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}]`)
+    expect(style?.textContent).toContain(`[${EDITOR_TRANSITION_ATTRIBUTE}] > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}]`)
     expect(style?.textContent).toContain('transition: grid-template-columns var(--ds-transition-duration-slow) var(--ds-ease-in-out)')
     expect(style?.textContent).not.toContain('> :nth-child(2) [data-phase]')
     expect(style?.textContent).not.toContain('[data-composer-card]')
@@ -146,6 +146,8 @@ function appFrameFixture(phase: 'hero' | 'active', sidebarWidth = 280) {
   frame.toggleAttribute('data-details-collapsed', true)
   const sidebar = document.createElement('div')
   const conversationColumn = document.createElement('div')
+  const conversationSlot = document.createElement('div')
+  conversationSlot.dataset.slot = 'conversation'
   const conversation = document.createElement('div')
   conversation.dataset.phase = phase
   const conversationScroll = document.createElement('div')
@@ -154,7 +156,8 @@ function appFrameFixture(phase: 'hero' | 'active', sidebarWidth = 280) {
   textarea.dataset.phase = 'inert'
   conversationScroll.appendChild(textarea)
   conversation.appendChild(conversationScroll)
-  conversationColumn.appendChild(conversation)
+  conversationSlot.appendChild(conversation)
+  conversationColumn.appendChild(conversationSlot)
   const details = document.createElement('div')
   details.appendChild(document.createElement('div'))
   const overlay = document.createElement('div')
@@ -162,7 +165,7 @@ function appFrameFixture(phase: 'hero' | 'active', sidebarWidth = 280) {
   frame.append(sidebar, conversationColumn, details, overlay)
   vi.spyOn(frame, 'getBoundingClientRect').mockReturnValue(rect(1400))
   vi.spyOn(sidebar, 'getBoundingClientRect').mockReturnValue(rect(sidebarWidth))
-  expect(conversationColumn.querySelector(':scope > [data-phase]')).toBe(conversation)
+  expect(conversationColumn.querySelector(":scope > [data-slot='conversation'] > [data-phase]")).toBe(conversation)
   expect(conversationColumn.querySelector(':scope > textarea[data-phase]')).toBeNull()
   return { frame, conversation }
 }

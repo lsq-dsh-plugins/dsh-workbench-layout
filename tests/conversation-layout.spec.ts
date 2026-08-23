@@ -92,11 +92,14 @@ describe('右侧原生会话窄栏适配', () => {
 
 function conversationFixture() {
   const column = document.createElement('div')
+  const conversationSlot = document.createElement('div')
+  conversationSlot.dataset.slot = 'conversation'
   const conversationRoot = document.createElement('div')
   conversationRoot.dataset.phase = 'active'
   const conversationScroll = document.createElement('div')
   conversationScroll.dataset.conversationScroll = ''
   conversationRoot.appendChild(conversationScroll)
+  conversationSlot.appendChild(conversationRoot)
   const slot = document.createElement('div')
   slot.dataset.slot = 'conversation.input.model'
   const modelRoot = document.createElement('div')
@@ -115,7 +118,7 @@ function conversationFixture() {
   sessionLogLabel.textContent = 'Session log'
   sessionLogButton.append(sessionLogLabel, document.createElementNS('http://www.w3.org/2000/svg', 'svg'))
   utilities.append(unrelatedButton, sessionLogButton)
-  column.append(conversationRoot, slot, utilities)
+  column.append(conversationSlot, slot, utilities)
   document.body.appendChild(column)
   return { column, conversationRoot, modelRoot, trigger, menu, sessionLogButton, unrelatedButton }
 }

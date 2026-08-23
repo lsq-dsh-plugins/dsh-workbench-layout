@@ -47,20 +47,20 @@ const CSS = `
   background: var(--dsw-specific-sidebar-fill);
 }
 
-/* Only the native ConversationRoot directly mounted by CenterColumn receives
-   the workbench surface. InputBar and its phase-bearing textarea stay wholly
-   owned by DSH's official component styles. */
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) > [${CONVERSATION_ROOT_ATTRIBUTE}],
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2) > [${CONVERSATION_ROOT_ATTRIBUTE}],
-[${FRAME_ATTRIBUTE}][${EDITOR_TRANSITION_ATTRIBUTE}] > :nth-child(2) > [${CONVERSATION_ROOT_ATTRIBUTE}] {
+/* Only the native ConversationRoot inside CenterColumn's official slot wrapper
+   receives the workbench surface. InputBar and its phase-bearing textarea stay
+   wholly owned by DSH's official component styles. */
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}],
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}],
+[${FRAME_ATTRIBUTE}][${EDITOR_TRANSITION_ATTRIBUTE}] > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}] {
   background: var(--dsw-specific-sidebar-fill);
 }
 
 /* The official active composer mask references the original center surface;
    only its backdrop stop follows the relocated conversation surface. */
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) > [${CONVERSATION_ROOT_ATTRIBUTE}][data-phase='active'] [data-composer-seat],
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2) > [${CONVERSATION_ROOT_ATTRIBUTE}][data-phase='active'] [data-composer-seat],
-[${FRAME_ATTRIBUTE}][${EDITOR_TRANSITION_ATTRIBUTE}] > :nth-child(2) > [${CONVERSATION_ROOT_ATTRIBUTE}][data-phase='active'] [data-composer-seat] {
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}][data-phase='active'] [data-composer-seat],
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}][data-phase='active'] [data-composer-seat],
+[${FRAME_ATTRIBUTE}][${EDITOR_TRANSITION_ATTRIBUTE}] > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}][data-phase='active'] [data-composer-seat] {
   background: linear-gradient(
     180deg,
     color-mix(in srgb, var(--dsw-specific-sidebar-fill) 0%, transparent) 0px,

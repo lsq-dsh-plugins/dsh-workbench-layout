@@ -13,6 +13,11 @@ import {
 } from '../terminal-protocol.ts'
 import type { WorkbenchController, WorkbenchTerminalTab } from './controller.ts'
 import type { WorkbenchKey } from './locales.ts'
+import {
+  EDITOR_TRANSITION_ATTRIBUTE,
+  EDITOR_TRANSITION_END_EVENT,
+  EDITOR_TRANSITION_START_EVENT,
+} from './editor-track-transition.ts'
 import css from './Workbench.module.css'
 
 export interface TerminalSurfaceProps {
@@ -28,6 +33,7 @@ export function TerminalSurface({ tab, workspaceId, active, controller, t }: Ter
   const hostRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
+  const fitWhenStableRef = useRef<(() => void) | null>(null)
   const activeRef = useRef(active)
   activeRef.current = active
 
@@ -53,7 +59,18 @@ export function TerminalSurface({ tab, workspaceId, active, controller, t }: Ter
     terminal.open(host)
     terminalRef.current = terminal
     fitRef.current = fit
-    fitVisible(host, fit)
+    let editorTransitionActive = host.closest(`[${EDITOR_TRANSITION_ATTRIBUTE}]`) !== null
+    let fitPending = editorTransitionActive
+    const fitWhenStable = (): void => {
+      if (editorTransitionActive) {
+        fitPending = true
+        return
+      }
+      fitPending = false
+      fitVisible(host, fit)
+    }
+    fitWhenStableRef.current = fitWhenStable
+    fitWhenStable()
 
     const socket = new WebSocket(terminalSocketUrl())
     const send = (message: TerminalClientMessage): void => {
@@ -66,7 +83,7 @@ export function TerminalSurface({ tab, workspaceId, active, controller, t }: Ter
       if (ready) send({ type: 'resize', cols, rows })
     })
     socket.addEventListener('open', () => {
-      fitVisible(host, fit)
+      fitWhenStable()
       send({ type: 'start', workspaceId, cols: terminal.cols, rows: terminal.rows })
     })
     socket.addEventListener('message', (event) => {
@@ -102,9 +119,21 @@ export function TerminalSurface({ tab, workspaceId, active, controller, t }: Ter
       }
     })
 
+    const onEditorTransitionStart = (event: Event): void => {
+      if (!(event.target instanceof HTMLElement) || !event.target.contains(host)) return
+      editorTransitionActive = true
+      fitPending = true
+    }
+    const onEditorTransitionEnd = (event: Event): void => {
+      if (!(event.target instanceof HTMLElement) || !event.target.contains(host)) return
+      editorTransitionActive = false
+      if (activeRef.current && fitPending) fitWhenStable()
+    }
+    document.addEventListener(EDITOR_TRANSITION_START_EVENT, onEditorTransitionStart)
+    document.addEventListener(EDITOR_TRANSITION_END_EVENT, onEditorTransitionEnd)
     const resizeObserver = typeof ResizeObserver === 'undefined'
       ? undefined
-      : new ResizeObserver(() => { if (activeRef.current) fitVisible(host, fit) })
+      : new ResizeObserver(() => { if (activeRef.current) fitWhenStable() })
     resizeObserver?.observe(host)
     const themeObserver = new MutationObserver(() => { terminal.options.theme = terminalTheme(host) })
     themeObserver.observe(document.body, { attributes: true, attributeFilter: ['data-ds-dark-theme', 'style'] })
@@ -115,12 +144,15 @@ export function TerminalSurface({ tab, workspaceId, active, controller, t }: Ter
       resize.dispose()
       resizeObserver?.disconnect()
       themeObserver.disconnect()
+      document.removeEventListener(EDITOR_TRANSITION_START_EVENT, onEditorTransitionStart)
+      document.removeEventListener(EDITOR_TRANSITION_END_EVENT, onEditorTransitionEnd)
       if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
         socket.close(1000, 'terminal tab closed')
       }
       terminal.dispose()
       terminalRef.current = null
       fitRef.current = null
+      if (fitWhenStableRef.current === fitWhenStable) fitWhenStableRef.current = null
     }
   }, [controller, tab.generation, tab.id, workspaceId])
 
@@ -129,7 +161,7 @@ export function TerminalSurface({ tab, workspaceId, active, controller, t }: Ter
     const terminal = terminalRef.current
     const fit = fitRef.current
     if (!active || host === null || terminal === null || fit === null) return
-    fitVisible(host, fit)
+    fitWhenStableRef.current?.()
     terminal.focus()
   }, [active])
 

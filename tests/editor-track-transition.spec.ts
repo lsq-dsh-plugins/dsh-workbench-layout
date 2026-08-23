@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createEditorTrackTransition,
   EDITOR_TRANSITION_ATTRIBUTE,
+  EDITOR_TRANSITION_END_EVENT,
+  EDITOR_TRANSITION_START_EVENT,
   TRANSITION_CONVERSATION_WIDTH,
   TRANSITION_EDITOR_WIDTH,
   TRANSITION_SIDEBAR_WIDTH,
@@ -29,23 +31,39 @@ describe('中栏轨道过渡', () => {
   it('在收起和展开期间连续交换中栏与会话栏宽度', () => {
     const { frame, conversation, editor } = frameFixture()
     const logger = { info: vi.fn() }
+    const start = vi.fn()
+    const end = vi.fn()
+    frame.addEventListener(EDITOR_TRANSITION_START_EVENT, start)
+    frame.addEventListener(EDITOR_TRANSITION_END_EVENT, end)
     const transition = createEditorTrackTransition(frame, logger, true)
 
     transition.setExpanded(false)
+    expect(start).toHaveBeenCalledTimes(1)
     expect(frame.hasAttribute(EDITOR_TRANSITION_ATTRIBUTE)).toBe(true)
     expect(frame.style.getPropertyValue(TRANSITION_SIDEBAR_WIDTH)).toBe('280px')
     expect(frame.style.getPropertyValue(TRANSITION_EDITOR_WIDTH)).toBe('560px')
     expect(frame.style.getPropertyValue(TRANSITION_CONVERSATION_WIDTH)).toBe('360px')
 
     flushAnimationFrame()
+    expect(frame.style.getPropertyValue(TRANSITION_EDITOR_WIDTH)).toBe('560px')
+    expect(frame.style.getPropertyValue(TRANSITION_CONVERSATION_WIDTH)).toBe('360px')
+    finishGridTransition(frame)
+    expect(frame.hasAttribute(EDITOR_TRANSITION_ATTRIBUTE)).toBe(true)
+    expect(end).not.toHaveBeenCalled()
+    flushAnimationFrame()
     expect(frame.style.getPropertyValue(TRANSITION_EDITOR_WIDTH)).toBe('0px')
     expect(frame.style.getPropertyValue(TRANSITION_CONVERSATION_WIDTH)).toBe('920px')
     finishGridTransition(frame)
     expect(frame.hasAttribute(EDITOR_TRANSITION_ATTRIBUTE)).toBe(false)
+    expect(end).toHaveBeenCalledTimes(1)
 
     vi.spyOn(conversation, 'getBoundingClientRect').mockReturnValue(rect(920))
     vi.spyOn(editor, 'getBoundingClientRect').mockReturnValue(rect(0))
     transition.setExpanded(true)
+    expect(start).toHaveBeenCalledTimes(2)
+    flushAnimationFrame()
+    expect(frame.style.getPropertyValue(TRANSITION_EDITOR_WIDTH)).toBe('0px')
+    expect(frame.style.getPropertyValue(TRANSITION_CONVERSATION_WIDTH)).toBe('920px')
     flushAnimationFrame()
     expect(frame.style.getPropertyValue(TRANSITION_EDITOR_WIDTH)).toBe('560px')
     expect(frame.style.getPropertyValue(TRANSITION_CONVERSATION_WIDTH)).toBe('360px')
@@ -54,6 +72,7 @@ describe('中栏轨道过渡', () => {
 
     transition.dispose()
     expect(frame.hasAttribute(EDITOR_TRANSITION_ATTRIBUTE)).toBe(false)
+    expect(end).toHaveBeenCalledTimes(2)
   })
 })
 
