@@ -26,9 +26,22 @@
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
-.sidebarTopHost[data-wide] + [data-dsh-workbench-new-session],
-.sidebarTopHost:not([data-mode='sessions']) + [data-dsh-workbench-new-session] {
+.sidebarTopHost[data-wide] + [data-dsh-workbench-new-session] {
   display: none !important;
+}
+
+/* Keep the native control rendered while another collapsed mode is active.
+   Removing it with display:none would replay DSH's completed rail-in animation
+   every time Sessions makes the control render again. */
+.sidebarTopHost:not([data-wide]):not([data-mode='sessions']) + [data-dsh-workbench-new-session] {
+  visibility: hidden;
+  height: 0;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  border-width: 0;
+  pointer-events: none;
 }
 
 .modeSwitchAnchor {

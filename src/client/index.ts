@@ -63,5 +63,5 @@ export function apply(ctx: ClientContext): void {
   }, WorkbenchEditor))
 
   installWorkbenchLayout(ctx, controller.store)
-  ctx.logger.info('workbench-layout: official Workspace path header and synchronized sidebar modes registered')
+  ctx.logger.info('workbench-layout: stable native session action and official Workspace path header registered')
 }

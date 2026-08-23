@@ -110,6 +110,9 @@ describe('工作台模式切换', () => {
     const nativeNewSessionRule = stylesheet.match(
       /\.sidebarTopHost:not\(\[data-wide\]\) \+ \[data-dsh-workbench-new-session\]\s*\{[^}]+\}/u,
     )?.[0]
+    const hiddenNewSessionRule = stylesheet.match(
+      /\.sidebarTopHost:not\(\[data-wide\]\):not\(\[data-mode='sessions'\]\) \+ \[data-dsh-workbench-new-session\]\s*\{[^}]+\}/u,
+    )?.[0]
 
     expect(modeSwitchRule).toContain('gap: 12px')
     expect(modeSwitchRule).toContain('width: 36px')
@@ -122,9 +125,13 @@ describe('工作台模式切换', () => {
     expect(nativeNewSessionRule).toContain('height: 36px')
     expect(nativeNewSessionRule).toContain('border-radius: 50%')
     expect(nativeNewSessionRule).toContain('background: transparent')
+    expect(hiddenNewSessionRule).toContain('visibility: hidden')
+    expect(hiddenNewSessionRule).toContain('height: 0')
+    expect(hiddenNewSessionRule).toContain('pointer-events: none')
+    expect(hiddenNewSessionRule).not.toContain('display: none')
     expect(source).toContain('useLayoutEffect(() =>')
     expect(source).not.toContain('useEffect(() =>')
-    expect(stylesheet).toContain(".sidebarTopHost:not([data-mode='sessions']) + [data-dsh-workbench-new-session]")
+    expect(stylesheet).toMatch(/\.sidebarTopHost\[data-wide\] \+ \[data-dsh-workbench-new-session\]\s*\{[^}]*display: none !important/u)
   })
 })
 
