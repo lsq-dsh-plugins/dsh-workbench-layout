@@ -6,7 +6,7 @@
 
 ## 功能
 
-- 左栏通过“会话 / 文件 / Git”切换；“会话”会恢复 DSH 原生工作区与会话列表。
+- 左栏顶部通过紧凑的“会话 / 文件 / Git”控件切换；“会话”会恢复 DSH 原生工作区与会话列表。展开态不再重复显示“新会话”长按钮，仍可点击官方字标新建会话，收起栏的新会话图标也会保留。
 - 文件目录按需展开，不会一次读取整棵目录树。
 - 中栏使用 38px 紧凑顶栏和统一编辑器标签：普通文件、工作区 Diff、暂存 Diff 与提交 Diff 可以像 VS Code 一样同时打开、切换和关闭；文件较多时，在标签栏上滚动鼠标滚轮即可左右浏览，到达边界后会恢复页面正常滚动。每个文件标签独立保留草稿、未保存状态、Markdown 模式和保存错误，切换标签不会丢失修改。中栏不显示常驻保存按钮，只通过 `Ctrl/Cmd + S` 保存当前普通文件标签，并保留版本冲突保护与原子保存。
 - 文件、编辑器选择、草稿、Diff 与 Git 状态绑定到 DSH 官方工作区 id；在同一工作区的不同会话之间切换会保留工作台，只有切换工作区才会切换整套状态。没有当前会话、会话尚未产生消息或会话暂未归属工作区时，工作台使用 DSH 官方最近工作区，因此仍可浏览文件与 Git。
@@ -74,6 +74,7 @@ npm run test:bundle
 - `src/client/SourceControlIcon.tsx`：符合 DSH 尺寸与颜色约定的源码管理入口图标。
 - `src/client/workspace-binding.ts`：优先按 DSH 官方成员关系解析会话所属工作区，并在无会话状态下回退到官方最近工作区。
 - `src/client/workspace-layout.ts`：工作区与 AppFrame 原生详情列状态绑定。
+- `src/client/sidebar-top-layout.ts`：顶部模式切换的稳定 Portal 宿主与展开态新会话呈现适配。
 - `src/client/fallback-details-layout.ts`：空会话 Hero 下与官方几何约束一致的临时详情轨道。
 - `src/client/FileTree.tsx`、`GitPanel.tsx`：左栏文件树和源码管理状态编排。
 - `src/client/GitChangesView.tsx`、`git-tree.ts`：更改分组、列表/目录树和文件操作。

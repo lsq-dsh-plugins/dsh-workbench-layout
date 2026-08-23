@@ -6,7 +6,7 @@ An independent DeepSeek Harness Web plugin that keeps the official AppFrame and 
 
 ## Features
 
-- Switch the left column among Sessions, Files, and Git. Sessions releases the region back to the native DSH workspace browser.
+- Switch the left column among Sessions, Files, and Git from a compact control at the top of the official sidebar. Sessions releases the region back to the native DSH workspace browser. The redundant wide New Session bar is removed while DSH's wordmark shortcut and collapsed-rail action remain available.
 - Expand directories lazily instead of reading the full tree at once.
 - Use a compact 38px header and a unified editor-tab model: regular files, working-tree diffs, staged diffs, and commit diffs can be opened, switched, and closed together like VS Code. When tabs overflow, the mouse wheel over the strip scrolls them horizontally and releases normal page scrolling at either boundary. Every file tab retains its own draft, dirty state, Markdown mode, and save error. The middle column has no persistent Save button: `Ctrl/Cmd + S` saves only the active regular file tab with version-conflict protection and an atomic write.
 - Bind files, editor selection, drafts, diffs, and Git state to DSH's official Workspace id. Switching conversations inside one Workspace preserves the workbench; changing Workspace switches the entire workbench state. With no current Session, before a Session has any messages, or while a Session is not yet accounted to a Workspace, the workbench uses DSH's official recent Workspace so files and Git remain available.
@@ -74,6 +74,7 @@ npm run test:bundle
 - `src/client/SourceControlIcon.tsx`: source-control entry glyph following DSH sizing and color conventions.
 - `src/client/workspace-binding.ts`: official Session membership resolution with the official recent-Workspace fallback for no-Session surfaces.
 - `src/client/workspace-layout.ts`: Workspace binding to AppFrame's native details-track state.
+- `src/client/sidebar-top-layout.ts`: stable Portal host for the top mode switch and expanded New Session presentation.
 - `src/client/fallback-details-layout.ts`: temporary empty-Session Hero track with AppFrame-matching geometry.
 - `src/client/FileTree.tsx`, `GitPanel.tsx`: left-column file tree and source-control state orchestration.
 - `src/client/GitChangesView.tsx`, `git-tree.ts`: change groups, list/tree layouts, and per-file actions.

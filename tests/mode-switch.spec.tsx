@@ -17,14 +17,20 @@ vi.mock('../src/client/use-workbench.ts', () => ({
 
 describe('工作台模式切换', () => {
   const setSidebarMode = vi.fn()
+  const logger = { info: vi.fn() }
 
-  beforeEach(() => { setSidebarMode.mockClear() })
+  beforeEach(() => {
+    setSidebarMode.mockClear()
+    logger.info.mockClear()
+    sidebarFixture()
+  })
 
   it('为 Git 入口显示三节点源码管理图标并遵循官方折叠栏尺寸', () => {
     const view = render(
       <ModeSwitch
         wide={false}
         controller={{ setSidebarMode } as unknown as WorkbenchController}
+        logger={logger}
         t={key => ({
           'mode.sessions': '会话',
           'mode.files': '文件',
@@ -49,6 +55,7 @@ describe('工作台模式切换', () => {
       <ModeSwitch
         wide
         controller={{ setSidebarMode } as unknown as WorkbenchController}
+        logger={logger}
         t={key => key === 'mode.git' ? 'Git' : key}
       />,
     )
@@ -57,4 +64,19 @@ describe('工作台模式切换', () => {
   })
 })
 
-afterEach(() => { cleanup() })
+afterEach(() => {
+  cleanup()
+  document.body.innerHTML = ''
+})
+
+function sidebarFixture(): void {
+  const root = document.createElement('div')
+  const brand = document.createElement('div')
+  const newSession = document.createElement('button')
+  const region = document.createElement('div')
+  const seat = document.createElement('div')
+  seat.dataset.slot = 'sidebar.workspaces'
+  region.appendChild(seat)
+  root.append(brand, newSession, region, document.createElement('div'))
+  document.body.appendChild(root)
+}

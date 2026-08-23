@@ -1,3 +1,22 @@
+.sidebarTopHost {
+  flex: none;
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.sidebarTopHost:not([data-wide]) {
+  width: 36px;
+  margin-bottom: 12px;
+}
+
+.sidebarTopHost[data-wide] + [data-dsh-workbench-new-session] {
+  display: none !important;
+}
+
+.modeSwitchAnchor {
+  display: none;
+}
+
 .modeSwitch {
   display: grid;
   grid-template-columns: 1fr;
@@ -8,7 +27,7 @@
 
 .modeSwitch[data-wide] {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  padding: 4px 2px;
+  padding: 0 2px;
 }
 
 .modeButton {
