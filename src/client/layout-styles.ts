@@ -135,13 +135,13 @@ const CSS = `
 }
 
 [${FRAME_ATTRIBUTE}] > :nth-child(2)[${CONVERSATION_NARROW_ATTRIBUTE}] [data-slot='conversation.input.model'] > div {
-  flex: 1 1 0;
+  flex: 0 1 auto;
   min-width: 0;
   max-width: 100%;
 }
 
 [${FRAME_ATTRIBUTE}] > :nth-child(2)[${CONVERSATION_NARROW_ATTRIBUTE}] [data-slot='conversation.input.model'] button[aria-haspopup='menu'] {
-  width: 100%;
+  width: auto;
   max-width: 100%;
 }
 
@@ -230,7 +230,7 @@ export function installWorkbenchLayout(ctx: ClientContext, visibility: Workbench
     const documentObserver = new MutationObserver(attach)
     documentObserver.observe(document.body, { childList: true, subtree: true })
     const unsubscribeVisibility = visibility.subscribe(synchronizeVisibility)
-    ctx.logger.info('workbench-layout: native AppFrame tracks, drag handles, and root-scoped conversation presentation adopted')
+    ctx.logger.info('workbench-layout: native AppFrame tracks, root-scoped conversation surface, and content-sized narrow model selector adopted')
     return () => {
       documentObserver.disconnect()
       unsubscribeVisibility()
