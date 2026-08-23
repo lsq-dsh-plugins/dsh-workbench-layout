@@ -9,6 +9,7 @@ import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots
 import type { WorkbenchController } from './controller.ts'
 import type { WorkbenchKey } from './locales.ts'
 import { IconSourceControlOutline16 } from './SourceControlIcon.tsx'
+import { IconTerminalOutline16 } from './TerminalIcon.tsx'
 import { createSidebarTopMount } from './sidebar-top-layout.ts'
 import { useWorkbench } from './use-workbench.ts'
 import css from './Workbench.module.css'
@@ -27,6 +28,7 @@ export function ModeSwitch({ wide, controller, logger, t }: ModeSwitchProps) {
     { mode: 'sessions' as const, label: t('mode.sessions'), icon: <IconNewChatOutline16 size={iconSize} /> },
     { mode: 'files' as const, label: t('mode.files'), icon: <IconFolderOpenOutline16 size={iconSize} /> },
     { mode: 'git' as const, label: t('mode.git'), icon: <IconSourceControlOutline16 size={iconSize} /> },
+    { mode: 'terminal' as const, label: t('mode.terminal'), icon: <IconTerminalOutline16 size={iconSize} /> },
   ]
   useEffect(() => {
     const mount = createSidebarTopMount(css.sidebarTopHost!, setTarget, logger)

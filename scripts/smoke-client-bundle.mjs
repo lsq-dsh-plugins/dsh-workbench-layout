@@ -6,6 +6,7 @@ import { JSDOM } from 'jsdom'
 const dom = new JSDOM('<!doctype html><html><head></head><body></body></html>')
 globalThis.window = dom.window
 globalThis.document = dom.window.document
+dom.window.HTMLCanvasElement.prototype.getContext = () => ({})
 
 let registration
 window.__ModuleLoader__ = {
@@ -26,6 +27,7 @@ assert.deepEqual(required.sort(), [
   '@deepseek-ai/dsh-client-runtime/client',
   '@deepseek-ai/dsh-client-ui-primitives',
   'react',
+  'react-dom',
   'react/jsx-runtime',
 ])
 assert.ok(document.head.querySelector('style[data-plugin="@lsq64737/dsh-workbench-layout"]'))

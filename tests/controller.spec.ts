@@ -294,6 +294,51 @@ describe('WorkbenchController', () => {
     controller.setSidebarMode('files')
     expect(setActive.mock.calls).toEqual([[true], [false], [true]])
   })
+
+  it('opens a Workspace-bound terminal from the Terminal mode and tracks its lifecycle', () => {
+    const logger = { info: vi.fn(), warn: vi.fn() }
+    const controller = new WorkbenchController({} as never, logger)
+    controller.setWorkspace('workspace-1')
+    controller.setSidebarMode('terminal')
+    const terminal = activeTab(controller)
+
+    expect(terminal).toMatchObject({ kind: 'terminal', sequence: 1, generation: 0, status: 'connecting' })
+    controller.terminalReady(terminal!.id, 'zsh')
+    expect(activeTab(controller)).toMatchObject({ kind: 'terminal', status: 'running', shell: 'zsh' })
+    controller.terminalExited(terminal!.id, 7, 15)
+    expect(activeTab(controller)).toMatchObject({ kind: 'terminal', status: 'exited', exitCode: 7, signal: 15 })
+    controller.restartTerminal(terminal!.id)
+    expect(activeTab(controller)).toMatchObject({ kind: 'terminal', generation: 1, status: 'connecting' })
+    expect(activeTab(controller)).not.toHaveProperty('exitCode')
+  })
+
+  it('keeps multiple terminals in one Workspace but terminates their state on Workspace switch', async () => {
+    const api = { readFile: vi.fn(() => Promise.resolve(file('kept.ts', 'kept', '1'))) }
+    const controller = createController(api)
+    await controller.openFile('workspace-1', 'kept.ts')
+    const first = controller.openTerminal()
+    const second = controller.openTerminal()
+    expect(controller.store.getSnapshot().tabs.filter(tab => tab.kind === 'terminal')).toHaveLength(2)
+    expect(first).not.toBe(second)
+
+    controller.setWorkspace('workspace-2')
+    controller.setWorkspace('workspace-1')
+    expect(controller.store.getSnapshot().tabs).toEqual([
+      expect.objectContaining({ kind: 'file', path: 'kept.ts' }),
+    ])
+  })
+
+  it('preserves live terminal tabs when Git invalidates file and Diff tabs', async () => {
+    const api = { readFile: vi.fn(() => Promise.resolve(file('src/a.ts', 'before', '1'))) }
+    const controller = createController(api)
+    await controller.openFile('workspace-1', 'src/a.ts')
+    const terminalId = controller.openTerminal()
+    controller.resetWorkspaceView()
+    expect(controller.store.getSnapshot().tabs).toEqual([
+      expect.objectContaining({ id: terminalId, kind: 'terminal' }),
+    ])
+    expect(controller.store.getSnapshot().activeTabId).toBe(terminalId)
+  })
 })
 
 function createController(api: object) {

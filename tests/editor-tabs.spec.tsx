@@ -50,6 +50,23 @@ describe('文件标签栏', () => {
     const headerRule = stylesheet.match(/\.editorHeader\s*\{(?<body>[\s\S]*?)\}/u)?.groups?.body
     expect(headerRule).toContain('height: 38px;')
   })
+
+  it('把终端与文件放在同一套标签中', () => {
+    const view = render(
+      <EditorTabs
+        tabs={[tab('src/a.ts'), {
+          id: 'terminal:1', kind: 'terminal', sequence: 1, generation: 0, status: 'running', error: null,
+        }]}
+        activeTabId="terminal:1"
+        onSelect={vi.fn()}
+        onClose={vi.fn()}
+        t={(key: string, values?: Record<string, string>) => key === 'terminal.name'
+          ? `终端 ${values?.index ?? ''}`
+          : key === 'terminal.running' ? '正在运行' : key}
+      />,
+    )
+    expect(view.getByRole('tab', { name: '终端 1' }).getAttribute('aria-selected')).toBe('true')
+  })
 })
 
 function renderTabs() {

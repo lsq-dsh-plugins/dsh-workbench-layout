@@ -4,6 +4,7 @@ import type { WorkbenchController } from './controller.ts'
 import type { WorkbenchKey } from './locales.ts'
 import { FileTree } from './FileTree.tsx'
 import { GitPanel } from './GitPanel.tsx'
+import { TerminalPanel } from './TerminalPanel.tsx'
 import { useWorkbench } from './use-workbench.ts'
 import { resolveWorkbenchWorkspaceId } from './workspace-binding.ts'
 import css from './Workbench.module.css'
@@ -27,7 +28,9 @@ export function WorkbenchSidebar({ wide, useSessions, useWorkspaces, controller,
     <div className={css.sidebarBody}>
       {state.sidebarMode === 'git'
         ? <GitPanel controller={controller} workspaceId={workspaceId} t={t} />
-        : <FileTree controller={controller} workspaceId={workspaceId} t={t} />}
+        : state.sidebarMode === 'terminal'
+          ? <TerminalPanel controller={controller} workspaceId={workspaceId} t={t} />
+          : <FileTree controller={controller} workspaceId={workspaceId} t={t} />}
     </div>
   )
 }

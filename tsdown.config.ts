@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { basename, dirname, resolve as resolvePath, sep } from 'node:path'
 import { defineConfig } from 'tsdown'
 import { transform } from 'lightningcss'
@@ -8,6 +9,8 @@ const PLUGIN_ID = '@lsq64737/dsh-workbench-layout'
 const CSS_VIRTUAL_PREFIX = '\0dsh-workbench-css:'
 const CSS_VIRTUAL_SUFFIX = '.mjs'
 const CSS_SOURCES = new Map<string, string>()
+const CSS_VIRTUAL_IDS = new Map<string, string>()
+const requireFromConfig = createRequire(import.meta.url)
 
 const CLIENT_EXTERNALS = [
   'react',
@@ -52,11 +55,16 @@ export default defineConfig([
       'import.meta.env': JSON.stringify({ MODE: process.env.NODE_ENV ?? 'production' }),
     },
     plugins: [{
-      name: 'dsh-workbench-css-modules-inline',
+      name: 'dsh-workbench-css-inline',
       resolveId(source: string, importer: string | undefined) {
-        if (!source.endsWith('.module.css')) return null
-        const absolute = importer === undefined ? source : sourceAssetPath(source, importer)
-        const virtual = CSS_VIRTUAL_PREFIX + basename(absolute) + CSS_VIRTUAL_SUFFIX
+        if (!source.endsWith('.css')) return null
+        const absolute = source.startsWith('.')
+          ? importer === undefined ? source : sourceAssetPath(source, importer)
+          : requireFromConfig.resolve(source)
+        const existing = CSS_VIRTUAL_IDS.get(absolute)
+        if (existing !== undefined) return existing
+        const virtual = CSS_VIRTUAL_PREFIX + CSS_VIRTUAL_IDS.size + '-' + basename(absolute) + CSS_VIRTUAL_SUFFIX
+        CSS_VIRTUAL_IDS.set(absolute, virtual)
         CSS_SOURCES.set(virtual, absolute)
         return virtual
       },
@@ -66,14 +74,17 @@ export default defineConfig([
         if (file === undefined) throw new Error(`missing CSS source for ${id}`)
         this.addWatchFile(file)
         const source = await readFile(file)
+        const modules = file.endsWith('.module.css')
         const result = transform({
           filename: file,
           code: source,
-          cssModules: { pattern: '[hash]_[local]' },
+          ...(modules ? { cssModules: { pattern: '[hash]_[local]' } } : {}),
           minify: true,
         })
         const classMap: Record<string, string> = {}
-        for (const [local, value] of Object.entries(result.exports ?? {})) classMap[local] = value.name
+        if (modules) {
+          for (const [local, value] of Object.entries(result.exports ?? {})) classMap[local] = value.name
+        }
         const tagId = `${PLUGIN_ID}/${basename(file)}`
         return [
           `const css = ${JSON.stringify(result.code.toString())};`,

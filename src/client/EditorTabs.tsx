@@ -38,10 +38,15 @@ export function EditorTabs({ tabs, activeTabId, onSelect, onClose, t }: EditorTa
       {tabs.map((tab) => {
         const active = tab.id === activeTabId
         const kind = tab.kind === 'diff' ? diffKindText(tab.diffKind, t) : undefined
-        const label = kind === undefined ? basename(tab.path) : `${basename(tab.path)} (${kind})`
+        const name = tab.kind === 'terminal'
+          ? t('terminal.name', { index: String(tab.sequence) })
+          : basename(tab.path)
+        const label = kind === undefined ? name : `${name} (${kind})`
         const status = tab.kind === 'file'
           ? tab.saving ? t('editor.saving') : tab.dirty ? t('editor.unsaved') : undefined
-          : tab.loading ? t('editor.loading') : undefined
+          : tab.kind === 'diff'
+            ? tab.loading ? t('editor.loading') : undefined
+            : terminalStatus(tab.status, t)
         return (
           <div
             key={tab.id}
@@ -49,7 +54,7 @@ export function EditorTabs({ tabs, activeTabId, onSelect, onClose, t }: EditorTa
             data-active={active || undefined}
             data-dirty={tab.kind === 'file' && tab.dirty || undefined}
             data-tab-kind={tab.kind}
-            title={[tab.path, kind, status].filter(Boolean).join(' · ')}
+            title={[tab.kind === 'terminal' ? name : tab.path, kind, status].filter(Boolean).join(' · ')}
           >
             <button
               type="button"
@@ -59,10 +64,13 @@ export function EditorTabs({ tabs, activeTabId, onSelect, onClose, t }: EditorTa
               className={css.editorTabSelect}
               onClick={() => { onSelect(tab.id) }}
             >
-              <span className={css.editorTabName}>{basename(tab.path)}</span>
+              <span className={css.editorTabName}>{name}</span>
               {kind !== undefined && <span className={css.editorTabKind}>{kind}</span>}
               {tab.kind === 'file' && (tab.dirty || tab.saving) && (
                 <span className={css.editorTabStatus} data-saving={tab.saving || undefined} aria-label={status} />
+              )}
+              {tab.kind === 'terminal' && (
+                <span className={css.editorTabStatus} data-terminal-status={tab.status} aria-label={status} />
               )}
             </button>
             <button
@@ -78,6 +86,15 @@ export function EditorTabs({ tabs, activeTabId, onSelect, onClose, t }: EditorTa
       })}
     </div>
   )
+}
+
+function terminalStatus(status: 'connecting' | 'running' | 'exited' | 'error', t: TranslateNS<'workbench'>): string {
+  switch (status) {
+    case 'connecting': return t('terminal.connecting')
+    case 'running': return t('terminal.running')
+    case 'exited': return t('terminal.exited')
+    case 'error': return t('terminal.failed')
+  }
 }
 
 /** 将鼠标纵向滚轮映射为标签栏横向位移，并兼容行/页单位设备。 */

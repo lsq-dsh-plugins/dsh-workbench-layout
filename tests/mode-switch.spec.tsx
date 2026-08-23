@@ -35,6 +35,7 @@ describe('工作台模式切换', () => {
           'mode.sessions': '会话',
           'mode.files': '文件',
           'mode.git': 'Git',
+          'mode.terminal': '终端',
         })[key] ?? key}
       />,
     )
@@ -48,6 +49,7 @@ describe('工作台模式切换', () => {
 
     fireEvent.click(gitButton)
     expect(setSidebarMode).toHaveBeenCalledWith('git')
+    expect(view.getByRole('button', { name: '终端' }).querySelector('svg')?.getAttribute('width')).toBe('18')
   })
 
   it('在展开侧栏中使用 DSH 的 16px 图标规格', () => {

@@ -4,8 +4,9 @@ import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client
 import type { GitCommit, GitFileDiff, WorkspaceFile } from '../contracts.ts'
 import { WorkbenchApi } from './api.ts'
 
-export type SidebarMode = 'sessions' | 'files' | 'git'
+export type SidebarMode = 'sessions' | 'files' | 'git' | 'terminal'
 export type DiffViewMode = 'split' | 'inline'
+export type TerminalStatus = 'connecting' | 'running' | 'exited' | 'error'
 
 export interface WorkbenchFileTab {
   id: string
@@ -31,7 +32,19 @@ export interface WorkbenchDiffTab {
   error: string | null
 }
 
-export type WorkbenchTab = WorkbenchFileTab | WorkbenchDiffTab
+export interface WorkbenchTerminalTab {
+  id: string
+  kind: 'terminal'
+  sequence: number
+  generation: number
+  status: TerminalStatus
+  shell?: string
+  exitCode?: number
+  signal?: number
+  error: string | null
+}
+
+export type WorkbenchTab = WorkbenchFileTab | WorkbenchDiffTab | WorkbenchTerminalTab
 
 export interface WorkbenchState {
   sidebarMode: SidebarMode
@@ -60,6 +73,7 @@ export class WorkbenchController {
   private requestId = 0
   private readonly fileRequests = new Map<string, number>()
   private readonly diffRequests = new Map<string, number>()
+  private terminalId = 0
   private setSidebarShadow: ((active: boolean) => void) | undefined
   private readonly workspaceStates = new Map<string, WorkbenchState>()
 
@@ -82,12 +96,17 @@ export class WorkbenchController {
     this.store.update((state) => { state.sidebarMode = mode })
     this.setSidebarShadow?.(mode !== 'sessions')
     this.logger.info(`workbench-layout: sidebar mode changed to ${mode}`)
+    const state = this.store.getSnapshot()
+    if (mode === 'terminal' && state.workspaceId !== undefined
+      && !state.tabs.some(tab => tab.kind === 'terminal')) {
+      this.openTerminal(state.workspaceId)
+    }
   }
 
   setWorkspace(workspaceId: string | undefined): void {
     const state = this.store.getSnapshot()
     if (state.workspaceId === workspaceId) return
-    if (state.workspaceId !== undefined) this.workspaceStates.set(state.workspaceId, cloneState(state))
+    if (state.workspaceId !== undefined) this.workspaceStates.set(state.workspaceId, stripTerminalTabs(state))
     if (workspaceId === undefined) {
       this.store.set({ ...INITIAL_STATE, sidebarMode: state.sidebarMode })
       return
@@ -112,7 +131,7 @@ export class WorkbenchController {
       this.logger.info(`workbench-layout: selected open file tab ${JSON.stringify(path)}`)
       return
     }
-    if (existing?.loading === true) return
+    if (existing?.kind === 'file' && existing.loading) return
 
     const requestKey = tabRequestKey(workspaceId, tabId)
     const requestId = ++this.requestId
@@ -143,12 +162,70 @@ export class WorkbenchController {
     }
   }
 
+  openTerminal(workspaceId = this.store.getSnapshot().workspaceId): string | undefined {
+    if (workspaceId === undefined) return undefined
+    this.setWorkspace(workspaceId)
+    const state = this.store.getSnapshot()
+    const sequence = state.tabs.reduce((highest, tab) => tab.kind === 'terminal'
+      ? Math.max(highest, tab.sequence)
+      : highest, 0) + 1
+    const id = `terminal:${++this.terminalId}`
+    this.store.update((draft) => {
+      draft.tabs.push({ id, kind: 'terminal', sequence, generation: 0, status: 'connecting', error: null })
+      draft.activeTabId = id
+    })
+    this.logger.info(`workbench-layout: opened workspace terminal ${sequence} in ${JSON.stringify(workspaceId)}`)
+    return id
+  }
+
+  restartTerminal(tabId: string): void {
+    const workspaceId = this.store.getSnapshot().workspaceId
+    if (workspaceId === undefined) return
+    this.updateTerminalTabState(workspaceId, tabId, (tab) => {
+      tab.generation += 1
+      tab.status = 'connecting'
+      tab.error = null
+      delete tab.shell
+      delete tab.exitCode
+      delete tab.signal
+    })
+    this.logger.info(`workbench-layout: restarted workspace terminal ${JSON.stringify(tabId)}`)
+  }
+
+  terminalReady(tabId: string, shell: string): void {
+    this.updateCurrentTerminal(tabId, (tab) => {
+      tab.status = 'running'
+      tab.shell = shell
+      tab.error = null
+    })
+    this.logger.info(`workbench-layout: workspace terminal ${JSON.stringify(tabId)} is ready`)
+  }
+
+  terminalExited(tabId: string, exitCode: number, signal?: number): void {
+    this.updateCurrentTerminal(tabId, (tab) => {
+      tab.status = 'exited'
+      tab.exitCode = exitCode
+      if (signal === undefined) delete tab.signal
+      else tab.signal = signal
+      tab.error = null
+    })
+    this.logger.info(`workbench-layout: workspace terminal ${JSON.stringify(tabId)} exited with code ${exitCode}`)
+  }
+
+  terminalFailed(tabId: string, message: string): void {
+    this.updateCurrentTerminal(tabId, (tab) => {
+      tab.status = 'error'
+      tab.error = message
+    })
+    this.logger.warn(`workbench-layout: workspace terminal ${JSON.stringify(tabId)} failed`)
+  }
+
   selectTab(tabId: string): void {
     const state = this.store.getSnapshot()
     const tab = state.tabs.find(candidate => candidate.id === tabId)
     if (tab === undefined) return
     this.store.update((draft) => { draft.activeTabId = tabId })
-    this.logger.info(`workbench-layout: selected ${tab.kind} tab ${JSON.stringify(tab.path)}`)
+    this.logger.info(`workbench-layout: selected ${tab.kind} tab ${JSON.stringify(tabIdentity(tab))}`)
   }
 
   closeTab(tabId: string, discardDirty = false): boolean {
@@ -167,7 +244,7 @@ export class WorkbenchController {
       if (nextTabId === undefined) delete draft.activeTabId
       else draft.activeTabId = nextTabId
     })
-    this.logger.info(`workbench-layout: closed ${tab.kind} tab ${JSON.stringify(tab.path)}`)
+    this.logger.info(`workbench-layout: closed ${tab.kind} tab ${JSON.stringify(tabIdentity(tab))}`)
     return true
   }
 
@@ -270,7 +347,7 @@ export class WorkbenchController {
     if (workspaceId === undefined) return
     this.updateWorkspaceState(workspaceId, (state) => {
       const activeIndex = state.tabs.findIndex(tab => tab.id === state.activeTabId)
-      const retained = state.tabs.filter(tab => tab.kind === 'file')
+      const retained = state.tabs.filter(tab => tab.kind !== 'diff')
       const activeStillExists = retained.some(tab => tab.id === state.activeTabId)
       state.tabs = retained
       if (!activeStillExists) {
@@ -282,12 +359,17 @@ export class WorkbenchController {
     this.logger.info(`workbench-layout: closed stale Diff tabs for workspace ${JSON.stringify(workspaceId)}`)
   }
 
-  /** Clear every editor tab after Git changes one Workspace. */
+  /** Clear file and Diff tabs after Git changes one Workspace; live terminals remain attached. */
   resetWorkspaceView(workspaceId = this.store.getSnapshot().workspaceId): void {
     if (workspaceId === undefined) return
     this.updateWorkspaceState(workspaceId, (state) => {
-      state.tabs = []
-      delete state.activeTabId
+      const retained = state.tabs.filter(tab => tab.kind === 'terminal')
+      state.tabs = retained
+      if (!retained.some(tab => tab.id === state.activeTabId)) {
+        const next = retained.at(-1)
+        if (next === undefined) delete state.activeTabId
+        else state.activeTabId = next.id
+      }
     })
     this.logger.info(`workbench-layout: cleared editor tabs after Git changed workspace ${JSON.stringify(workspaceId)}`)
   }
@@ -309,7 +391,7 @@ export class WorkbenchController {
       this.logger.info(`workbench-layout: selected open ${logLabel} tab`)
       return
     }
-    if (existing?.loading === true) return
+    if (existing?.kind === 'diff' && existing.loading) return
 
     const requestKey = tabRequestKey(workspaceId, descriptor.id)
     const requestId = ++this.requestId
@@ -363,6 +445,18 @@ export class WorkbenchController {
       if (tab?.kind === 'diff') update(tab)
     })
   }
+
+  private updateTerminalTabState(workspaceId: string, tabId: string, update: (tab: WorkbenchTerminalTab) => void): void {
+    this.updateWorkspaceState(workspaceId, (state) => {
+      const tab = state.tabs.find(candidate => candidate.id === tabId)
+      if (tab?.kind === 'terminal') update(tab)
+    })
+  }
+
+  private updateCurrentTerminal(tabId: string, update: (tab: WorkbenchTerminalTab) => void): void {
+    const workspaceId = this.store.getSnapshot().workspaceId
+    if (workspaceId !== undefined) this.updateTerminalTabState(workspaceId, tabId, update)
+  }
 }
 
 function emptyFileTab(path: string): WorkbenchFileTab {
@@ -395,10 +489,24 @@ function emptyDiffTab(
 function cloneState(state: WorkbenchState): WorkbenchState {
   return {
     ...state,
-    tabs: state.tabs.map(tab => tab.kind === 'file'
-      ? { ...tab, file: tab.file === null ? null : { ...tab.file } }
-      : { ...tab, diff: tab.diff === null ? null : { ...tab.diff } }),
+    tabs: state.tabs.map((tab) => {
+      if (tab.kind === 'file') return { ...tab, file: tab.file === null ? null : { ...tab.file } }
+      if (tab.kind === 'diff') return { ...tab, diff: tab.diff === null ? null : { ...tab.diff } }
+      return { ...tab }
+    }),
   }
+}
+
+/** Terminal processes are page-live resources and never survive a Workspace switch. */
+function stripTerminalTabs(state: WorkbenchState): WorkbenchState {
+  const cloned = cloneState(state)
+  cloned.tabs = cloned.tabs.filter(tab => tab.kind !== 'terminal')
+  if (!cloned.tabs.some(tab => tab.id === cloned.activeTabId)) {
+    const next = cloned.tabs.at(-1)
+    if (next === undefined) delete cloned.activeTabId
+    else cloned.activeTabId = next.id
+  }
+  return cloned
 }
 
 function fileTabId(path: string): string {
@@ -411,6 +519,10 @@ function diffTabId(kind: GitFileDiff['kind'], path: string, revision = ''): stri
 
 function tabRequestKey(workspaceId: string | undefined, tabId: string): string {
   return `${workspaceId ?? ''}\0${tabId}`
+}
+
+function tabIdentity(tab: WorkbenchTab): string {
+  return tab.kind === 'terminal' ? `terminal-${tab.sequence}` : tab.path
 }
 
 function messageOf(error: unknown): string {

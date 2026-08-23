@@ -5,6 +5,7 @@ import type { WorkbenchController } from './controller.ts'
 import { CodeEditor } from './CodeEditor.tsx'
 import { EditorTabs } from './EditorTabs.tsx'
 import { GitDiffEditor } from './GitDiffEditor.tsx'
+import { TerminalSurface } from './TerminalSurface.tsx'
 import { useWorkbench } from './use-workbench.ts'
 import { resolveWorkbenchWorkspaceId } from './workspace-binding.ts'
 import css from './Workbench.module.css'
@@ -25,6 +26,7 @@ export function WorkbenchEditor({ sessionId, useWorkspaces, controller, activate
     snapshot.recentWorkspaceId,
   ))
   const tab = state.tabs.find(candidate => candidate.id === state.activeTabId)
+  const terminalTabs = state.tabs.filter(candidate => candidate.kind === 'terminal')
   const closeTab = pendingClose === null ? undefined : state.tabs.find(candidate => candidate.id === pendingClose)
 
   useEffect(() => { activateWorkspace(workspaceId) }, [activateWorkspace, workspaceId])
@@ -95,9 +97,24 @@ export function WorkbenchEditor({ sessionId, useWorkspaces, controller, activate
           </div>
         )}
       </header>
-      {tab.error !== null && <div className={css.editorError} role="alert">{tab.error}</div>}
+      {tab.kind !== 'terminal' && tab.error !== null && <div className={css.editorError} role="alert">{tab.error}</div>}
       <div className={css.editorBody}>
-        {tab.loading
+        {terminalTabs.map(terminal => (
+          <div
+            key={`${terminal.id}:${terminal.generation}`}
+            className={css.terminalTabBody}
+            hidden={terminal.id !== tab.id}
+          >
+            <TerminalSurface
+              tab={terminal}
+              workspaceId={workspaceId}
+              active={terminal.id === tab.id}
+              controller={controller}
+              t={t}
+            />
+          </div>
+        ))}
+        {tab.kind !== 'terminal' && (tab.loading
           ? <EditorEmpty text={tab.error ?? t('editor.loading')} />
           : tab.kind === 'diff'
             ? tab.diff === null
@@ -122,7 +139,7 @@ export function WorkbenchEditor({ sessionId, useWorkspaces, controller, activate
                     ariaLabel={tab.path}
                     onChange={value => { controller.setDraft(value) }}
                   />
-                )}
+                ))}
       </div>
       <Modal
         open={closeTab !== undefined}
@@ -131,7 +148,9 @@ export function WorkbenchEditor({ sessionId, useWorkspaces, controller, activate
         title={t('editor.closeUnsavedTitle')}
         {...closeTab === undefined
           ? {}
-          : { description: t('editor.closeUnsavedDescription', { path: closeTab.path }) }}
+          : closeTab.kind === 'file'
+            ? { description: t('editor.closeUnsavedDescription', { path: closeTab.path }) }
+            : {}}
         footer={(
           <>
             <Button variant="outline" disabled={closing} onClick={() => { setPendingClose(null) }}>{t('editor.cancelClose')}</Button>

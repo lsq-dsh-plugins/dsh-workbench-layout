@@ -2,11 +2,11 @@
 
 [English](README.md) | 中文
 
-一个独立的 DeepSeek Harness Web 插件，在不替换官方 AppFrame 和会话组件的前提下，将页面组织成文件工作台：左侧导航、中间文件区、右侧原生对话。
+一个独立的 DeepSeek Harness Web 插件，在不替换官方 AppFrame 和会话组件的前提下，将页面组织成工作区工作台：左侧导航、中间文件与终端区、右侧原生对话。
 
 ## 功能
 
-- 左栏顶部通过紧凑的“会话 / 文件 / Git”控件切换；“会话”会恢复 DSH 原生工作区与会话列表。展开态不再重复显示“新会话”长按钮，仍可点击官方字标新建会话，收起栏的新会话图标也会保留。
+- 左栏顶部通过紧凑的“会话 / 文件 / Git / 终端”控件切换；“会话”会恢复 DSH 原生工作区与会话列表。展开态不再重复显示“新会话”长按钮，仍可点击官方字标新建会话，收起栏的新会话图标也会保留。
 - 文件目录按需展开，不会一次读取整棵目录树。
 - 中栏使用 38px 紧凑顶栏和统一编辑器标签：普通文件、工作区 Diff、暂存 Diff 与提交 Diff 可以像 VS Code 一样同时打开、切换和关闭；文件较多时，在标签栏上滚动鼠标滚轮即可左右浏览，到达边界后会恢复页面正常滚动。每个文件标签独立保留草稿、未保存状态、Markdown 模式和保存错误，切换标签不会丢失修改。中栏不显示常驻保存按钮，只通过 `Ctrl/Cmd + S` 保存当前普通文件标签，并保留版本冲突保护与原子保存。
 - 文件、编辑器选择、草稿、Diff 与 Git 状态绑定到 DSH 官方工作区 id；在同一工作区的不同会话之间切换会保留工作台，只有切换工作区才会切换整套状态。没有当前会话、会话尚未产生消息或会话暂未归属工作区时，工作台使用 DSH 官方最近工作区，因此仍可浏览文件与 Git。
@@ -17,6 +17,7 @@
 - 点击工作区、暂存区或提交图中的文件时，中栏把该文件的差异作为普通编辑器标签打开；同一 Diff 只保留一个标签，不同文件和不同版本可以同时打开，不会把整次提交的所有文件拼在一起。
 - 仓库工具栏支持查看和切换本地/远程分支，并显示上游分支的拉取/推送计数；提供 Fetch、快进 Pull、Push、发布当前分支和先拉后推的 Sync。
 - 中栏使用 CodeMirror MergeView 渲染只读 Diff，默认左右对照，包含行号、红绿变更块、未修改区域折叠和增删统计；可手动切换行内模式，窄列下会自动采用行内模式。普通文件与 Diff 两侧都默认对长行自动换行。
+- 通过 xterm.js 与宿主 PTY 提供真正可交互的工作区终端。多个终端与文件共用中栏标签，切到其他文件时仍保持进程、ANSI 颜色和交互按键，尺寸会随中栏变化，启动目录固定为所选工作区根目录。关闭终端标签、切换工作区、连接断开或插件停止都会终止对应 PTY。
 - 支持暂存、取消暂存以及显式提交；提交后提交图会立即刷新。
 - 右栏继续使用 DSH 原生聊天、输入框、任务状态与交互流程。
 - 布局、文字、边框、按钮、图标、Markdown 和明暗主题尽量复用 DSH 官方组件与设计变量；Git 模块入口和分支选择器统一使用三节点源码管理图形。
@@ -42,6 +43,8 @@ dsh plugin --profile web remove @lsq64737/dsh-workbench-layout
 - 分支切换和远程操作只由显式按钮触发，并禁用终端凭据提示；Pull/Sync 使用快进模式，失败时不会自动合并、暂存或覆盖更改。
 - Git 功能要求所选工作区就是仓库根目录，避免提交工作区之外已暂存的内容。
 - API 复用 DSH 的可信主机、同源与跨站请求校验语义，只接受 JSON POST，并限制文件、目录与 Git 输出大小。
+- 终端升级复用同一套 DSH 兼容的 Host、Origin 与跨站请求校验；浏览器只能选择官方工作区 id 和终端尺寸，不能指定进程路径、Shell 可执行文件、启动命令或工作目录。输入帧和终端数量均有限制，输出拥塞时会暂停 PTY，不会无上限积压内存。
+- 终端意味着可以操作运行 DSH 的那台机器。任何能够访问受信任 DSH Web 来源的人都能使用该 Shell，因此只应在你信任的网络和主机上开放 Web 服务。
 
 ## 已知限制
 
@@ -52,6 +55,7 @@ dsh plugin --profile web remove @lsq64737/dsh-workbench-layout
 - 提交图当前显示最近 40 条，不包含分页加载；未加载父提交的轨道会在底部保持延续，不会被错误画成终点。
 - 远程操作依赖系统中已经配置好的 Git 凭据；插件不收集或保存远程账号、密码和令牌。
 - 当前支持切换已有分支，不在界面中创建、重命名或删除分支。
+- 终端进程只在当前页面生命周期内存活；刷新、断线、切换工作区或关闭标签都会结束进程。默认组合最多允许八个终端连接同时存在。
 - DSH 尚未提供公开的“移动原生聊天栏”接口，因此插件使用官方 AppFrame 的稳定标记调整列顺序。若未来官方重构页面骨架，布局选择器可能需要同步适配。
 - 窄窗口触发 DSH AppFrame 官方让步规则时，会暂时收起文件编辑列并将对话恢复到中栏；窗口变宽后自动恢复三栏。
 
@@ -75,11 +79,13 @@ npm run test:bundle
 - `src/client/workspace-binding.ts`：优先按 DSH 官方成员关系解析会话所属工作区，并在无会话状态下回退到官方最近工作区。
 - `src/client/workspace-layout.ts`：工作区与 AppFrame 原生详情列状态绑定。
 - `src/client/sidebar-top-layout.ts`：顶部模式切换的稳定 Portal 宿主与展开态新会话呈现适配。
+- `src/terminal-protocol.ts`、`terminal-backend.ts`、`terminal-websocket.ts`：有界终端协议、工作区根目录 PTY 生命周期与可信 WebSocket 桥接。
 - `src/client/fallback-details-layout.ts`：空会话 Hero 下与官方几何约束一致的临时详情轨道。
 - `src/client/FileTree.tsx`、`GitPanel.tsx`：左栏文件树和源码管理状态编排。
 - `src/client/GitChangesView.tsx`、`git-tree.ts`：更改分组、列表/目录树和文件操作。
 - `src/client/GitGraphView.tsx`、`GitReferenceBadge.tsx`、`git-graph.ts`：提交图渲染、分段色轨道、引用标志、分叉/汇合连线和行内提交详情。
 - `src/client/GitRepositoryToolbar.tsx`：分支选择与远程操作菜单。
 - `src/client/WorkbenchEditor.tsx`：中栏统一标签容器、源码编辑和 Markdown 预览。
+- `src/client/TerminalPanel.tsx`、`TerminalSurface.tsx`、`TerminalIcon.tsx`：终端实例列表、xterm.js 中栏标签和 DSH 风格终端入口图标。
 - `src/client/GitDiffEditor.tsx`、`DiffSurface.tsx`、`git-diff-labels.ts`：标签内单文件 Diff 工具栏、自适应布局、统一类型标签、自动换行和 CodeMirror 差异渲染。
 - `src/client/layout-styles.ts`：官方 AppFrame 列顺序与原生分隔线视觉适配。

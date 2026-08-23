@@ -13,6 +13,9 @@ vi.mock('../src/client/CodeEditor.tsx', () => ({
   CodeEditor: ({ ariaLabel }: { ariaLabel: string }) => <textarea aria-label={ariaLabel} />,
 }))
 vi.mock('../src/client/GitDiffEditor.tsx', () => ({ GitDiffEditor: () => <div>diff</div> }))
+vi.mock('../src/client/TerminalSurface.tsx', () => ({
+  TerminalSurface: ({ tab }: { tab: { id: string } }) => <div data-terminal-surface={tab.id}>terminal</div>,
+}))
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Button: ({ children, variant: _variant, size: _size, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) => <button {...props}>{children}</button>,
   FishLogo: () => <span data-fish-logo="" />,
@@ -73,6 +76,20 @@ describe('WorkbenchEditor multi-file tabs', () => {
     expect(controller.closeTab).toHaveBeenCalledWith('diff:worktree::src/a.ts')
     expect(view.queryByRole('dialog')).toBeNull()
   })
+
+  it('renders a Workspace terminal as a normal tab and does not route Ctrl+S to it', () => {
+    workbenchState.current.tabs.push(terminalTab(1))
+    workbenchState.current.activeTabId = 'terminal:1'
+    const controller = controllerFake()
+    const view = renderEditor(controller)
+
+    expect(view.getByRole('tab', { name: '终端 1' }).getAttribute('aria-selected')).toBe('true')
+    expect(view.getByText('terminal')).toBeTruthy()
+    fireEvent.keyDown(window, { key: 's', ctrlKey: true })
+    expect(controller.save).not.toHaveBeenCalled()
+    fireEvent.click(view.getByRole('button', { name: '关闭 终端 1' }))
+    expect(controller.closeTab).toHaveBeenCalledWith('terminal:1')
+  })
 })
 
 function renderEditor(controller: ReturnType<typeof controllerFake>) {
@@ -102,6 +119,7 @@ function controllerFake() {
     revert: vi.fn(),
     setDraft: vi.fn(),
     setDiffViewMode: vi.fn(),
+    restartTerminal: vi.fn(),
   }
 }
 
@@ -141,6 +159,18 @@ function diffTab(path: string) {
     diffKind: 'worktree' as const,
     diff: { kind: 'worktree' as const, path, status: 'M', original: 'old', modified: 'new', binary: false },
     loading: false,
+    error: null,
+  }
+}
+
+function terminalTab(sequence: number) {
+  return {
+    id: `terminal:${sequence}`,
+    kind: 'terminal' as const,
+    sequence,
+    generation: 0,
+    status: 'running' as const,
+    shell: 'zsh',
     error: null,
   }
 }

@@ -2,11 +2,11 @@
 
 [中文](README.zh.md) | English
 
-An independent DeepSeek Harness Web plugin that keeps the official AppFrame and conversation component while arranging the page as a file workbench: navigation on the left, files in the middle, and native conversation on the right.
+An independent DeepSeek Harness Web plugin that keeps the official AppFrame and conversation component while arranging the page as a workspace workbench: navigation on the left, files and terminals in the middle, and native conversation on the right.
 
 ## Features
 
-- Switch the left column among Sessions, Files, and Git from a compact control at the top of the official sidebar. Sessions releases the region back to the native DSH workspace browser. The redundant wide New Session bar is removed while DSH's wordmark shortcut and collapsed-rail action remain available.
+- Switch the left column among Sessions, Files, Git, and Terminal from a compact control at the top of the official sidebar. Sessions releases the region back to the native DSH workspace browser. The redundant wide New Session bar is removed while DSH's wordmark shortcut and collapsed-rail action remain available.
 - Expand directories lazily instead of reading the full tree at once.
 - Use a compact 38px header and a unified editor-tab model: regular files, working-tree diffs, staged diffs, and commit diffs can be opened, switched, and closed together like VS Code. When tabs overflow, the mouse wheel over the strip scrolls them horizontally and releases normal page scrolling at either boundary. Every file tab retains its own draft, dirty state, Markdown mode, and save error. The middle column has no persistent Save button: `Ctrl/Cmd + S` saves only the active regular file tab with version-conflict protection and an atomic write.
 - Bind files, editor selection, drafts, diffs, and Git state to DSH's official Workspace id. Switching conversations inside one Workspace preserves the workbench; changing Workspace switches the entire workbench state. With no current Session, before a Session has any messages, or while a Session is not yet accounted to a Workspace, the workbench uses DSH's official recent Workspace so files and Git remain available.
@@ -17,6 +17,7 @@ An independent DeepSeek Harness Web plugin that keeps the official AppFrame and 
 - Selecting a working-tree, staged, or Graph file opens that single Diff as a normal editor tab. The same Diff is deduplicated while different files and revisions can remain open together; an entire commit is never concatenated into one surface.
 - Browse and switch local or remote branches, see upstream incoming/outgoing counts, and explicitly Fetch, fast-forward Pull, Push, publish the current branch, or Sync by pulling then pushing.
 - Render read-only diffs with CodeMirror MergeView: side-by-side by default, with line numbers, red/green change blocks, collapsed unchanged regions, and change counts. Inline mode is selectable and becomes automatic in a narrow editor column. Regular files and both Diff sides wrap long lines by default.
+- Run real interactive Workspace terminals with xterm.js and a host PTY. Multiple terminals share the normal editor tab strip, retain ANSI colors and interactive key handling while another file is selected, resize with the middle column, and start in the selected Workspace root. Closing a terminal tab, switching Workspace, losing its socket, or stopping the plugin terminates the PTY.
 - Stage, unstage, and commit through explicit actions; a successful commit refreshes the Graph immediately.
 - Keep the original DSH conversation, composer, task status, and interaction flows in the right column.
 - Reuse DSH components, icons, typography, tokens, spacing, borders, and light/dark themes wherever possible. The Git module entry and branch picker consistently use the three-node source-control glyph.
@@ -42,6 +43,8 @@ dsh plugin --profile web remove @lsq64737/dsh-workbench-layout
 - Branch and remote commands run only after explicit UI actions and disable terminal credential prompts. Pull and Sync are fast-forward only and never auto-merge, stash, or overwrite changes.
 - Git requires the selected Workspace to be the repository root, avoiding commits that include staged content outside the workspace.
 - The API follows DSH's trusted-host, same-origin, and cross-site request checks, accepts JSON POST only, and bounds file, directory, and Git output sizes.
+- Terminal upgrades pass the same DSH-compatible Host, Origin, and cross-site fence. The browser can select only an official Workspace id and terminal dimensions; it cannot provide a process path, shell executable, command, or working directory. Input frames and terminal counts are bounded, and output backpressure pauses the PTY instead of accumulating memory without limit.
+- A terminal grants shell access to the machine running DSH. Anyone allowed to reach the trusted DSH Web origin can use that shell, so expose the Web service only on a network and host you trust.
 
 ## Limitations
 
@@ -52,6 +55,7 @@ dsh plugin --profile web remove @lsq64737/dsh-workbench-layout
 - The Graph currently shows the latest 40 commits without pagination. Lanes whose parents are outside the loaded window continue through the bottom instead of appearing to terminate.
 - Remote operations use Git credentials already configured on the system. The plugin does not collect or store remote usernames, passwords, or tokens.
 - Existing branches can be switched; branch creation, renaming, and deletion are not exposed yet.
+- Terminal processes are page-live rather than persistent: reloading, disconnecting, switching Workspace, or closing a tab ends them. The default composition allows at most eight simultaneous terminal connections.
 - DSH does not yet expose a dedicated API for moving the native conversation column. The plugin therefore reorders columns through stable markers on the official AppFrame and may need an update after a future shell rewrite.
 - When a narrow window triggers AppFrame's native concession rule, the file editor temporarily closes and the conversation returns to the middle. The three-column layout returns automatically after widening.
 
@@ -75,11 +79,13 @@ npm run test:bundle
 - `src/client/workspace-binding.ts`: official Session membership resolution with the official recent-Workspace fallback for no-Session surfaces.
 - `src/client/workspace-layout.ts`: Workspace binding to AppFrame's native details-track state.
 - `src/client/sidebar-top-layout.ts`: stable Portal host for the top mode switch and expanded New Session presentation.
+- `src/terminal-protocol.ts`, `terminal-backend.ts`, `terminal-websocket.ts`: bounded terminal protocol, Workspace-root PTY lifecycle, and trusted WebSocket bridge.
 - `src/client/fallback-details-layout.ts`: temporary empty-Session Hero track with AppFrame-matching geometry.
 - `src/client/FileTree.tsx`, `GitPanel.tsx`: left-column file tree and source-control state orchestration.
 - `src/client/GitChangesView.tsx`, `git-tree.ts`: change groups, list/tree layouts, and per-file actions.
 - `src/client/GitGraphView.tsx`, `GitReferenceBadge.tsx`, `git-graph.ts`: commit graph rendering, color-segmented lanes, reference badges, fork/join edges, and in-place commit details.
 - `src/client/GitRepositoryToolbar.tsx`: branch picker and remote action menus.
 - `src/client/WorkbenchEditor.tsx`: unified middle-column tab container, source editor, and Markdown preview.
+- `src/client/TerminalPanel.tsx`, `TerminalSurface.tsx`, `TerminalIcon.tsx`: terminal instance list, xterm.js editor tab, and DSH-style terminal entry glyph.
 - `src/client/GitDiffEditor.tsx`, `DiffSurface.tsx`, `git-diff-labels.ts`: in-tab per-file Diff toolbar, adaptive layout, shared kind labels, wrapping, and CodeMirror diff renderer.
 - `src/client/layout-styles.ts`: official AppFrame column-order and native-divider presentation adaptation.
