@@ -107,15 +107,47 @@ describe('WorkbenchController', () => {
       hash: 'a'.repeat(40), shortHash: 'aaaaaaa', subject: '历史提交', author: 'Tester', authoredAt: '2026-08-23T10:00:00Z',
     }
     const api = {
-      gitCommitDiff: vi.fn(() => Promise.resolve({
-        kind: 'commit', title: commit.subject, revision: commit.hash, text: 'diff --git',
+      gitCommitFileDiff: vi.fn(() => Promise.resolve({
+        kind: 'commit', path: 'src/a.ts', status: 'M', revision: commit.hash,
+        original: 'before', modified: 'after', binary: false,
       })),
     }
     const controller = new WorkbenchController(api as never, { info: vi.fn(), warn: vi.fn() })
-    await controller.openCommitDiff('session-1', commit)
-    expect(api.gitCommitDiff).toHaveBeenCalledWith('session-1', commit.hash)
+    await controller.openCommitDiff('session-1', commit, 'src/a.ts')
+    expect(api.gitCommitFileDiff).toHaveBeenCalledWith('session-1', commit.hash, 'src/a.ts')
     expect(controller.store.getSnapshot()).toMatchObject({
-      centerMode: 'diff', loading: false, diff: { kind: 'commit', revision: commit.hash },
+      centerMode: 'diff', loading: false, diff: { kind: 'commit', revision: commit.hash, path: 'src/a.ts' },
     })
+  })
+
+  it('clears an older Diff while loading a newly selected file', async () => {
+    let resolveSecond: ((value: unknown) => void) | undefined
+    const second = new Promise(resolve => { resolveSecond = resolve })
+    const api = {
+      gitDiff: vi.fn()
+        .mockResolvedValueOnce({
+          kind: 'worktree', path: 'old.ts', status: 'M', original: 'old', modified: 'older', binary: false,
+        })
+        .mockReturnValueOnce(second),
+    }
+    const controller = new WorkbenchController(api as never, { info: vi.fn(), warn: vi.fn() })
+    await controller.openDiff('session-1', 'old.ts', false)
+
+    const request = controller.openDiff('session-1', 'new.ts', false)
+    expect(controller.store.getSnapshot()).toMatchObject({ centerMode: 'diff', loading: true, diff: null })
+    resolveSecond?.({
+      kind: 'worktree', path: 'new.ts', status: 'M', original: 'before', modified: 'after', binary: false,
+    })
+    await request
+    expect(controller.store.getSnapshot()).toMatchObject({ loading: false, diff: { path: 'new.ts' } })
+  })
+
+  it('stores the preferred Diff layout in the current Session state', () => {
+    const logger = { info: vi.fn(), warn: vi.fn() }
+    const controller = new WorkbenchController({} as never, logger)
+    controller.setSession('session-1')
+    controller.setDiffViewMode('inline')
+    expect(controller.store.getSnapshot().diffViewMode).toBe('inline')
+    expect(logger.info).toHaveBeenCalledWith('workbench-layout: Diff view mode changed to inline')
   })
 })

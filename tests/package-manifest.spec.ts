@@ -6,10 +6,12 @@ describe('published package metadata', () => {
     const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')) as {
       name: string
       exports: Record<string, unknown>
+      dependencies: Record<string, string>
       dsh: { bundle: { patch: string }; client: { inject: string[]; platform: string } }
     }
     expect(manifest.name).toBe('@lsq64737/dsh-workbench-layout')
     expect(manifest.exports).toHaveProperty('./client')
+    expect(manifest.dependencies['@codemirror/merge']).toMatch(/^\^6\./u)
     expect(manifest.dsh).toEqual(expect.objectContaining({
       bundle: { patch: './cordis.patch.yml' },
       client: expect.objectContaining({

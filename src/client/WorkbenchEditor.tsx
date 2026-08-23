@@ -1,9 +1,7 @@
 import { useEffect } from 'react'
 import {
   Button,
-  CodeBlock,
   FishLogo,
-  IconCodeOutline16,
   IconEditOutline16,
   IconCheckOutline16,
   MarkdownText,
@@ -12,6 +10,7 @@ import {
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { UNSAVED_SWITCH_ERROR, type WorkbenchController } from './controller.ts'
 import { CodeEditor } from './CodeEditor.tsx'
+import { GitDiffEditor } from './GitDiffEditor.tsx'
 import { useWorkbench } from './use-workbench.ts'
 import css from './Workbench.module.css'
 
@@ -26,26 +25,19 @@ export function WorkbenchEditor({ sessionId, controller, activateSession, t }: W
   useEffect(() => { activateSession(sessionId) }, [activateSession, sessionId])
 
   if (state.sessionId !== sessionId) return <EditorEmpty text={t('editor.loading')} />
-  if (state.loading && state.file === null) return <EditorEmpty text={t('editor.loading')} />
+  if (state.loading && (state.file === null || (state.centerMode === 'diff' && state.diff === null))) {
+    return <EditorEmpty text={t('editor.loading')} />
+  }
   if (state.centerMode === 'diff' && state.diff !== null) {
     return (
-      <section className={css.editorRoot} data-dsh-workbench-editor="">
-        <header className={css.editorHeader}>
-          <div className={css.editorTitle}>
-            <IconCodeOutline16 size={16} />
-            <span>{state.diff.title}</span>
-            <Pill>{diffKindText(state.diff.kind, t)}</Pill>
-          </div>
-          <Button size="sm" variant="toolbar" onClick={() => { controller.showFile() }}>{t('editor.backToFile')}</Button>
-        </header>
-        {state.diff.subtitle !== undefined && <div className={css.diffMetadata}>{state.diff.subtitle}</div>}
-        <div className={css.diffBody}>
-          {state.diff.text === ''
-            ? <div className={css.diffEmpty}><FishLogo size={28} /><span>{t('editor.diffEmpty')}</span></div>
-            : <CodeBlock code={state.diff.text} lang="diff" copyLabel={t('editor.copy')} copiedLabel={t('editor.copied')} />}
-        </div>
-        {state.error !== null && <div className={css.editorError} role="alert">{errorText(state.error, t)}</div>}
-      </section>
+      <GitDiffEditor
+        diff={state.diff}
+        error={state.error}
+        viewMode={state.diffViewMode}
+        onViewModeChange={mode => { controller.setDiffViewMode(mode) }}
+        onBack={() => { controller.showFile() }}
+        t={t}
+      />
     )
   }
   if (state.file === null) return <EditorEmpty text={state.error ?? t('editor.empty')} />
@@ -100,14 +92,6 @@ export function WorkbenchEditor({ sessionId, controller, activateSession, t }: W
 
 function errorText(error: string, t: WorkbenchEditorProps['t']): string {
   return error === UNSAVED_SWITCH_ERROR ? t('editor.unsavedSwitch') : error
-}
-
-function diffKindText(kind: 'worktree' | 'staged' | 'commit', t: WorkbenchEditorProps['t']): string {
-  switch (kind) {
-    case 'worktree': return t('editor.diffWorktree')
-    case 'staged': return t('editor.diffStaged')
-    case 'commit': return t('editor.diffCommit')
-  }
 }
 
 function EditorEmpty({ text }: { text: string }) {

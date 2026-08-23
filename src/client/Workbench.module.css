@@ -184,22 +184,74 @@
   color: var(--dsw-alias-state-success-primary);
 }
 
+.gitViewTabs {
+  display: grid;
+  flex: none;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  margin: 0 10px 8px 6px;
+  padding: 3px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.gitViewTabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font: var(--dsw-font-xxs-12);
+  cursor: pointer;
+}
+
+.gitViewTabs button:hover {
+  color: var(--dsw-alias-label-primary);
+}
+
+.gitViewTabs button[data-active] {
+  background: var(--dsw-alias-button-elevated-fill);
+  color: var(--dsw-alias-label-primary);
+  box-shadow: 0 1px 3px var(--dsw-alias-bg-mask-1);
+}
+
+.gitViewTabs button span {
+  color: var(--dsw-alias-label-quaternary);
+  font-size: 10px;
+}
+
 .gitContent {
-  padding: 0 8px 16px;
+  padding: 7px 8px 16px;
 }
 
 .gitSection + .gitSection {
-  margin-top: 13px;
+  margin-top: 7px;
 }
 
 .gitSectionHeader {
   display: flex;
   align-items: center;
-  gap: 7px;
-  height: 26px;
-  padding: 0 5px;
+  gap: 5px;
+  width: 100%;
+  height: 28px;
+  padding: 0 4px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
   color: var(--dsw-alias-label-secondary);
   font: var(--dsw-font-xxs-strong-12);
+  text-align: left;
+  cursor: pointer;
+}
+
+.gitSectionHeader:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
 }
 
 .gitCount {
@@ -258,6 +310,23 @@
   cursor: pointer;
 }
 
+.gitFileText {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.gitFileDirectory {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--dsw-alias-label-quaternary);
+  font: var(--dsw-font-xxs-12);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .statusBadge {
   flex: none;
   width: 17px;
@@ -265,6 +334,20 @@
   font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: 11px;
   text-align: center;
+}
+
+.statusBadge[data-status='A'],
+.statusBadge[data-status='U'],
+.statusBadge[data-status='C'] {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.statusBadge[data-status='D'] {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.statusBadge[data-status='R'] {
+  color: var(--dsw-alias-brand-text);
 }
 
 .gitRowAction {
@@ -294,19 +377,86 @@
   color: var(--dsw-alias-brand-text);
 }
 
+.gitHistory {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 4px 8px 16px 4px;
+  scrollbar-gutter: stable;
+}
+
+.commitEntry {
+  position: relative;
+}
+
 .commitRow {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 2px 8px;
+  display: flex;
+  align-items: stretch;
   width: 100%;
   min-width: 0;
-  padding: 7px 6px;
+  min-height: 52px;
+  padding: 0;
   border: none;
   border-radius: 8px;
   background: transparent;
   color: var(--dsw-alias-label-primary);
   text-align: left;
   cursor: pointer;
+}
+
+.commitRow:hover,
+.historyFileRow:hover,
+.historyFileRow[data-selected] {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.historyFileRow[data-selected] {
+  color: var(--dsw-alias-brand-text);
+}
+
+.commitChevron {
+  display: flex;
+  flex: none;
+  align-items: center;
+  width: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.commitGraph {
+  position: relative;
+  display: flex;
+  flex: none;
+  justify-content: center;
+  width: 18px;
+}
+
+.commitGraph::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--dsw-alias-border-l2);
+  content: '';
+}
+
+.commitGraph > span {
+  position: relative;
+  width: 7px;
+  height: 7px;
+  margin-top: 16px;
+  border: 2px solid var(--dsw-alias-brand-primary);
+  border-radius: 50%;
+  background: var(--dsw-alias-bg-base);
+}
+
+.commitContent {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  min-width: 0;
+  padding: 8px 5px;
 }
 
 .commitSubject {
@@ -331,13 +481,36 @@
   white-space: nowrap;
 }
 
+.commitFiles {
+  margin: 0 0 4px 36px;
+  border-left: 1px solid var(--dsw-alias-border-l2);
+  padding-left: 5px;
+}
+
+.historyFileRow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-width: 0;
+  height: 31px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: var(--dsw-font-xs-13);
+  text-align: left;
+  cursor: pointer;
+}
+
 .commitBox {
   display: flex;
   flex: none;
   flex-direction: column;
   gap: 8px;
-  padding: 10px 12px 12px 8px;
-  border-top: 1px solid var(--dsw-alias-border-l1);
+  padding: 4px 12px 10px 8px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
 }
 
 .commitBox textarea {
@@ -415,6 +588,21 @@
   font: var(--dsw-font-xs-strong-13);
 }
 
+.diffDirectory {
+  overflow: hidden;
+  color: var(--dsw-alias-label-quaternary);
+  font: var(--dsw-font-xxs-12);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diffFileStatus {
+  flex: none;
+  color: var(--dsw-alias-state-warn-label);
+  font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11px;
+}
+
 .previewSwitch {
   display: inline-flex;
   padding: 2px;
@@ -440,31 +628,119 @@
   box-shadow: 0 1px 3px var(--dsw-alias-bg-mask-1);
 }
 
+.diffViewSwitch {
+  display: inline-flex;
+  flex: none;
+  padding: 2px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 9px;
+  background: var(--dsw-alias-bg-base);
+}
+
+.diffViewSwitch button {
+  height: 24px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.diffViewSwitch button[data-active] {
+  background: var(--dsw-alias-button-elevated-fill);
+  color: var(--dsw-alias-label-primary);
+  box-shadow: 0 1px 3px var(--dsw-alias-bg-mask-1);
+}
+
+.diffViewSwitch button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
 .editorError {
   margin: 8px 12px 0;
 }
 
-.editorBody,
-.diffBody {
+.editorBody {
   flex: 1;
   min-height: 0;
   overflow: hidden;
 }
 
-.diffBody {
-  overflow: auto;
-  padding: 16px;
-}
-
 .diffMetadata {
+  display: flex;
   flex: none;
+  align-items: center;
+  gap: 12px;
   overflow: hidden;
   padding: 8px 15px;
   border-bottom: 1px solid var(--dsw-alias-border-l1);
   color: var(--dsw-alias-label-tertiary);
   font: var(--dsw-font-xxs-12);
+}
+
+.diffMetadata > span:first-child {
+  min-width: 0;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.diffStats {
+  display: inline-flex;
+  flex: none;
+  gap: 7px;
+  margin-left: auto;
+  font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+}
+
+.diffStats [data-kind='added'] {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.diffStats [data-kind='deleted'] {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.diffEditorBody {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.diffPaneLabels {
+  display: grid;
+  flex: none;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  height: 31px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-tertiary);
+  font: var(--dsw-font-xxs-12);
+}
+
+.diffPaneLabels[data-mode='inline'] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.diffPaneLabels span {
+  overflow: hidden;
+  padding: 7px 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diffPaneLabels[data-mode='split'] span + span {
+  border-left: 1px solid var(--dsw-alias-border-l1);
+}
+
+.diffSurfaceHost {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .diffEmpty {
@@ -472,6 +748,7 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
+  flex: 1;
   min-height: 180px;
   color: var(--dsw-alias-label-tertiary);
   font: var(--dsw-font-xs-13);

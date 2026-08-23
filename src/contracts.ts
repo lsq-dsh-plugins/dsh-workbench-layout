@@ -60,13 +60,31 @@ export interface GitHistory {
 
 export type GitDiffKind = 'worktree' | 'staged' | 'commit'
 
-export interface GitDiff {
+export interface GitCommitFile {
+  path: string
+  originalPath?: string
+  status: string
+}
+
+export interface GitCommitFiles {
+  commit: GitCommit
+  parentRevision?: string
+  files: GitCommitFile[]
+}
+
+export interface GitFileDiff {
   kind: GitDiffKind
-  title: string
-  subtitle?: string
-  path?: string
+  path: string
+  originalPath?: string
+  status: string
   revision?: string
-  text: string
+  parentRevision?: string
+  commit?: GitCommit
+  original: string
+  modified: string
+  binary: boolean
+  additions?: number
+  deletions?: number
 }
 
 export interface GitCommitResult {

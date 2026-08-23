@@ -17,6 +17,11 @@ export interface WorkspaceLimits {
   maxDirectoryEntries: number
 }
 
+export interface WorkspaceGitText {
+  text: string
+  binary: boolean
+}
+
 interface WorkspaceTarget {
   cwd: string
   root: FsTarget
@@ -129,6 +134,30 @@ export class WorkspaceBackend {
     const workspace = await this.resolve(sessionIdValue, pathValue, false)
     if (workspace.path === '') throw new WorkbenchHttpError(400, 'FILE_REQUIRED', '请选择 Git 文件。')
     return workspace.path
+  }
+
+  /** 安全读取工作区中的 Git 文本；二进制文件只返回类型，不传输原始字节。 */
+  async readGitText(sessionIdValue: unknown, pathValue: unknown): Promise<WorkspaceGitText> {
+    const workspace = await this.resolve(sessionIdValue, pathValue)
+    if (workspace.path === '') throw new WorkbenchHttpError(400, 'FILE_REQUIRED', '请选择 Git 文件。')
+    const info = await this.requireType(workspace, 'file')
+    if (info.size !== undefined && info.size > this.limits.maxFileBytes) {
+      throw new WorkbenchHttpError(413, 'GIT_DIFF_TOO_LARGE', '文件超过 Diff 视图允许的大小。')
+    }
+    try {
+      const text = await this.ctx.fs.readText(workspace.target)
+      const size = new TextEncoder().encode(text).byteLength
+      if (size > this.limits.maxFileBytes) {
+        throw new WorkbenchHttpError(413, 'GIT_DIFF_TOO_LARGE', '文件超过 Diff 视图允许的大小。')
+      }
+      return { text, binary: false }
+    } catch (error: unknown) {
+      const code = error !== null && typeof error === 'object' && 'code' in error
+        ? (error as { code?: unknown }).code
+        : undefined
+      if (code === 'FS_NOT_TEXT') return { text: '', binary: true }
+      throw error
+    }
   }
 
   private async resolve(sessionIdValue: unknown, pathValue: unknown, requireExisting = true): Promise<WorkspaceTarget> {

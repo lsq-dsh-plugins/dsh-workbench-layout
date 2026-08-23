@@ -11,8 +11,9 @@
 - 中栏使用 CodeMirror 编辑 UTF-8 文本，支持未保存状态、保存/还原、会话间草稿保留、版本冲突保护、原子保存和 `Ctrl/Cmd + S`。
 - Markdown 文件首次打开默认显示 DSH 官方 Markdown 渲染结果，可在“预览 / 源码”之间切换。
 - 中右栏直接使用 DSH AppFrame 原生列宽和拖拽处理；分隔线与左中栏保持相同的无装饰热区，宽度遵循官方 300–520px 约束与 360px 默认值。
-- Git 页面按“工作区更改 / 已暂存 / 提交历史”分组，显示最近 40 条提交。
-- 工作区、暂存区、未跟踪文件和历史提交的 Diff 都会在中栏显示，并明确标注差异来源。
+- Git 左栏按 VS Code 的源码管理习惯分成“更改 / 历史”标签；更改页区分“已暂存”和“工作区”，每个文件显示名称、目录、状态和对应操作。
+- 历史提交可逐条展开文件列表；点击工作区、暂存区或历史中的文件时，中栏只打开该文件的差异，不会把整次提交的所有文件拼在一起。
+- 中栏使用 CodeMirror MergeView 渲染只读 Diff，默认左右对照，包含行号、红绿变更块、未修改区域折叠和增删统计；可手动切换行内模式，窄列下会自动采用行内模式。
 - 支持暂存、取消暂存以及显式提交；提交后历史列表会立即刷新。
 - 右栏继续使用 DSH 原生聊天、输入框、任务状态与交互流程。
 - 布局、文字、边框、按钮、图标、Markdown 和明暗主题尽量复用 DSH 官方组件与设计变量。
@@ -32,7 +33,7 @@ dsh plugin --profile web remove @lsq64737/dsh-workbench-layout
 ## 安全约束
 
 - 浏览器只能提交当前会话 id 和工作区相对路径；宿主端重新从会话读取真实工作区。
-- 路径越界、路径遍历、符号链接和非文本文件会被拒绝。
+- 路径越界、路径遍历和符号链接会被拒绝；文件编辑器只读取文本，Git Diff 对二进制文件仅显示类型提示，不传输原始字节。
 - 保存使用 DSH 文件系统的版本令牌和 `workspace-write` 策略；文件被其他程序修改后不会静默覆盖。
 - Git 使用固定参数直接调用可执行文件，不通过 shell；提交只会由明确点击“提交”触发。
 - Git 功能要求当前会话的工作区就是仓库根目录，避免提交工作区之外已暂存的内容。
@@ -61,9 +62,10 @@ npm run test:bundle
 
 - `src/index.ts`：宿主路由注册和请求分发。
 - `src/workspace-backend.ts`：受控的目录、读取和原子保存。
-- `src/git-backend.ts`：Git 状态、Diff、暂存和提交。
+- `src/git-backend.ts`：Git 状态、提交文件清单、单文件前后版本、暂存和提交。
 - `src/client/controller.ts`：跨栏文件、Diff 和视图状态。
 - `src/client/session-layout.ts`：会话与 AppFrame 原生详情列状态绑定。
-- `src/client/FileTree.tsx`、`GitPanel.tsx`：左栏文件树、Git 分组与提交历史。
-- `src/client/WorkbenchEditor.tsx`：中栏源码编辑与 Markdown 预览。
+- `src/client/FileTree.tsx`、`GitPanel.tsx`：左栏文件树，以及带更改分组和可展开历史的源码管理面板。
+- `src/client/WorkbenchEditor.tsx`：中栏源码编辑、Markdown 预览和 Diff 入口。
+- `src/client/GitDiffEditor.tsx`、`DiffSurface.tsx`：单文件 Diff 工具栏、自适应布局和 CodeMirror 差异渲染。
 - `src/client/layout-styles.ts`：官方 AppFrame 列顺序与原生分隔线视觉适配。

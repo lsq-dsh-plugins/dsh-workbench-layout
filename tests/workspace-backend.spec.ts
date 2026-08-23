@@ -59,4 +59,21 @@ describe('WorkspaceBackend', () => {
     })
     await expect(backend.read('session-1', 'linked.txt')).rejects.toMatchObject({ code: 'SYMLINK_UNSUPPORTED' })
   })
+
+  it('identifies binary Git content without returning its bytes', async () => {
+    const { backend } = harness({
+      readText: vi.fn(() => Promise.reject(Object.assign(new Error('binary'), { code: 'FS_NOT_TEXT' }))),
+    })
+    await expect(backend.readGitText('session-1', 'image.png')).resolves.toEqual({ text: '', binary: true })
+  })
+
+  it('enforces the file limit before reading Git content', async () => {
+    const readText = vi.fn(() => Promise.resolve('too large'))
+    const { backend } = harness({
+      stat: vi.fn(() => Promise.resolve({ type: 'file', version: 'v1', size: 2048 })),
+      readText,
+    })
+    await expect(backend.readGitText('session-1', 'large.txt')).rejects.toMatchObject({ code: 'GIT_DIFF_TOO_LARGE' })
+    expect(readText).not.toHaveBeenCalled()
+  })
 })

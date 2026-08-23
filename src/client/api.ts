@@ -2,8 +2,9 @@
 
 import type {
   DirectoryListing,
+  GitCommitFiles,
   GitCommitResult,
-  GitDiff,
+  GitFileDiff,
   GitHistory,
   GitStatus,
   SavedWorkspaceFile,
@@ -37,7 +38,7 @@ export class WorkbenchApi {
     return this.post('/git/status', { sessionId })
   }
 
-  async gitDiff(sessionId: string, path: string, staged: boolean): Promise<GitDiff> {
+  async gitDiff(sessionId: string, path: string, staged: boolean): Promise<GitFileDiff> {
     return this.post('/git/diff', { sessionId, path, staged })
   }
 
@@ -45,8 +46,12 @@ export class WorkbenchApi {
     return this.post('/git/history', { sessionId })
   }
 
-  async gitCommitDiff(sessionId: string, revision: string): Promise<GitDiff> {
-    return this.post('/git/commit/diff', { sessionId, revision })
+  async gitCommitFiles(sessionId: string, revision: string): Promise<GitCommitFiles> {
+    return this.post('/git/commit/files', { sessionId, revision })
+  }
+
+  async gitCommitFileDiff(sessionId: string, revision: string, path: string): Promise<GitFileDiff> {
+    return this.post('/git/commit/file', { sessionId, revision, path })
   }
 
   async gitStage(sessionId: string, path: string): Promise<GitStatus> {

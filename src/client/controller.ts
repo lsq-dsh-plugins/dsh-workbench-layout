@@ -1,11 +1,12 @@
 /** Shared browser state joining the root-scoped sidebar and Session-scoped editor. */
 
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
-import type { GitCommit, GitDiff, WorkspaceFile } from '../contracts.ts'
+import type { GitCommit, GitFileDiff, WorkspaceFile } from '../contracts.ts'
 import { WorkbenchApi } from './api.ts'
 
 export type SidebarMode = 'sessions' | 'files' | 'git'
 export type CenterMode = 'file' | 'diff'
+export type DiffViewMode = 'split' | 'inline'
 
 export interface WorkbenchState {
   sidebarMode: SidebarMode
@@ -15,7 +16,8 @@ export interface WorkbenchState {
   dirty: boolean
   preview: boolean
   centerMode: CenterMode
-  diff: GitDiff | null
+  diff: GitFileDiff | null
+  diffViewMode: DiffViewMode
   loading: boolean
   saving: boolean
   error: string | null
@@ -29,6 +31,7 @@ const INITIAL_STATE: WorkbenchState = {
   preview: false,
   centerMode: 'file',
   diff: null,
+  diffViewMode: 'split',
   loading: false,
   saving: false,
   error: null,
@@ -171,7 +174,12 @@ export class WorkbenchController {
   async openDiff(sessionId: string, path: string, staged: boolean): Promise<void> {
     this.setSession(sessionId)
     const requestId = ++this.requestId
-    this.store.update((state) => { state.loading = true; state.error = null })
+    this.store.update((state) => {
+      state.loading = true
+      state.error = null
+      state.diff = null
+      state.centerMode = 'diff'
+    })
     try {
       const diff = await this.api.gitDiff(sessionId, path, staged)
       if (requestId !== this.requestId) return
@@ -180,6 +188,7 @@ export class WorkbenchController {
         state.centerMode = 'diff'
         state.loading = false
       })
+      this.logger.info(`workbench-layout: rendered single-file Git diff ${JSON.stringify(path)}`)
     } catch (error: unknown) {
       if (requestId !== this.requestId) return
       this.store.update((state) => { state.loading = false; state.error = messageOf(error) })
@@ -187,23 +196,34 @@ export class WorkbenchController {
     }
   }
 
-  async openCommitDiff(sessionId: string, commit: GitCommit): Promise<void> {
+  async openCommitDiff(sessionId: string, commit: GitCommit, path: string): Promise<void> {
     this.setSession(sessionId)
     const requestId = ++this.requestId
-    this.store.update((state) => { state.loading = true; state.error = null })
+    this.store.update((state) => {
+      state.loading = true
+      state.error = null
+      state.diff = null
+      state.centerMode = 'diff'
+    })
     try {
-      const diff = await this.api.gitCommitDiff(sessionId, commit.hash)
+      const diff = await this.api.gitCommitFileDiff(sessionId, commit.hash, path)
       if (requestId !== this.requestId) return
       this.store.update((state) => {
         state.diff = diff
         state.centerMode = 'diff'
         state.loading = false
       })
+      this.logger.info(`workbench-layout: rendered Git commit file diff ${commit.shortHash} ${JSON.stringify(path)}`)
     } catch (error: unknown) {
       if (requestId !== this.requestId) return
       this.store.update((state) => { state.loading = false; state.error = messageOf(error) })
-      this.logger.warn(`workbench-layout: failed to load Git commit diff ${commit.shortHash}`)
+      this.logger.warn(`workbench-layout: failed to load Git commit file diff ${commit.shortHash} ${JSON.stringify(path)}`)
     }
+  }
+
+  setDiffViewMode(mode: DiffViewMode): void {
+    this.store.update((state) => { state.diffViewMode = mode })
+    this.logger.info(`workbench-layout: Diff view mode changed to ${mode}`)
   }
 
   showFile(): void {
