@@ -467,6 +467,35 @@ export class WorkbenchController {
     this.logger.info(`workbench-layout: cleared editor tabs after Git changed workspace ${JSON.stringify(workspaceId)}`)
   }
 
+  /** Close tabs whose backing file is one entry or a descendant of one renamed/deleted directory. */
+  closeWorkspaceEntries(workspaceId: string, path: string): void {
+    const removedIds: string[] = []
+    this.updateWorkspaceState(workspaceId, (state) => {
+      const activeIndex = state.tabs.findIndex(tab => tab.id === state.activeTabId)
+      const retained = state.tabs.filter((tab) => {
+        if (tab.kind === 'terminal' || !isSameOrDescendantPath(tab.path, path)) return true
+        removedIds.push(tab.id)
+        return false
+      })
+      state.tabs = retained
+      if (!retained.some(tab => tab.id === state.activeTabId)) {
+        const next = retained[Math.min(Math.max(0, activeIndex), retained.length - 1)]
+        if (next === undefined) delete state.activeTabId
+        else state.activeTabId = next.id
+      }
+    })
+    for (const id of removedIds) {
+      const key = tabRequestKey(workspaceId, id)
+      this.fileRequests.delete(key)
+      this.diffRequests.delete(key)
+    }
+    if (removedIds.length > 0) {
+      this.logger.info(
+        `workbench-layout: closed ${removedIds.length} tabs for changed workspace entry ${JSON.stringify(path)}`,
+      )
+    }
+  }
+
   private async openDiffTab(
     workspaceId: string,
     descriptor: Pick<WorkbenchDiffTab, 'id' | 'path' | 'diffKind' | 'revision'>,
@@ -634,6 +663,10 @@ function tabRequestKey(workspaceId: string | undefined, tabId: string): string {
 
 function tabIdentity(tab: WorkbenchTab): string {
   return tab.kind === 'terminal' ? `terminal-${tab.sequence}` : tab.path
+}
+
+function isSameOrDescendantPath(candidate: string, parent: string): boolean {
+  return candidate === parent || candidate.startsWith(`${parent}/`)
 }
 
 function messageOf(error: unknown): string {

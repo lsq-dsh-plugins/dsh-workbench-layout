@@ -511,6 +511,13 @@
   gap: 1px;
 }
 
+.contextMenuAnchor {
+  position: fixed;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
 .gitSyncButton {
   display: inline-flex;
   align-items: center;

@@ -38,6 +38,23 @@ export interface CreatedWorkspaceEntry {
   size?: number
 }
 
+export interface RenamedWorkspaceEntry {
+  from: string
+  path: string
+  name: string
+  kind: 'file' | 'directory'
+}
+
+export interface DeletedWorkspaceEntry {
+  path: string
+  kind: 'file' | 'directory'
+}
+
+export interface WorkspaceAbsolutePath {
+  path: string
+  absolutePath: string
+}
+
 export interface GitFileStatus {
   path: string
   originalPath?: string

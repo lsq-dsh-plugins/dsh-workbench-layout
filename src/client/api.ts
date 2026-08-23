@@ -2,6 +2,7 @@
 
 import type {
   CreatedWorkspaceEntry,
+  DeletedWorkspaceEntry,
   DirectoryListing,
   GitBranches,
   GitCommitFiles,
@@ -18,8 +19,10 @@ import type {
   GitTargetRemoteOperation,
   GitTargetRemoteResult,
   SavedWorkspaceFile,
+  RenamedWorkspaceEntry,
   WorkbenchErrorBody,
   WorkspaceFile,
+  WorkspaceAbsolutePath,
 } from '../contracts.ts'
 import { WORKBENCH_API_PREFIX } from '../contracts.ts'
 
@@ -50,6 +53,18 @@ export class WorkbenchApi {
 
   async createDirectory(workspaceId: string, path: string): Promise<CreatedWorkspaceEntry> {
     return this.post('/directory/create', { workspaceId, path })
+  }
+
+  async renameEntry(workspaceId: string, path: string, name: string): Promise<RenamedWorkspaceEntry> {
+    return this.post('/entry/rename', { workspaceId, path, name })
+  }
+
+  async deleteEntry(workspaceId: string, path: string): Promise<DeletedWorkspaceEntry> {
+    return this.post('/entry/delete', { workspaceId, path })
+  }
+
+  async absolutePath(workspaceId: string, path: string): Promise<WorkspaceAbsolutePath> {
+    return this.post('/path/absolute', { workspaceId, path })
   }
 
   async gitStatus(workspaceId: string): Promise<GitStatus> {

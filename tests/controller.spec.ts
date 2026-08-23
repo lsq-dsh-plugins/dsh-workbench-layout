@@ -406,6 +406,29 @@ describe('WorkbenchController', () => {
     ])
     expect(controller.store.getSnapshot().activeTabId).toBe(terminalId)
   })
+
+  it('closes only file and Diff tabs backed by a renamed or deleted entry', async () => {
+    const api = {
+      readFile: vi.fn((_workspaceId: string, path: string) => Promise.resolve(file(path, path, '1'))),
+      gitDiff: vi.fn((_workspaceId: string, path: string) => Promise.resolve({
+        kind: 'worktree', path, status: 'M', original: 'old', modified: 'new', binary: false,
+      })),
+    }
+    const controller = createController(api)
+    await controller.openFile('workspace-1', 'src/a.ts')
+    await controller.openFile('workspace-1', 'src/nested/b.ts')
+    await controller.openFile('workspace-1', 'kept.ts')
+    await controller.openDiff('workspace-1', 'src/a.ts', false)
+    const terminalId = controller.openTerminal()
+
+    controller.closeWorkspaceEntries('workspace-1', 'src')
+
+    expect(controller.store.getSnapshot().tabs).toEqual([
+      expect.objectContaining({ kind: 'file', path: 'kept.ts' }),
+      expect.objectContaining({ kind: 'terminal', id: terminalId }),
+    ])
+    expect(controller.store.getSnapshot().activeTabId).toBe(terminalId)
+  })
 })
 
 function createController(api: object) {

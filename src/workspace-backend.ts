@@ -1,14 +1,17 @@
 /** Host-side workspace operations over DSH's filesystem service. */
 
-import { mkdir } from 'node:fs/promises'
+import { mkdir, rename as renamePath, rm } from 'node:fs/promises'
 import type { Context } from '@deepseek-ai/cordis'
 import type { FsTarget, FsVersion } from '@deepseek-ai/dsh-fs'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace'
 import type {
   CreatedWorkspaceEntry,
+  DeletedWorkspaceEntry,
   DirectoryListing,
+  RenamedWorkspaceEntry,
   SavedWorkspaceFile,
   WorkspaceEntry,
+  WorkspaceAbsolutePath,
   WorkspaceFile,
 } from './contracts.ts'
 import { WorkbenchHttpError } from './http.ts'
@@ -176,6 +179,52 @@ export class WorkspaceBackend {
     return { name: workspaceName(workspace.path), path: workspace.path, kind: 'directory' }
   }
 
+  /** Rename one validated file or directory without replacing an existing sibling. */
+  async renameEntry(workspaceIdValue: unknown, pathValue: unknown, nameValue: unknown): Promise<RenamedWorkspaceEntry> {
+    const source = await this.resolveMutableEntry(workspaceIdValue, pathValue)
+    const name = requireEntryName(nameValue)
+    const destinationPath = childWorkspacePath(workspaceParent(source.path), name)
+    assertMutableWorkspacePath(destinationPath)
+    if (destinationPath === source.path) {
+      return { from: source.path, path: source.path, name, kind: source.kind }
+    }
+    const destination = await this.resolveCreationTarget(source.workspaceId, destinationPath)
+    try {
+      await renamePath(this.ctx.fs.processPath(source.target), this.ctx.fs.processPath(destination.target))
+    } catch (error: unknown) {
+      throw workspaceMutationError(error, '重命名文件或目录失败。')
+    }
+    this.ctx.logger.info(
+      `workbench-layout: renamed workspace ${source.kind} ${JSON.stringify(source.path)} to ${JSON.stringify(destinationPath)} in ${JSON.stringify(source.workspaceId)}`,
+    )
+    return { from: source.path, path: destinationPath, name, kind: source.kind }
+  }
+
+  /** Delete one validated entry; directories are removed recursively only after explicit UI confirmation. */
+  async deleteEntry(workspaceIdValue: unknown, pathValue: unknown): Promise<DeletedWorkspaceEntry> {
+    const workspace = await this.resolveMutableEntry(workspaceIdValue, pathValue)
+    try {
+      await rm(this.ctx.fs.processPath(workspace.target), { recursive: workspace.kind === 'directory', force: false })
+    } catch (error: unknown) {
+      throw workspaceMutationError(error, '删除文件或目录失败。')
+    }
+    this.ctx.logger.info(
+      `workbench-layout: deleted workspace ${workspace.kind} ${JSON.stringify(workspace.path)} in ${JSON.stringify(workspace.workspaceId)}`,
+    )
+    return { path: workspace.path, kind: workspace.kind }
+  }
+
+  /** Resolve an existing entry to the canonical process path only for an explicit copy-path action. */
+  async absolutePath(workspaceIdValue: unknown, pathValue: unknown): Promise<WorkspaceAbsolutePath> {
+    const workspace = await this.resolve(workspaceIdValue, pathValue)
+    if (workspace.path !== '') assertMutableWorkspacePath(workspace.path)
+    await this.requireType(workspace, workspace.path === '' ? 'directory' : undefined)
+    this.ctx.logger.info(
+      `workbench-layout: resolved an absolute path for workspace entry ${JSON.stringify(workspace.path)} in ${JSON.stringify(workspace.workspaceId)}`,
+    )
+    return { path: workspace.path, absolutePath: this.ctx.fs.processPath(workspace.target) }
+  }
+
   async rootProcessPath(workspaceIdValue: unknown): Promise<{ cwd: string; workspaceId: WorkspaceId }> {
     const workspace = await this.resolve(workspaceIdValue, '')
     await this.requireType(workspace, 'directory')
@@ -251,14 +300,58 @@ export class WorkspaceBackend {
     return workspace
   }
 
-  private async requireType(workspace: WorkspaceTarget, expected: 'file' | 'directory') {
+  private async resolveMutableEntry(
+    workspaceIdValue: unknown,
+    pathValue: unknown,
+  ): Promise<WorkspaceTarget & { kind: 'file' | 'directory' }> {
+    const workspace = await this.resolve(workspaceIdValue, pathValue)
+    assertMutableWorkspacePath(workspace.path)
+    const info = await this.requireType(workspace)
+    if (info.type !== 'file' && info.type !== 'directory') {
+      throw new WorkbenchHttpError(400, 'FS_ENTRY_UNSUPPORTED', '只能重命名或删除普通文件和目录。')
+    }
+    return { ...workspace, kind: info.type }
+  }
+
+  private async requireType(workspace: WorkspaceTarget, expected?: 'file' | 'directory') {
     const info = await this.ctx.fs.stat(workspace.target)
     if (info === undefined) throw new WorkbenchHttpError(404, 'FS_NOT_FOUND', '文件或目录不存在。')
-    if (info.type !== expected) {
+    if (expected !== undefined && info.type !== expected) {
       throw new WorkbenchHttpError(400, expected === 'file' ? 'FS_NOT_REGULAR_FILE' : 'FS_NOT_DIRECTORY',
         expected === 'file' ? '所选项目不是普通文件。' : '所选项目不是目录。')
     }
     return info
+  }
+}
+
+function requireEntryName(value: unknown): string {
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new WorkbenchHttpError(400, 'ENTRY_NAME_REQUIRED', '请输入文件或目录名称。')
+  }
+  const name = value.trim()
+  childWorkspacePath('', name)
+  return name
+}
+
+function assertMutableWorkspacePath(path: string): void {
+  if (path === '') throw new WorkbenchHttpError(403, 'WORKSPACE_ROOT_PROTECTED', '不能重命名或删除工作区根目录。')
+  if (path.split('/').includes('.git')) {
+    throw new WorkbenchHttpError(403, 'WORKSPACE_METADATA_PROTECTED', '不能通过文件菜单修改 Git 元数据目录。')
+  }
+}
+
+function workspaceMutationError(error: unknown, fallback: string): WorkbenchHttpError {
+  switch (errorCode(error)) {
+    case 'EEXIST':
+    case 'ENOTEMPTY':
+      return new WorkbenchHttpError(409, 'FS_ALREADY_EXISTS', '同名文件或目录已经存在。')
+    case 'ENOENT':
+      return new WorkbenchHttpError(404, 'FS_NOT_FOUND', '文件或目录不存在，请刷新文件目录。')
+    case 'EACCES':
+    case 'EPERM':
+      return new WorkbenchHttpError(403, 'FS_PERMISSION_DENIED', '没有权限修改文件或目录。')
+    default:
+      return new WorkbenchHttpError(500, 'FS_MUTATION_FAILED', fallback)
   }
 }
 

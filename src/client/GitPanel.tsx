@@ -23,6 +23,7 @@ import {
 } from './GitGraphView.tsx'
 import { GitRepositoryToolbar } from './GitRepositoryToolbar.tsx'
 import { GitRemoteDialog, type GitRemoteDialogMode, type GitRemoteDraft } from './GitRemoteDialog.tsx'
+import { copyTextToClipboard } from './clipboard.ts'
 import { useWorkbench } from './use-workbench.ts'
 import css from './Workbench.module.css'
 
@@ -252,7 +253,7 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
   const commitMenuAction = async (action: GitCommitMenuAction, commitValue: GitCommit): Promise<void> => {
     if (action === 'copy') {
       try {
-        await copyText(commitValue.hash)
+        await copyTextToClipboard(commitValue.hash)
         setResult(t('git.commitMenu.copied', { hash: commitValue.shortHash }))
         setError(null)
       } catch {
@@ -606,20 +607,4 @@ function hasWorktreeChange(file: GitFileStatus): boolean {
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
-}
-
-async function copyText(value: string): Promise<void> {
-  if (navigator.clipboard?.writeText !== undefined) {
-    await navigator.clipboard.writeText(value)
-    return
-  }
-  const input = document.createElement('textarea')
-  input.value = value
-  input.style.position = 'fixed'
-  input.style.opacity = '0'
-  document.body.append(input)
-  input.select()
-  const copied = document.execCommand?.('copy') === true
-  input.remove()
-  if (!copied) throw new Error('Clipboard unavailable')
 }

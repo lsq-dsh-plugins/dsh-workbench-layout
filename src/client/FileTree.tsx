@@ -1,9 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  IconChevronDownOutline14,
-  IconChevronRightOutline14,
-  IconFolderClose16,
-  IconFolderOpen16,
   IconRefreshOutline14,
   Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -11,8 +7,13 @@ import type { DirectoryListing, WorkspaceEntry } from '../contracts.ts'
 import type { WorkbenchController } from './controller.ts'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import { childWorkspacePath } from '../path-policy.ts'
-import { IconFileAddOutline16, IconFileOutline16, IconFolderAddOutline16 } from './CreateEntryIcons.tsx'
-import { FileTreeCreateRow, type FileTreeCreateKind } from './FileTreeCreateRow.tsx'
+import { IconFileAddOutline16, IconFolderAddOutline16 } from './CreateEntryIcons.tsx'
+import type { FileTreeCreateKind } from './FileTreeCreateRow.tsx'
+import { FileTreeContextMenu, type FileTreeMenuAction, type FileTreeMenuTarget } from './FileTreeContextMenu.tsx'
+import { FileTreeDialogs } from './FileTreeDialogs.tsx'
+import { FileTreeLevel, isContextMenuKey, type FileTreeCreateDraft } from './FileTreeLevel.tsx'
+import { copyTextToClipboard } from './clipboard.ts'
+import { useFileTreeMutations } from './use-file-tree-mutations.ts'
 import { useWorkbench } from './use-workbench.ts'
 import css from './Workbench.module.css'
 
@@ -28,11 +29,6 @@ interface TreeSelection {
   kind: 'file' | 'directory'
 }
 
-interface CreateDraft {
-  parent: string
-  kind: FileTreeCreateKind
-}
-
 /** Lazy directory tree; each expansion performs one bounded Host listing. */
 export function FileTree({ controller, workspaceId, workspacePath, t }: FileTreeProps) {
   const workbench = useWorkbench(controller)
@@ -45,7 +41,9 @@ export function FileTree({ controller, workspaceId, workspacePath, t }: FileTree
   const [error, setError] = useState<string | null>(null)
   const [revision, setRevision] = useState(0)
   const [selection, setSelection] = useState<TreeSelection | null | undefined>(undefined)
-  const [createDraft, setCreateDraft] = useState<CreateDraft | null>(null)
+  const [createDraft, setCreateDraft] = useState<FileTreeCreateDraft | null>(null)
+  const [contextTarget, setContextTarget] = useState<FileTreeMenuTarget | null>(null)
+  const [result, setResult] = useState<string | null>(null)
   const selectedPath = selection === undefined
     ? activeTab?.kind === 'file' ? activeTab.path : undefined
     : selection?.path
@@ -59,6 +57,8 @@ export function FileTree({ controller, workspaceId, workspacePath, t }: FileTree
     setError(null)
     setSelection(undefined)
     setCreateDraft(null)
+    setContextTarget(null)
+    setResult(null)
     if (workspaceId === undefined) return
     let active = true
     setLoading(new Set(['']))
@@ -110,9 +110,11 @@ export function FileTree({ controller, workspaceId, workspacePath, t }: FileTree
     void loadDirectory(path)
   }
 
-  const beginCreate = (kind: FileTreeCreateKind): void => {
-    const parent = selectedKind === 'directory' && selectedPath !== undefined ? selectedPath : parentPath(selectedPath)
+  const beginCreate = (kind: FileTreeCreateKind, parentOverride?: string): void => {
+    const parent = parentOverride
+      ?? (selectedKind === 'directory' && selectedPath !== undefined ? selectedPath : parentPath(selectedPath))
     setError(null)
+    setResult(null)
     setCreateDraft({ parent, kind })
     setExpanded(previous => new Set(previous).add(parent))
     void loadDirectory(parent)
@@ -127,7 +129,7 @@ export function FileTree({ controller, workspaceId, workspacePath, t }: FileTree
     beginCreate(request.action === 'files.newFile' ? 'file' : 'directory')
   }, [controller, error, listings, workbench.sidebarAction, workspaceId])
 
-  const createEntry = async (draft: CreateDraft, name: string): Promise<boolean> => {
+  const createEntry = async (draft: FileTreeCreateDraft, name: string): Promise<boolean> => {
     if (workspaceId === undefined) return false
     const targetWorkspace = workspaceId
     let path: string
@@ -154,6 +156,83 @@ export function FileTree({ controller, workspaceId, workspacePath, t }: FileTree
       void controller.openFile(targetWorkspace, path)
     }
     return true
+  }
+
+  const reloadDirectory = async (targetWorkspace: string, path: string): Promise<void> => {
+    try {
+      const listing = await controller.api.listDirectory(targetWorkspace, path)
+      if (activeWorkspace.current === targetWorkspace) {
+        setListings(previous => ({ ...previous, [path]: listing }))
+      }
+    } catch (reason: unknown) {
+      if (activeWorkspace.current === targetWorkspace) setError(messageOf(reason))
+    }
+  }
+
+  const mutations = useFileTreeMutations({
+    controller,
+    workspaceId,
+    tabs: workbench.tabs,
+    t,
+    onError: setError,
+    onResult: setResult,
+    onInvalidate: (path) => {
+      setListings(previous => omitPathListings(previous, path))
+      setExpanded(previous => omitExpandedPaths(previous, path))
+    },
+    onSelect: setSelection,
+    onReloadParent: reloadDirectory,
+  })
+
+  const runContextAction = async (action: FileTreeMenuAction): Promise<void> => {
+    const entry = contextTarget?.entry ?? null
+    const targetWorkspace = workspaceId
+    if (targetWorkspace === undefined) return
+    setError(null)
+    setResult(null)
+    if (action === 'refresh') {
+      setRevision(value => value + 1)
+      return
+    }
+    if (action === 'new-file' || action === 'new-directory') {
+      beginCreate(action === 'new-file' ? 'file' : 'directory', entry?.kind === 'directory' ? entry.path : '')
+      return
+    }
+    if (entry === null) return
+    if (action === 'open') {
+      if (entry.kind === 'directory') toggle(entry.path)
+      else if (entry.kind === 'file') void controller.openFile(targetWorkspace, entry.path)
+      return
+    }
+    if (action === 'rename') {
+      mutations.requestRename(entry)
+      return
+    }
+    if (action === 'delete') {
+      mutations.requestDelete(entry)
+      return
+    }
+    try {
+      if (action === 'copy-relative-path') {
+        await copyTextToClipboard(entry.path)
+        setResult(t('files.relativePathCopied'))
+      } else if (action === 'copy-absolute-path') {
+        const resolved = await controller.api.absolutePath(targetWorkspace, entry.path)
+        if (activeWorkspace.current !== targetWorkspace) return
+        await copyTextToClipboard(resolved.absolutePath)
+        setResult(t('files.absolutePathCopied'))
+      }
+    } catch {
+      if (activeWorkspace.current === targetWorkspace) setError(t('files.copyFailed'))
+    }
+  }
+
+  const openContextMenu = (entry: WorkspaceEntry | null, rect: DOMRect): void => {
+    setCreateDraft(null)
+    setContextTarget({ entry, expanded: entry?.kind === 'directory' && expanded.has(entry.path), rect })
+    setSelection(entry === null ? null : entry.kind === 'file' || entry.kind === 'directory'
+      ? { path: entry.path, kind: entry.kind }
+      : null)
   }
 
   if (workspaceId === undefined) return <div className={css.emptyState}>{t('files.emptyWorkspace')}</div>
@@ -186,19 +265,31 @@ export function FileTree({ controller, workspaceId, workspacePath, t }: FileTree
         </div>
       </div>
       {error !== null && <div className={css.error} role="alert">{error}</div>}
+      {result !== null && <div className={css.success} role="status">{result}</div>}
       {root === undefined
         ? error === null && <div className={css.emptyState}>{t('files.loading')}</div>
         : (
           <div
             className={css.tree}
             role="tree"
+            tabIndex={0}
             data-selection-root={selection === null ? true : undefined}
             onClick={(event) => {
               if (event.target instanceof Element && event.target.closest('[role="treeitem"]') !== null) return
               setSelection(null)
             }}
+            onContextMenu={(event) => {
+              if (event.target instanceof Element && event.target.closest('[role="treeitem"]') !== null) return
+              event.preventDefault()
+              openContextMenu(null, pointerRect(event.clientX, event.clientY))
+            }}
+            onKeyDown={(event) => {
+              if (event.currentTarget !== event.target || !isContextMenuKey(event.key, event.shiftKey)) return
+              event.preventDefault()
+              openContextMenu(null, event.currentTarget.getBoundingClientRect())
+            }}
           >
-            <TreeLevel
+            <FileTreeLevel
               entries={root.entries}
               directoryPath=""
               depth={0}
@@ -212,71 +303,30 @@ export function FileTree({ controller, workspaceId, workspacePath, t }: FileTree
               onCancelCreate={() => { setCreateDraft(null) }}
               onToggle={(path) => { setSelection({ path, kind: 'directory' }); toggle(path) }}
               onOpen={(path) => { setSelection({ path, kind: 'file' }); void controller.openFile(workspaceId, path) }}
+              onContextMenu={openContextMenu}
             />
             {root.entries.length === 0 && createDraft === null && <div className={css.emptyState}>{t('files.empty')}</div>}
             {root.truncated && <div className={css.notice}>{t('files.truncated')}</div>}
           </div>
         )}
+      <FileTreeContextMenu
+        target={contextTarget}
+        onClose={() => { setContextTarget(null) }}
+        onSelect={action => { void runContextAction(action) }}
+        t={t}
+      />
+      <FileTreeDialogs
+        renameTarget={mutations.renameTarget}
+        deleteTarget={mutations.deleteTarget}
+        busy={mutations.busy}
+        error={mutations.dialogError}
+        onClose={mutations.close}
+        onRename={name => { void mutations.rename(name) }}
+        onDelete={() => { void mutations.remove() }}
+        t={t}
+      />
     </div>
   )
-}
-
-function TreeLevel(props: {
-  entries: WorkspaceEntry[]
-  directoryPath: string
-  depth: number
-  expanded: Set<string>
-  listings: Record<string, DirectoryListing | undefined>
-  loading: Set<string>
-  selected: string | undefined
-  createDraft: CreateDraft | null
-  createLabel: string
-  onCreate: (draft: CreateDraft, name: string) => Promise<boolean>
-  onCancelCreate: () => void
-  onToggle: (path: string) => void
-  onOpen: (path: string) => void
-}) {
-  return <>
-    {props.createDraft?.parent === props.directoryPath && (
-      <FileTreeCreateRow
-        kind={props.createDraft.kind}
-        depth={props.depth}
-        label={props.createLabel}
-        onCreate={name => props.onCreate(props.createDraft!, name)}
-        onCancel={props.onCancelCreate}
-      />
-    )}
-    {props.entries.filter(entry => entry.name !== '.git').map((entry) => {
-      const directory = entry.kind === 'directory'
-      const open = directory && props.expanded.has(entry.path)
-      const children = props.listings[entry.path]
-      return (
-        <div key={entry.path} role="none">
-          <button
-            type="button"
-            role="treeitem"
-            aria-expanded={directory ? open : undefined}
-            className={css.treeRow}
-            data-selected={props.selected === entry.path || undefined}
-            style={{ paddingLeft: 8 + props.depth * 16 }}
-            onClick={() => { directory ? props.onToggle(entry.path) : props.onOpen(entry.path) }}
-          >
-            <span className={css.chevron}>
-              {directory && (open ? <IconChevronDownOutline14 size={12} /> : <IconChevronRightOutline14 size={12} />)}
-            </span>
-            {directory
-              ? open ? <IconFolderOpen16 size={16} /> : <IconFolderClose16 size={16} />
-              : <IconFileOutline16 size={15} />}
-            <span className={css.rowName}>{entry.name}</span>
-          </button>
-          {open && props.loading.has(entry.path) && <div className={css.treeLoading} style={{ paddingLeft: 28 + props.depth * 16 }}>…</div>}
-          {open && children !== undefined && (
-            <TreeLevel {...props} entries={children.entries} directoryPath={entry.path} depth={props.depth + 1} />
-          )}
-        </div>
-      )
-    })}
-  </>
 }
 
 function parentPath(path: string | undefined): string {
@@ -287,4 +337,23 @@ function parentPath(path: string | undefined): string {
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function omitPathListings(
+  listings: Record<string, DirectoryListing | undefined>,
+  path: string,
+): Record<string, DirectoryListing | undefined> {
+  return Object.fromEntries(Object.entries(listings).filter(([candidate]) => !isSameOrDescendantPath(candidate, path)))
+}
+
+function omitExpandedPaths(expanded: Set<string>, path: string): Set<string> {
+  return new Set([...expanded].filter(candidate => !isSameOrDescendantPath(candidate, path)))
+}
+
+function isSameOrDescendantPath(candidate: string, parent: string): boolean {
+  return candidate === parent || candidate.startsWith(`${parent}/`)
+}
+
+function pointerRect(x: number, y: number): DOMRect {
+  return new DOMRect(x, y, 0, 0)
 }

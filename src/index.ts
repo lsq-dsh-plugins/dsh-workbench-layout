@@ -104,6 +104,12 @@ async function dispatch(
       return workspace.createFile(body.workspaceId, body.path)
     case `${WORKBENCH_API_PREFIX}/directory/create`:
       return workspace.createDirectory(body.workspaceId, body.path)
+    case `${WORKBENCH_API_PREFIX}/entry/rename`:
+      return workspace.renameEntry(body.workspaceId, body.path, body.name)
+    case `${WORKBENCH_API_PREFIX}/entry/delete`:
+      return workspace.deleteEntry(body.workspaceId, body.path)
+    case `${WORKBENCH_API_PREFIX}/path/absolute`:
+      return workspace.absolutePath(body.workspaceId, body.path)
     case `${WORKBENCH_API_PREFIX}/git/status`:
       return git.status(body.workspaceId)
     case `${WORKBENCH_API_PREFIX}/git/diff`:
