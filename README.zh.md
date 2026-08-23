@@ -13,7 +13,7 @@
 - Markdown 文件首次打开默认显示 DSH 官方 Markdown 渲染结果，可在“预览 / 源码”之间切换。
 - 中右栏优先使用 DSH AppFrame 原生列宽和拖拽处理；官方 AppFrame 在空会话 Hero 中主动隐藏详情轨道时，插件按同一套 300–520px 约束、360px 默认值、640px 中栏让步规则和无装饰拖拽热区补足轨道，首条消息产生后立即交还官方处理。
 - Git 左栏按 VS Code 的源码管理习惯分成“更改 / 提交图”标签；更改页区分“已暂存”和“工作区”，并可在扁平列表与可折叠目录树之间切换。
-- 提交图读取所有本地和远程分支，按拓扑顺序绘制彩色提交节点、分叉、汇合与 Merge commit；图中提交保持单行，只显示分支/标签标志、提交说明和作者。悬浮显示完整哈希与时间，点击整行后在原位置展开该提交的文件。
+- 提交图读取所有本地和远程分支，按拓扑顺序绘制分段着色的提交节点、分叉、汇合与 Merge commit；普通提交、引用边界和合并点分别使用实心点、空心环和双层环。图中提交保持紧凑单行，按“提交说明、作者、分支/远程/标签标志”排列；悬浮显示完整哈希与时间，点击整行后在原位置展开该提交的文件。
 - 点击工作区、暂存区或提交图中的文件时，中栏只打开该文件的差异，不会把整次提交的所有文件拼在一起。
 - 仓库工具栏支持查看和切换本地/远程分支，并显示上游分支的拉取/推送计数；提供 Fetch、快进 Pull、Push、发布当前分支和先拉后推的 Sync。
 - 中栏使用 CodeMirror MergeView 渲染只读 Diff，默认左右对照，包含行号、红绿变更块、未修改区域折叠和增删统计；可手动切换行内模式，窄列下会自动采用行内模式。
@@ -77,7 +77,7 @@ npm run test:bundle
 - `src/client/fallback-details-layout.ts`：空会话 Hero 下与官方几何约束一致的临时详情轨道。
 - `src/client/FileTree.tsx`、`GitPanel.tsx`：左栏文件树和源码管理状态编排。
 - `src/client/GitChangesView.tsx`、`git-tree.ts`：更改分组、列表/目录树和文件操作。
-- `src/client/GitGraphView.tsx`、`git-graph.ts`：提交图渲染、轨道布局、分叉/汇合连线和行内提交详情。
+- `src/client/GitGraphView.tsx`、`GitReferenceBadge.tsx`、`git-graph.ts`：提交图渲染、分段色轨道、引用标志、分叉/汇合连线和行内提交详情。
 - `src/client/GitRepositoryToolbar.tsx`：分支选择与远程操作菜单。
 - `src/client/WorkbenchEditor.tsx`：中栏源码编辑、Markdown 预览和 Diff 入口。
 - `src/client/GitDiffEditor.tsx`、`DiffSurface.tsx`：单文件 Diff 工具栏、自适应布局和 CodeMirror 差异渲染。

@@ -30,6 +30,7 @@ describe('Git Graph 拓扑', () => {
 
     expect(graph.laneCount).toBe(2)
     expect(graph.rows[0]?.outgoing.map(edge => [edge.from, edge.to])).toEqual([[0, 0], [0, 1]])
+    expect(graph.rows[0]).toMatchObject({ nodeKind: 'merge', nodeColor: 0, incomingColor: 0 })
     expect(graph.rows[1]?.passing.map(edge => [edge.from, edge.to])).toEqual([[1, 1]])
     expect(graph.rows[2]).toMatchObject({ lane: 1, incoming: true })
     expect(graph.rows[2]?.outgoing.map(edge => [edge.from, edge.to])).toEqual([[1, 0]])
@@ -42,9 +43,48 @@ describe('Git Graph 拓扑', () => {
     expect(graph.rows[0]?.continuation).toEqual([{ hash: hash('b'), lane: 0, color: 0 }])
     expect(graph.rows[0]?.outgoing).toHaveLength(1)
   })
+
+  it('在分支引用处开启稳定的新色段而不改变拓扑轨道', () => {
+    const graph = buildGitGraph([
+      commit('a', ['b'], [{ name: 'main', kind: 'head' }]),
+      commit('b', ['c'], [{ name: 'origin/main', kind: 'remote' }]),
+      commit('c', []),
+    ])
+
+    expect(graph.rows[0]).toMatchObject({ nodeKind: 'reference', nodeColor: 0, incomingColor: 0 })
+    expect(graph.rows[1]).toMatchObject({
+      lane: 0,
+      nodeKind: 'reference',
+      nodeColor: 1,
+      incomingColor: 0,
+    })
+    expect(graph.rows[1]?.outgoing).toEqual([{ from: 0, to: 0, color: 1 }])
+    expect(graph.rows[2]).toMatchObject({ nodeKind: 'commit', nodeColor: 1, incomingColor: 1 })
+  })
+
+  it('在远程引用与合并点之间建立可辨认的颜色分段', () => {
+    const graph = buildGitGraph([
+      commit('a', ['b'], [{ name: 'main', kind: 'head' }]),
+      commit('b', ['m']),
+      commit('m', ['c', 'd'], [{ name: 'origin/main', kind: 'remote' }]),
+      commit('c', ['r']),
+      commit('d', ['r']),
+      commit('r', []),
+    ])
+
+    expect(graph.rows[0]).toMatchObject({ nodeKind: 'reference', nodeColor: 0 })
+    expect(graph.rows[2]).toMatchObject({ nodeKind: 'merge', nodeColor: 0, incomingColor: 0 })
+    expect(graph.rows[2]?.outgoing.map(edge => edge.color)).toEqual([1, 2])
+    expect(graph.rows[3]).toMatchObject({ nodeKind: 'commit', nodeColor: 1, incomingColor: 1 })
+    expect(graph.rows[4]).toMatchObject({ nodeKind: 'commit', nodeColor: 2, incomingColor: 2 })
+  })
 })
 
-function commit(value: string, parents: string[]): GitCommit {
+function commit(
+  value: string,
+  parents: string[],
+  references: GitCommit['references'] = [],
+): GitCommit {
   return {
     hash: hash(value),
     shortHash: value.repeat(7),
@@ -52,7 +92,7 @@ function commit(value: string, parents: string[]): GitCommit {
     subject: value,
     author: 'Tester',
     authoredAt: '2026-08-23T10:00:00Z',
-    references: [],
+    references,
   }
 }
 

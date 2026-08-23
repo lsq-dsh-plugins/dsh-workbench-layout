@@ -15,8 +15,10 @@ export interface GitGraphEdge {
 export interface GitGraphRow {
   commit: GitCommit
   lane: number
-  color: number
+  nodeColor: number
+  incomingColor: number
   incoming: boolean
+  nodeKind: 'commit' | 'reference' | 'merge'
   passing: GitGraphEdge[]
   outgoing: GitGraphEdge[]
   continuation: GitGraphLane[]
@@ -34,7 +36,8 @@ interface ActiveLane {
 
 /**
  * 将 `git log --topo-order` 的提交序列转换为稳定轨道。
- * 第一父提交延续当前颜色，额外父提交建立新轨道；已存在的父轨道会被汇合复用。
+ * 第一父提交通常延续当前颜色；遇到引用边界或 Merge commit 时开启新色段，
+ * 额外父提交建立独立轨道，已存在的父轨道会被汇合复用。
  */
 export function buildGitGraph(commits: readonly GitCommit[]): GitGraphLayout {
   let lanes: ActiveLane[] = []
@@ -54,6 +57,8 @@ export function buildGitGraph(commits: readonly GitCommit[]): GitGraphLayout {
     const current = before[lane]!
     const after = before.filter((_, index) => index !== lane)
     const parents = commit.parents.filter((hash, index, values) => values.indexOf(hash) === index)
+    const startsNewFirstParentSegment = incoming && parents.length > 0
+      && (commit.references.length > 0 || parents.length > 1)
 
     for (const [parentIndex, hash] of parents.entries()) {
       if (after.some(candidate => candidate.hash === hash)) continue
@@ -62,7 +67,7 @@ export function buildGitGraph(commits: readonly GitCommit[]): GitGraphLayout {
         : Math.min(lane + parentIndex, after.length)
       after.splice(insertion, 0, {
         hash,
-        color: parentIndex === 0 ? current.color : nextColor++,
+        color: parentIndex === 0 && !startsNewFirstParentSegment ? current.color : nextColor++,
       })
     }
 
@@ -76,9 +81,27 @@ export function buildGitGraph(commits: readonly GitCommit[]): GitGraphLayout {
       return { from: lane, to, color: after[to]!.color }
     })
     const continuation = after.map((active, index) => ({ ...active, lane: index }))
+    const firstParentLane = parents[0] === undefined
+      ? undefined
+      : after.find(candidate => candidate.hash === parents[0])
+    const referenceBoundary = incoming && parents.length === 1 && commit.references.length > 0
+    const nodeColor = referenceBoundary ? firstParentLane?.color ?? current.color : current.color
+    const nodeKind = parents.length > 1
+      ? 'merge'
+      : commit.references.length > 0 ? 'reference' : 'commit'
 
     laneCount = Math.max(laneCount, before.length, after.length)
-    rows.push({ commit, lane, color: current.color, incoming, passing, outgoing, continuation })
+    rows.push({
+      commit,
+      lane,
+      nodeColor,
+      incomingColor: current.color,
+      incoming,
+      nodeKind,
+      passing,
+      outgoing,
+      continuation,
+    })
     lanes = after
   }
 

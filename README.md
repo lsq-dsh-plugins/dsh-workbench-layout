@@ -13,7 +13,7 @@ An independent DeepSeek Harness Web plugin that keeps the official AppFrame and 
 - Open Markdown in the official DSH rendered view by default, with Preview and Source modes.
 - Prefer DSH AppFrame's native track sizing and drag handling between the editor and conversation. While AppFrame intentionally hides its details track for an empty-Session Hero, supply the same 300–520px range, 360px default, 640px center concession, and undecorated drag hit area; hand control back to AppFrame after the first message.
 - Follow the VS Code source-control model with Changes and Graph tabs. Changes separates staged files from the working tree and switches between a flat list and a collapsible directory tree.
-- Build the Graph from every local and remote branch in topological order, drawing colored commit nodes, forks, joins, and merge commits. Each graph row remains compact with only branch/tag references, subject, and author; hover for the full hash and timestamp, then select the row to expand its changed files in place.
+- Build the Graph from every local and remote branch in topological order, drawing color-segmented commit lanes, forks, joins, and merge commits. Regular commits, reference boundaries, and merges use solid dots, hollow rings, and double-ring nodes respectively. Each row stays compact in subject, author, then local/remote/tag reference order; hover for the full hash and timestamp, then select the row to expand its changed files in place.
 - Selecting a working-tree, staged, or Graph file opens only that file in the middle column instead of concatenating an entire commit.
 - Browse and switch local or remote branches, see upstream incoming/outgoing counts, and explicitly Fetch, fast-forward Pull, Push, publish the current branch, or Sync by pulling then pushing.
 - Render read-only diffs with CodeMirror MergeView: side-by-side by default, with line numbers, red/green change blocks, collapsed unchanged regions, and change counts. Inline mode is selectable and becomes automatic in a narrow editor column.
@@ -77,7 +77,7 @@ npm run test:bundle
 - `src/client/fallback-details-layout.ts`: temporary empty-Session Hero track with AppFrame-matching geometry.
 - `src/client/FileTree.tsx`, `GitPanel.tsx`: left-column file tree and source-control state orchestration.
 - `src/client/GitChangesView.tsx`, `git-tree.ts`: change groups, list/tree layouts, and per-file actions.
-- `src/client/GitGraphView.tsx`, `git-graph.ts`: commit graph rendering, lane layout, fork/join edges, and in-place commit details.
+- `src/client/GitGraphView.tsx`, `GitReferenceBadge.tsx`, `git-graph.ts`: commit graph rendering, color-segmented lanes, reference badges, fork/join edges, and in-place commit details.
 - `src/client/GitRepositoryToolbar.tsx`: branch picker and remote action menus.
 - `src/client/WorkbenchEditor.tsx`: middle source editor, Markdown preview, and diff entry point.
 - `src/client/GitDiffEditor.tsx`, `DiffSurface.tsx`: per-file diff toolbar, adaptive layout, and CodeMirror diff renderer.

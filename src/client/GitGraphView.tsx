@@ -6,19 +6,20 @@ import {
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { GitCommit, GitCommitFiles, GitGraph } from '../contracts.ts'
 import { buildGitGraph, type GitGraphEdge, type GitGraphRow } from './git-graph.ts'
+import { GitReferenceBadge } from './GitReferenceBadge.tsx'
 import css from './Workbench.module.css'
 
-const GRAPH_ROW_HEIGHT = 31
+const GRAPH_ROW_HEIGHT = 28
 const GRAPH_NODE_Y = GRAPH_ROW_HEIGHT / 2
-const GRAPH_LANE_GAP = 12
-const GRAPH_INLINE_PADDING = 7
+const GRAPH_LANE_GAP = 13
+const GRAPH_INLINE_PADDING = 8
 const GRAPH_COLORS = [
-  'var(--dsw-alias-state-business-primary)',
-  'var(--dsw-alias-state-success-primary)',
-  'var(--dsw-alias-state-warn-primary)',
-  'var(--dsw-alias-state-error-primary)',
-  'var(--dsw-alias-brand-text)',
-  'var(--dsw-alias-label-secondary)',
+  'var(--git-graph-color-0)',
+  'var(--git-graph-color-1)',
+  'var(--git-graph-color-2)',
+  'var(--git-graph-color-3)',
+  'var(--git-graph-color-4)',
+  'var(--git-graph-color-5)',
 ] as const
 
 export type CommitFilesState =
@@ -85,16 +86,20 @@ function CommitEntry(props: {
       <Tooltip label={() => commitTooltip(commit)} side="right" delayMs={450} maxWidth={380}>
         <button type="button" className={css.commitRow} aria-expanded={props.expanded} onClick={props.onToggle}>
           <span className={css.gitGraphSpacer} aria-hidden="true" />
+          <span className={css.commitSubject} data-commit-subject="">{commit.subject}</span>
+          <span className={css.commitAuthor} data-commit-author="">{commit.author}</span>
           {commit.references.length > 0 && (
             <span className={css.commitRefs}>
               {commit.references.slice(0, 2).map(reference => (
-                <span key={`${reference.kind}:${reference.name}`} data-kind={reference.kind}>{reference.name}</span>
+                <GitReferenceBadge
+                  key={`${reference.kind}:${reference.name}`}
+                  reference={reference}
+                  color={graphColor(props.row.nodeColor)}
+                />
               ))}
-              {commit.references.length > 2 && <span data-kind="more">+{commit.references.length - 2}</span>}
+              {commit.references.length > 2 && <span className={css.commitRefMore}>+{commit.references.length - 2}</span>}
             </span>
           )}
-          <span className={css.commitSubject}>{commit.subject}</span>
-          <span className={css.commitAuthor}>{commit.author}</span>
         </button>
       </Tooltip>
       {props.expanded && (
@@ -137,7 +142,7 @@ function GraphLayer({ row, width }: { row: GitGraphRow; width: number }) {
           <path
             data-graph-edge="incoming"
             d={`M ${nodeX} 0 L ${nodeX} ${GRAPH_NODE_Y}`}
-            stroke={graphColor(row.color)}
+            stroke={graphColor(row.incomingColor)}
           />
         )}
         {row.passing.map((edge, index) => (
@@ -156,14 +161,7 @@ function GraphLayer({ row, width }: { row: GitGraphRow; width: number }) {
             stroke={graphColor(edge.color)}
           />
         ))}
-        <circle
-          data-graph-node=""
-          data-lane={row.lane}
-          cx={nodeX}
-          cy={GRAPH_NODE_Y}
-          r="3.4"
-          fill={graphColor(row.color)}
-        />
+        <GraphNode row={row} x={nodeX} />
       </svg>
       {row.continuation.map(active => (
         <span
@@ -174,6 +172,36 @@ function GraphLayer({ row, width }: { row: GitGraphRow; width: number }) {
         />
       ))}
     </span>
+  )
+}
+
+function GraphNode({ row, x }: { row: GitGraphRow; x: number }) {
+  const color = graphColor(row.nodeColor)
+  if (row.nodeKind === 'merge') {
+    return (
+      <g data-graph-node="" data-node-kind="merge" data-lane={row.lane}>
+        <circle cx={x} cy={GRAPH_NODE_Y} r="4.5" fill="var(--git-graph-node-bg)" stroke={color} strokeWidth="1.8" />
+        <circle cx={x} cy={GRAPH_NODE_Y} r="1.7" fill={color} />
+      </g>
+    )
+  }
+  if (row.nodeKind === 'reference') {
+    return (
+      <g data-graph-node="" data-node-kind="reference" data-lane={row.lane}>
+        <circle cx={x} cy={GRAPH_NODE_Y} r="4.1" fill="var(--git-graph-node-bg)" stroke={color} strokeWidth="1.8" />
+      </g>
+    )
+  }
+  return (
+    <circle
+      data-graph-node=""
+      data-node-kind="commit"
+      data-lane={row.lane}
+      cx={x}
+      cy={GRAPH_NODE_Y}
+      r="3.15"
+      fill={color}
+    />
   )
 }
 

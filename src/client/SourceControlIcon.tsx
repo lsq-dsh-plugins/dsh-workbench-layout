@@ -1,10 +1,8 @@
 import type { IconProps } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /**
- * 面向源码管理入口的三节点图标。
- *
- * DSH 自带的 Branch 图标继续用于具体分支；入口图标采用更通用的
- * Source Control 轮廓，同时复用 DSH 图标的 currentColor 与 16px 画布约定。
+ * 面向源码管理入口与分支选择器的三节点图标。
+ * 采用通用 Source Control 轮廓，同时复用 DSH 图标的 currentColor 与 16px 画布约定。
  */
 export function IconSourceControlOutline16({ size = 16, className }: IconProps) {
   return (
