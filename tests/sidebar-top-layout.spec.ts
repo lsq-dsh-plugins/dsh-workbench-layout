@@ -45,7 +45,33 @@ describe('侧栏顶部模式宿主', () => {
 
     mount.dispose()
   })
+
+  it('官方新会话 Tooltip 出现和消失时不重建 Portal 宿主', async () => {
+    const { root, newSession, region } = sidebarFixture()
+    const onTarget = vi.fn()
+    const mount = createSidebarTopMount('top-host', onTarget, { info: vi.fn() })
+    const host = root.querySelector<HTMLElement>(`[${SIDEBAR_TOP_HOST_ATTRIBUTE}]`)
+    const tooltip = document.createElement('span')
+
+    root.insertBefore(tooltip, region)
+    await mutationTurn()
+    expect(root.querySelector(`[${SIDEBAR_TOP_HOST_ATTRIBUTE}]`)).toBe(host)
+    expect(host?.nextElementSibling).toBe(newSession)
+    expect(onTarget).toHaveBeenCalledTimes(1)
+
+    tooltip.remove()
+    await mutationTurn()
+    expect(root.querySelector(`[${SIDEBAR_TOP_HOST_ATTRIBUTE}]`)).toBe(host)
+    expect(host?.nextElementSibling).toBe(newSession)
+    expect(onTarget).toHaveBeenCalledTimes(1)
+
+    mount.dispose()
+  })
 })
+
+async function mutationTurn(): Promise<void> {
+  await new Promise<void>(resolve => { queueMicrotask(resolve) })
+}
 
 function sidebarFixture() {
   const root = document.createElement('div')

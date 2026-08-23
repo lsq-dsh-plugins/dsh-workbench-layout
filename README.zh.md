@@ -78,7 +78,7 @@ npm run test:bundle
 - `src/client/SourceControlIcon.tsx`：符合 DSH 尺寸与颜色约定的源码管理入口图标。
 - `src/client/workspace-binding.ts`：优先按 DSH 官方成员关系解析会话所属工作区，并在无会话状态下回退到官方最近工作区。
 - `src/client/workspace-layout.ts`：工作区与 AppFrame 原生详情列状态绑定。
-- `src/client/sidebar-top-layout.ts`：顶部模式切换的稳定 Portal 宿主与展开态新会话呈现适配。
+- `src/client/sidebar-top-layout.ts`：顶部模式切换的稳定 Portal 宿主、官方 Tooltip 相邻节点兼容与展开态新会话呈现适配。
 - `src/terminal-protocol.ts`、`terminal-backend.ts`、`terminal-websocket.ts`：有界终端协议、工作区根目录 PTY 生命周期与可信 WebSocket 桥接。
 - `src/client/fallback-details-layout.ts`：空会话 Hero 下与官方几何约束一致的临时详情轨道。
 - `src/client/FileTree.tsx`、`GitPanel.tsx`：左栏文件树和源码管理状态编排。

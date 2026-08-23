@@ -78,7 +78,7 @@ npm run test:bundle
 - `src/client/SourceControlIcon.tsx`: source-control entry glyph following DSH sizing and color conventions.
 - `src/client/workspace-binding.ts`: official Session membership resolution with the official recent-Workspace fallback for no-Session surfaces.
 - `src/client/workspace-layout.ts`: Workspace binding to AppFrame's native details-track state.
-- `src/client/sidebar-top-layout.ts`: stable Portal host for the top mode switch and expanded New Session presentation.
+- `src/client/sidebar-top-layout.ts`: stable, Tooltip-safe Portal host for the top mode switch and expanded New Session presentation.
 - `src/terminal-protocol.ts`, `terminal-backend.ts`, `terminal-websocket.ts`: bounded terminal protocol, Workspace-root PTY lifecycle, and trusted WebSocket bridge.
 - `src/client/fallback-details-layout.ts`: temporary empty-Session Hero track with AppFrame-matching geometry.
 - `src/client/FileTree.tsx`, `GitPanel.tsx`: left-column file tree and source-control state orchestration.

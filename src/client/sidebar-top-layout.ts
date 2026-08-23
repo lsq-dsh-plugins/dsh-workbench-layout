@@ -38,7 +38,7 @@ export function createSidebarTopMount(
     const workspaceSeat = document.querySelector<HTMLElement>('[data-slot="sidebar.workspaces"]')
     const region = workspaceSeat?.parentElement ?? null
     const nextRoot = region?.parentElement ?? null
-    const nextNewSession = region?.previousElementSibling
+    const nextNewSession = region === null ? null : previousButton(region)
     if (nextRoot === null || !(nextNewSession instanceof HTMLElement)) {
       clear()
       return
@@ -67,4 +67,17 @@ export function createSidebarTopMount(
       clear()
     },
   }
+}
+
+/**
+ * 官方 Tooltip 会在按钮后临时插入一个相邻 span；从区域向前寻找真实按钮，
+ * 避免把 Tooltip 当成锚点后反复交换整列控件的位置。
+ */
+function previousButton(region: HTMLElement): HTMLElement | null {
+  let candidate = region.previousElementSibling
+  while (candidate !== null) {
+    if (candidate instanceof HTMLElement && candidate.tagName === 'BUTTON') return candidate
+    candidate = candidate.previousElementSibling
+  }
+  return null
 }
