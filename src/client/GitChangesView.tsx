@@ -12,15 +12,13 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { GitFileStatus } from '../contracts.ts'
-import { buildGitChangeTree, type GitChangeTreeNode } from './git-tree.ts'
+import { buildGitPathTree, type GitFileLayout, type GitPathTreeNode } from './git-tree.ts'
 import css from './Workbench.module.css'
-
-export type GitChangeLayout = 'list' | 'tree'
 
 interface GitChangesViewProps {
   stagedFiles: GitFileStatus[]
   changedFiles: GitFileStatus[]
-  layout: GitChangeLayout
+  layout: GitFileLayout
   selectedKind: 'staged' | 'worktree' | undefined
   selectedPath: string | undefined
   onOpen: (file: GitFileStatus, staged: boolean) => void
@@ -65,7 +63,7 @@ function ChangeSection(props: {
   title: string
   files: GitFileStatus[]
   empty: string
-  layout: GitChangeLayout
+  layout: GitFileLayout
   selected: (file: GitFileStatus) => boolean
   status: (file: GitFileStatus) => string
   onOpen: (file: GitFileStatus) => void
@@ -104,7 +102,7 @@ function ChangeTree(props: {
   files: GitFileStatus[]
   rowProps: (file: GitFileStatus) => Omit<ChangeRowProps, 'file'>
 }) {
-  const root = useMemo(() => buildGitChangeTree(props.files), [props.files])
+  const root = useMemo(() => buildGitPathTree(props.files), [props.files])
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
   const toggle = (path: string) => {
     setCollapsed(current => {
@@ -118,7 +116,7 @@ function ChangeTree(props: {
 }
 
 function TreeChildren(props: {
-  node: GitChangeTreeNode
+  node: GitPathTreeNode<GitFileStatus>
   depth: number
   collapsed: Set<string>
   onToggle: (path: string) => void

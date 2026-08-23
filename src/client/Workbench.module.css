@@ -856,6 +856,10 @@
   cursor: pointer;
 }
 
+.graphFileRow[data-tree] {
+  padding-left: calc(var(--git-tree-depth) * 14px + 18px);
+}
+
 .commitBox {
   display: flex;
   flex: none;

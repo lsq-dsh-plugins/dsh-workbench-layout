@@ -1,22 +1,26 @@
-import type { GitFileStatus } from '../contracts.ts'
+export type GitFileLayout = 'list' | 'tree'
 
-export interface GitChangeTreeNode {
-  name: string
+export interface GitPathEntry {
   path: string
-  directories: GitChangeTreeNode[]
-  files: GitFileStatus[]
 }
 
-interface MutableTreeNode {
+export interface GitPathTreeNode<Entry extends GitPathEntry> {
   name: string
   path: string
-  directories: Map<string, MutableTreeNode>
-  files: GitFileStatus[]
+  directories: GitPathTreeNode<Entry>[]
+  files: Entry[]
 }
 
-/** 将 Git 的扁平路径转换成稳定排序的目录树。 */
-export function buildGitChangeTree(files: GitFileStatus[]): GitChangeTreeNode {
-  const root: MutableTreeNode = { name: '', path: '', directories: new Map(), files: [] }
+interface MutableTreeNode<Entry extends GitPathEntry> {
+  name: string
+  path: string
+  directories: Map<string, MutableTreeNode<Entry>>
+  files: Entry[]
+}
+
+/** 将任意 Git 文件清单转换成稳定排序的目录树。 */
+export function buildGitPathTree<Entry extends GitPathEntry>(files: Entry[]): GitPathTreeNode<Entry> {
+  const root: MutableTreeNode<Entry> = { name: '', path: '', directories: new Map(), files: [] }
   for (const file of files) {
     const parts = file.path.split('/')
     let node = root
@@ -34,7 +38,7 @@ export function buildGitChangeTree(files: GitFileStatus[]): GitChangeTreeNode {
   return freezeTree(root)
 }
 
-function freezeTree(node: MutableTreeNode): GitChangeTreeNode {
+function freezeTree<Entry extends GitPathEntry>(node: MutableTreeNode<Entry>): GitPathTreeNode<Entry> {
   return {
     name: node.name,
     path: node.path,

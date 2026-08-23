@@ -1,11 +1,10 @@
 import type { CSSProperties } from 'react'
-import {
-  IconCodeOutline16,
-  Tooltip,
-} from '@deepseek-ai/dsh-client-ui-primitives'
+import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { GitCommit, GitCommitFiles, GitGraph } from '../contracts.ts'
+import { GitCommitFilesView } from './GitCommitFilesView.tsx'
 import { buildGitGraph, type GitGraphEdge, type GitGraphRow } from './git-graph.ts'
+import type { GitFileLayout } from './git-tree.ts'
 import { GitReferenceBadge } from './GitReferenceBadge.tsx'
 import css from './Workbench.module.css'
 
@@ -31,6 +30,7 @@ interface GitGraphViewProps {
   graph: GitGraph | null
   expandedCommit: string | null
   commitFiles: Record<string, CommitFilesState>
+  fileLayout: GitFileLayout
   selectedRevision: string | undefined
   selectedPath: string | undefined
   onToggle: (commit: GitCommit) => void
@@ -54,6 +54,7 @@ export function GitGraphView(props: GitGraphViewProps) {
               graphWidth={graphWidthFor(row.visibleLaneCount)}
               expanded={props.expandedCommit === row.commit.hash}
               files={props.commitFiles[row.commit.hash]}
+              fileLayout={props.fileLayout}
               selectedRevision={props.selectedRevision}
               selectedPath={props.selectedPath}
               onToggle={() => { props.onToggle(row.commit) }}
@@ -71,6 +72,7 @@ function CommitEntry(props: {
   graphWidth: number
   expanded: boolean
   files: CommitFilesState | undefined
+  fileLayout: GitFileLayout
   selectedRevision: string | undefined
   selectedPath: string | undefined
   onToggle: () => void
@@ -114,23 +116,14 @@ function CommitEntry(props: {
               ? <div className={css.error} role="alert">{props.files.message}</div>
               : props.files.value.files.length === 0
                 ? <div className={css.gitSectionEmpty}>{props.t('git.noCommitFiles')}</div>
-                : props.files.value.files.map(file => (
-                  <button
-                    type="button"
-                    key={`${commit.hash}:${file.path}`}
-                    className={css.graphFileRow}
-                    data-selected={props.selectedRevision === commit.hash && props.selectedPath === file.path || undefined}
-                    title={file.originalPath === undefined ? file.path : `${file.originalPath} → ${file.path}`}
-                    onClick={() => { props.onOpen(file.path) }}
-                  >
-                    <IconCodeOutline16 size={14} />
-                    <span className={css.gitFileText}>
-                      <span className={css.rowName}>{fileName(file.path)}</span>
-                      <span className={css.gitFileDirectory}>{directoryName(file.path)}</span>
-                    </span>
-                    <span className={css.statusBadge} data-status={normalizeStatus(file.status)}>{normalizeStatus(file.status)}</span>
-                  </button>
-                ))}
+                : (
+                  <GitCommitFilesView
+                    files={props.files.value.files}
+                    layout={props.fileLayout}
+                    selectedPath={props.selectedRevision === commit.hash ? props.selectedPath : undefined}
+                    onOpen={props.onOpen}
+                  />
+                )}
         </div>
       )}
     </div>
@@ -245,18 +238,6 @@ function commitTooltip(commit: GitCommit, t: TranslateNS<'workbench'>): string {
   ].filter(line => line !== '').join('\n')
 }
 
-function normalizeStatus(status: string): string {
-  return status === '?' ? 'U' : status === ' ' ? 'M' : status
-}
-
-function fileName(path: string): string {
-  return path.split('/').at(-1) ?? path
-}
-
-function directoryName(path: string): string {
-  const boundary = path.lastIndexOf('/')
-  return boundary < 0 ? '' : path.slice(0, boundary)
-}
 
 function formatCommitTime(value: string): string {
   const date = new Date(value)

@@ -60,8 +60,8 @@ describe('Git panel', () => {
     fireEvent.click(view.getAllByTitle('src/nested/a.ts')[1]!)
     expect(controller.openDiff).toHaveBeenCalledWith('workspace-1', 'src/nested/a.ts', false)
 
-    fireEvent.click(view.getByRole('button', { name: 'Git 视图' }))
-    fireEvent.click(view.getByRole('button', { name: '更改（目录树）' }))
+    fireEvent.click(view.getByRole('button', { name: '文件排列方式' }))
+    fireEvent.click(view.getByRole('button', { name: '目录树' }))
     expect(view.container.querySelector('[data-change-layout="tree"]')).not.toBeNull()
     expect(view.getAllByTitle('src')).toHaveLength(2)
     expect(view.getAllByTitle('src/nested')).toHaveLength(2)
@@ -70,9 +70,12 @@ describe('Git panel', () => {
   it('renders a commit graph while keeping subject, author, refs, and in-place file expansion', async () => {
     const { controller, commit } = harness()
     const view = renderPanel(controller)
-    await waitFor(() => { expect(view.getByRole('button', { name: 'Git 视图' })).toBeTruthy() })
-    fireEvent.click(view.getByRole('button', { name: 'Git 视图' }))
-    fireEvent.click(view.getByRole('button', { name: '提交图' }))
+    await waitFor(() => { expect(view.getByRole('button', { name: '切换到提交图' })).toBeTruthy() })
+
+    fireEvent.click(view.getByRole('button', { name: '文件排列方式' }))
+    fireEvent.click(view.getByRole('button', { name: '目录树' }))
+    expect(view.container.querySelector('[data-change-layout="tree"]')).not.toBeNull()
+    fireEvent.click(view.getByRole('button', { name: '切换到提交图' }))
 
     const row = view.getByRole('button', { name: /完善工作台.*Tester.*main/u })
     expect(row.textContent).not.toContain(commit.shortHash)
@@ -87,7 +90,7 @@ describe('Git panel', () => {
     expect(row.closest<HTMLElement>('[data-graph-lanes]')?.style.getPropertyValue('--git-row-graph-width')).toBe('16px')
     expect(view.container.querySelectorAll('[data-graph-node]')).toHaveLength(1)
     expect(view.container.querySelector('[data-node-kind="reference"]')).not.toBeNull()
-    expect(view.getByRole('button', { name: 'Git 视图' })).toBeTruthy()
+    expect(view.getByRole('button', { name: '切换到更改' })).toBeTruthy()
     expect(view.container.querySelectorAll('[data-graph-edge="outgoing"]')).toHaveLength(1)
     expect(view.container.querySelectorAll('[data-graph-continuation]')).toHaveLength(1)
 
@@ -99,10 +102,21 @@ describe('Git panel', () => {
 
     fireEvent.click(row)
     await waitFor(() => { expect(view.getByTitle('src/graph.ts')).toBeTruthy() })
+    expect(view.container.querySelector('[data-commit-file-layout="list"]')).not.toBeNull()
     expect(row.getAttribute('aria-expanded')).toBe('true')
     expect(controller.api.gitCommitFiles).toHaveBeenCalledWith('workspace-1', commit.hash)
+
+    fireEvent.click(view.getByRole('button', { name: '文件排列方式' }))
+    fireEvent.click(view.getByRole('button', { name: '目录树' }))
+    expect(view.container.querySelector('[data-commit-file-layout="tree"]')).not.toBeNull()
+    expect(view.getByTitle('src')).toBeTruthy()
+    expect(view.getByTitle('src/nested')).toBeTruthy()
+
     fireEvent.click(view.getByTitle('src/graph.ts'))
     expect(controller.openCommitDiff).toHaveBeenCalledWith('workspace-1', commit, 'src/graph.ts')
+
+    fireEvent.click(view.getByRole('button', { name: '切换到更改' }))
+    expect(view.container.querySelector('[data-change-layout="tree"]')).not.toBeNull()
   })
 
   it('switches branches and runs explicit remote actions from DSH menus', async () => {
@@ -191,7 +205,11 @@ function harness() {
       gitCommitFiles: vi.fn(() => Promise.resolve({
         commit,
         parentRevision: 'b'.repeat(40),
-        files: [{ path: 'src/graph.ts', status: 'M' }],
+        files: [
+          { path: 'src/graph.ts', status: 'M' },
+          { path: 'src/nested/deep.ts', status: 'A' },
+          { path: 'README.md', status: 'M' },
+        ],
       })),
       gitSwitchBranch: vi.fn(() => Promise.resolve({ ...status, branch: 'topic' })),
       gitRemoteOperation: vi.fn((operation: string) => Promise.resolve({ operation })),

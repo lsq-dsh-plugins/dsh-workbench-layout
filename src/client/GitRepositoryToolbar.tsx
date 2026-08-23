@@ -15,17 +15,20 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { GitBranches, GitRemoteOperation, GitStatus } from '../contracts.ts'
+import type { GitFileLayout } from './git-tree.ts'
 import { IconSourceControlOutline16 } from './SourceControlIcon.tsx'
 import css from './Workbench.module.css'
 
-export type GitView = 'changes-list' | 'changes-tree' | 'graph'
+export type GitView = 'changes' | 'graph'
 
 interface GitRepositoryToolbarProps {
   status: GitStatus | null
   branches: GitBranches | null
   view: GitView
+  fileLayout: GitFileLayout
   busy: string | null
-  onViewChange: (view: GitView) => void
+  onToggleView: () => void
+  onFileLayoutChange: (layout: GitFileLayout) => void
   onSwitchBranch: (ref: string) => void
   onRemoteOperation: (operation: GitRemoteOperation) => void
   onRefresh: () => void
@@ -38,7 +41,8 @@ export function GitRepositoryToolbar(props: GitRepositoryToolbarProps) {
     <div className={css.panelHeader}>
       <BranchMenu {...props} />
       <div className={css.gitHeaderActions}>
-        <ViewMenu {...props} />
+        <ViewToggle {...props} />
+        <FileLayoutMenu {...props} />
         <Tooltip label={syncLabel(props.status, props.t)} side="bottom" delayMs={450}>
           <button
             type="button"
@@ -101,28 +105,45 @@ function BranchMenu(props: GitRepositoryToolbarProps) {
   )
 }
 
-function ViewMenu(props: GitRepositoryToolbarProps) {
+function ViewToggle(props: GitRepositoryToolbarProps) {
+  const graph = props.view === 'graph'
+  const label = graph ? props.t('git.switchToChanges') : props.t('git.switchToGraph')
+  return (
+    <Tooltip label={label} side="bottom" delayMs={450}>
+      <button
+        type="button"
+        className={css.iconButton}
+        aria-label={label}
+        aria-pressed={graph}
+        onClick={props.onToggleView}
+      >
+        {graph ? <IconListPenOutline16 size={15} /> : <IconSourceControlOutline16 size={15} />}
+      </button>
+    </Tooltip>
+  )
+}
+
+function FileLayoutMenu(props: GitRepositoryToolbarProps) {
   const [open, setOpen] = useState(false)
   return (
     <Menu
       open={open}
       onClose={() => { setOpen(false) }}
       items={[
-        { id: 'changes-list', label: props.t('git.viewChangesList'), icon: <IconListPenOutline16 size={14} /> },
-        { id: 'changes-tree', label: props.t('git.viewChangesTree'), icon: <IconFolderOpenOutline16 size={14} /> },
-        { id: 'graph', label: props.t('git.viewGraph'), icon: <IconSourceControlOutline16 size={14} /> },
+        { id: 'list', label: props.t('git.layoutList'), icon: <IconListPenOutline16 size={14} /> },
+        { id: 'tree', label: props.t('git.layoutTree'), icon: <IconFolderOpenOutline16 size={14} /> },
       ]}
-      selectedId={props.view}
+      selectedId={props.fileLayout}
       onSelect={(id) => {
-        if (id === 'changes-list' || id === 'changes-tree' || id === 'graph') props.onViewChange(id)
+        if (id === 'list' || id === 'tree') props.onFileLayoutChange(id)
         setOpen(false)
       }}
       align="end"
       dense
       portal
       anchor={(
-        <Tooltip label={props.t('git.viewOptions')} side="bottom" delayMs={450}>
-          <button type="button" className={css.iconButton} aria-label={props.t('git.viewOptions')} onClick={() => { setOpen(value => !value) }}>
+        <Tooltip label={props.t('git.fileLayout')} side="bottom" delayMs={450}>
+          <button type="button" className={css.iconButton} aria-label={props.t('git.fileLayout')} onClick={() => { setOpen(value => !value) }}>
             <IconPersonalizationOutline16 size={15} />
           </button>
         </Tooltip>

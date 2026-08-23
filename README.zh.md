@@ -12,7 +12,7 @@
 - 文件、编辑器选择、草稿、Diff 与 Git 状态绑定到 DSH 官方工作区 id；在同一工作区的不同会话之间切换会保留工作台，只有切换工作区才会切换整套状态。没有当前会话、会话尚未产生消息或会话暂未归属工作区时，工作台使用 DSH 官方最近工作区，因此仍可浏览文件与 Git。
 - Markdown 文件首次打开默认显示 DSH 官方 Markdown 渲染结果，可在“预览 / 源码”之间切换。
 - 中右栏优先使用 DSH AppFrame 原生列宽和拖拽处理；官方 AppFrame 在空会话 Hero 中主动隐藏详情轨道时，插件按同一套 300–520px 约束、360px 默认值、640px 中栏让步规则和无装饰拖拽热区补足轨道。临时网格会实时跟随官方左栏的 56px 收起控制栏、展开宽度和拖拽更新，首条消息产生后立即交还官方处理。
-- Git 左栏使用一个统一的“Git 视图”菜单，在“更改（列表）”“更改（目录树）”和“提交图”三个同级视图之间切换；更改视图区分“已暂存”和“工作区”，不再叠加一套重复标签栏。
+- Git 左栏工具栏使用一个独立图标按钮直接切换“更改 / 提交图”，旁边的“文件排列方式”菜单只负责列表与目录树。更改视图区分“已暂存”和“工作区”；提交图中展开的提交文件也支持同样的两种排列方式，两边的选择分别保留、互不影响。
 - 提交图读取所有本地和远程分支，按拓扑顺序绘制分段着色的提交节点、分叉、汇合与 Merge commit；普通提交、引用边界和合并点分别使用实心点、空心环和双层环。每行只按当前经过的轨道动态留出图形宽度，避免单轨提交浪费左栏空间；提交信息保持紧凑单行，按“提交说明、作者、分支/远程/标签标志”排列。悬浮显示短提交号、时间以及真实的文件数和增删行统计，点击整行后在原位置展开该提交的文件。
 - 点击工作区、暂存区或提交图中的文件时，中栏把该文件的差异作为普通编辑器标签打开；同一 Diff 只保留一个标签，不同文件和不同版本可以同时打开，不会把整次提交的所有文件拼在一起。
 - 仓库工具栏支持查看和切换本地/远程分支，并显示上游分支的拉取/推送计数；提供 Fetch、快进 Pull、Push、发布当前分支和先拉后推的 Sync。
@@ -84,9 +84,9 @@ npm run test:bundle
 - `src/terminal-protocol.ts`、`terminal-backend.ts`、`terminal-websocket.ts`：有界终端协议、工作区根目录 PTY 生命周期与可信 WebSocket 桥接。
 - `src/client/fallback-details-layout.ts`：可跟随显隐状态、且在空会话 Hero 下与官方几何约束一致的临时详情轨道。
 - `src/client/FileTree.tsx`、`FileTreeCreateRow.tsx`、`GitPanel.tsx`：左栏文件树、行内创建和源码管理状态编排。
-- `src/client/GitChangesView.tsx`、`git-tree.ts`：更改分组、列表/目录树和文件操作。
+- `src/client/GitChangesView.tsx`、`GitCommitFilesView.tsx`、`git-tree.ts`：更改与提交文件各自的列表/目录树呈现，以及共用的路径树构建规则。
 - `src/client/GitGraphView.tsx`、`GitReferenceBadge.tsx`、`git-graph.ts`：提交图渲染、分段色轨道、引用标志、分叉/汇合连线和行内提交详情。
-- `src/client/GitRepositoryToolbar.tsx`：统一 Git 视图、分支选择与远程操作菜单。
+- `src/client/GitRepositoryToolbar.tsx`：独立主视图切换、文件排列、分支选择与远程操作入口。
 - `src/client/WorkbenchEditor.tsx`：中栏统一标签容器、源码编辑和 Markdown 预览。
 - `src/client/TerminalPanel.tsx`、`TerminalSurface.tsx`、`TerminalIcon.tsx`：终端实例列表、xterm.js 中栏标签和 DSH 风格终端入口图标。
 - `src/client/GitDiffEditor.tsx`、`DiffSurface.tsx`、`git-diff-labels.ts`：标签内单文件 Diff 工具栏、自适应布局、统一类型标签、自动换行和 CodeMirror 差异渲染。
