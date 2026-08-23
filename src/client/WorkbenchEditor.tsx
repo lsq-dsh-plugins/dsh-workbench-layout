@@ -17,12 +17,13 @@ import css from './Workbench.module.css'
 
 export type WorkbenchEditorProps = PropsRuntime<'details'> & PropsLocale<'workbench'> & {
   controller: WorkbenchController
+  activateSession: (sessionId: string) => void
 }
 
 /** Middle file surface, with Markdown preview as the default mode. */
-export function WorkbenchEditor({ sessionId, controller, t }: WorkbenchEditorProps) {
+export function WorkbenchEditor({ sessionId, controller, activateSession, t }: WorkbenchEditorProps) {
   const state = useWorkbench(controller)
-  useEffect(() => { controller.setSession(sessionId) }, [controller, sessionId])
+  useEffect(() => { activateSession(sessionId) }, [activateSession, sessionId])
 
   if (state.sessionId !== sessionId) return <EditorEmpty text={t('editor.loading')} />
   if (state.loading && state.file === null) return <EditorEmpty text={t('editor.loading')} />

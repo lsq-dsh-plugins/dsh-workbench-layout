@@ -10,7 +10,7 @@
 - 文件目录按需展开，不会一次读取整棵目录树。
 - 中栏使用 CodeMirror 编辑 UTF-8 文本，支持未保存状态、保存/还原、会话间草稿保留、版本冲突保护、原子保存和 `Ctrl/Cmd + S`。
 - Markdown 文件首次打开默认显示 DSH 官方 Markdown 渲染结果，可在“预览 / 源码”之间切换。
-- 右侧对话栏采用更紧凑的默认宽度；拖动中右栏分隔条即可调整，双击恢复默认，浏览器会记住选择。
+- 中右栏直接使用 DSH AppFrame 原生列宽和拖拽处理；分隔线与左中栏保持相同的无装饰热区，宽度遵循官方 300–520px 约束与 360px 默认值。
 - Git 页面按“工作区更改 / 已暂存 / 提交历史”分组，显示最近 40 条提交。
 - 工作区、暂存区、未跟踪文件和历史提交的 Diff 都会在中栏显示，并明确标注差异来源。
 - 支持暂存、取消暂存以及显式提交；提交后历史列表会立即刷新。
@@ -46,7 +46,7 @@ dsh plugin --profile web remove @lsq64737/dsh-workbench-layout
 - 二进制文件由 Git 标记为二进制差异，不展示二进制内容。
 - 提交历史当前显示最近 40 条，不包含分页加载。
 - DSH 尚未提供公开的“移动原生聊天栏”接口，因此插件使用官方 AppFrame 的稳定标记调整列顺序。若未来官方重构页面骨架，布局选择器可能需要同步适配。
-- 很窄的窗口无法同时为三栏提供舒适宽度，插件会优先压缩中栏并保留右侧对话可用性。
+- 窄窗口触发 DSH AppFrame 官方让步规则时，会暂时收起文件编辑列并将对话恢复到中栏；窗口变宽后自动恢复三栏。
 
 ## 开发命令
 
@@ -62,8 +62,8 @@ npm run test:bundle
 - `src/index.ts`：宿主路由注册和请求分发。
 - `src/workspace-backend.ts`：受控的目录、读取和原子保存。
 - `src/git-backend.ts`：Git 状态、Diff、暂存和提交。
-- `src/client/column-width.ts`、`ColumnResizeHandle.tsx`：对话栏宽度约束、持久化与拖拽交互。
 - `src/client/controller.ts`：跨栏文件、Diff 和视图状态。
+- `src/client/session-layout.ts`：会话与 AppFrame 原生详情列状态绑定。
 - `src/client/FileTree.tsx`、`GitPanel.tsx`：左栏文件树、Git 分组与提交历史。
 - `src/client/WorkbenchEditor.tsx`：中栏源码编辑与 Markdown 预览。
-- `src/client/layout-styles.ts`：官方 AppFrame 列顺序适配。
+- `src/client/layout-styles.ts`：官方 AppFrame 列顺序与原生分隔线视觉适配。

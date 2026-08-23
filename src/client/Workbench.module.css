@@ -489,44 +489,6 @@
   scrollbar-gutter: stable;
 }
 
-.columnResizeHandle {
-  position: absolute;
-  top: 0;
-  right: var(--dsh-workbench-chat-width);
-  bottom: 0;
-  z-index: 2;
-  width: 8px;
-  margin-right: -4px;
-  cursor: col-resize;
-  pointer-events: auto;
-  touch-action: none;
-}
-
-.columnResizeHandle::after {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 12px;
-  height: 32px;
-  transform: translate(-50%, -50%);
-  border: 1px solid var(--dsw-alias-border-l2-darkmode-thin);
-  border-radius: 10px;
-  background: var(--dsw-alias-button-floating-fill);
-  content: '';
-  opacity: 0;
-  transition:
-    opacity var(--ds-transition-duration-slow) var(--ds-ease-in-out),
-    background var(--ds-transition-duration-slow) var(--ds-ease-in-out);
-}
-
-.columnResizeHandle:hover::after,
-.columnResizeHandle:focus-visible::after,
-.columnResizeHandle[data-dragging]::after {
-  border-color: var(--dsw-alias-border-l3);
-  background: var(--dsw-alias-button-floating-hover);
-  opacity: 1;
-}
-
 @media (hover: none) {
   .gitRowAction {
     opacity: 1;

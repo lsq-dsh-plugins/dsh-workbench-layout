@@ -6,13 +6,16 @@ describe('published package metadata', () => {
     const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')) as {
       name: string
       exports: Record<string, unknown>
-      dsh: { bundle: { patch: string }; client: { platform: string } }
+      dsh: { bundle: { patch: string }; client: { inject: string[]; platform: string } }
     }
     expect(manifest.name).toBe('@lsq64737/dsh-workbench-layout')
     expect(manifest.exports).toHaveProperty('./client')
     expect(manifest.dsh).toEqual(expect.objectContaining({
       bundle: { patch: './cordis.patch.yml' },
-      client: expect.objectContaining({ platform: 'web' }),
+      client: expect.objectContaining({
+        inject: expect.arrayContaining(['@deepseek-ai/dsh-client-ui-layout']),
+        platform: 'web',
+      }),
     }))
     const patch = await readFile(new URL('../cordis.patch.yml', import.meta.url), 'utf8')
     expect(patch).toContain('inject: [webRuntime]')
