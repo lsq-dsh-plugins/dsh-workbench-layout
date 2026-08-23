@@ -2,10 +2,7 @@
 
 export interface WorkbenchWorkspaceController {
   setWorkspace(workspaceId: string | undefined): void
-}
-
-export interface WorkbenchDetailsLayout {
-  openDetails(): void
+  synchronizeEditorLayout(): void
 }
 
 export interface WorkbenchWorkspaceLogger {
@@ -15,14 +12,13 @@ export interface WorkbenchWorkspaceLogger {
 /** Create the stable callback used by the editor's Workspace binding effect. */
 export function createWorkbenchWorkspaceActivator(
   controller: WorkbenchWorkspaceController,
-  layout: WorkbenchDetailsLayout,
   logger: WorkbenchWorkspaceLogger,
 ): (workspaceId: string | undefined) => void {
   return (workspaceId): void => {
     controller.setWorkspace(workspaceId)
-    layout.openDetails()
+    controller.synchronizeEditorLayout()
     logger.info(workspaceId === undefined
-      ? 'workbench-layout: activated native AppFrame details track without an available registered workspace'
-      : `workbench-layout: activated native AppFrame details track for workspace ${JSON.stringify(workspaceId)}`)
+      ? 'workbench-layout: synchronized middle editor without an available registered workspace'
+      : `workbench-layout: synchronized middle editor for workspace ${JSON.stringify(workspaceId)}`)
   }
 }

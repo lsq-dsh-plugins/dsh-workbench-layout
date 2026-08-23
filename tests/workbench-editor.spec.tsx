@@ -126,6 +126,7 @@ function controllerFake() {
 function state(): WorkbenchState {
   return {
     sidebarMode: 'files',
+    editorExpanded: true,
     workspaceId: 'workspace-1',
     tabs: [
       tab('src/a.ts', 'const a = 1', false),

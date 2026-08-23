@@ -3,7 +3,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import { readNativeSidebarWidth, resolveFallbackDetailsWidth } from '../src/client/fallback-details-layout.ts'
-import { installWorkbenchLayout } from '../src/client/layout-styles.ts'
+import { EDITOR_COLLAPSED_ATTRIBUTE, installWorkbenchLayout } from '../src/client/layout-styles.ts'
 
 afterEach(() => {
   document.head.innerHTML = ''
@@ -32,8 +32,9 @@ describe('workbench layout presentation', () => {
     document.body.appendChild(frame)
     let dispose: (() => void) | undefined
     const ctx = contextWithDispose(value => { dispose = value })
+    const visibility = editorVisibility()
 
-    installWorkbenchLayout(ctx)
+    installWorkbenchLayout(ctx, visibility)
     expect(frame.hasAttribute('data-dsh-workbench-frame')).toBe(true)
     expect(frame.style.gridTemplateColumns).toBe('312px minmax(0, 1fr) 0px')
     expect(frame.hasAttribute('data-dsh-workbench-fallback-details')).toBe(false)
@@ -45,13 +46,21 @@ describe('workbench layout presentation', () => {
     expect(style?.textContent).toContain("[role='status']:has(> code) > code")
     expect(style?.textContent).toContain('[data-input-scroll] + div')
     expect(style?.textContent).toContain("[data-slot='conversation.input.model']")
-    expect(style?.textContent).toContain('--dsw-alias-bg-base: var(--dsw-specific-sidebar-fill)')
+    expect(style?.textContent).toContain('background: var(--dsw-specific-input-major)')
+    expect(style?.textContent).toContain('[data-composer-seat]')
+    expect(style?.textContent).not.toContain('--dsw-alias-bg-base: var(--dsw-specific-sidebar-fill)')
+    expect(style?.textContent).toContain(EDITOR_COLLAPSED_ATTRIBUTE)
     expect(style?.textContent).toContain('data-dsh-workbench-session-log-button')
     expect(style?.textContent).toContain('> span[aria-hidden]:last-child')
     expect(style?.textContent).toContain("button[aria-haspopup='menu'] > svg:last-child")
     expect(style?.textContent).toContain('data-dsh-workbench-floating-model-menu')
     expect(style?.textContent).toContain('position: fixed !important')
     expect(style?.textContent).not.toContain('flex-direction: column')
+
+    visibility.setExpanded(false)
+    expect(frame.hasAttribute(EDITOR_COLLAPSED_ATTRIBUTE)).toBe(true)
+    visibility.setExpanded(true)
+    expect(frame.hasAttribute(EDITOR_COLLAPSED_ATTRIBUTE)).toBe(false)
 
     dispose?.()
     expect(frame.hasAttribute('data-dsh-workbench-frame')).toBe(false)
@@ -64,13 +73,23 @@ describe('workbench layout presentation', () => {
     document.body.appendChild(frame)
     let dispose: (() => void) | undefined
     const ctx = contextWithDispose(value => { dispose = value })
+    const visibility = editorVisibility()
 
-    installWorkbenchLayout(ctx)
+    installWorkbenchLayout(ctx, visibility)
     expect(frame.hasAttribute('data-dsh-workbench-fallback-details')).toBe(true)
     expect(frame.style.getPropertyValue('--dsh-workbench-fallback-sidebar-width')).toBe('280px')
     expect(frame.style.getPropertyValue('--dsh-workbench-fallback-details-width')).toBe('360px')
     expect(frame.querySelector('[data-dsh-workbench-fallback-handle]')).not.toBeNull()
     expect(ctx.logger.info).toHaveBeenCalledWith(expect.stringContaining('activated blank-Session'))
+
+    visibility.setExpanded(false)
+    expect(frame.hasAttribute(EDITOR_COLLAPSED_ATTRIBUTE)).toBe(true)
+    expect(frame.hasAttribute('data-dsh-workbench-fallback-details')).toBe(false)
+    expect(frame.querySelector<HTMLElement>('[data-dsh-workbench-fallback-handle]')?.hidden).toBe(true)
+
+    visibility.setExpanded(true)
+    expect(frame.hasAttribute(EDITOR_COLLAPSED_ATTRIBUTE)).toBe(false)
+    expect(frame.hasAttribute('data-dsh-workbench-fallback-details')).toBe(true)
 
     conversation.dataset.phase = 'active'
     await vi.waitFor(() => {
@@ -88,7 +107,7 @@ describe('workbench layout presentation', () => {
     let dispose: (() => void) | undefined
     const ctx = contextWithDispose(value => { dispose = value })
 
-    installWorkbenchLayout(ctx)
+    installWorkbenchLayout(ctx, editorVisibility())
     expect(frame.style.getPropertyValue('--dsh-workbench-fallback-sidebar-width')).toBe('280px')
 
     frame.style.gridTemplateColumns = '56px minmax(0, 1fr) 0px'
@@ -134,6 +153,22 @@ function contextWithDispose(onDispose: (dispose: () => void) => void): ClientCon
     effect: vi.fn((setup: () => () => void) => { onDispose(setup()) }),
     logger: { info: vi.fn() },
   } as unknown as ClientContext
+}
+
+function editorVisibility(initial = true) {
+  let editorExpanded = initial
+  const listeners = new Set<() => void>()
+  return {
+    getSnapshot: () => ({ editorExpanded }),
+    subscribe: (listener: () => void) => {
+      listeners.add(listener)
+      return () => { listeners.delete(listener) }
+    },
+    setExpanded: (next: boolean) => {
+      editorExpanded = next
+      listeners.forEach(listener => { listener() })
+    },
+  }
 }
 
 function rect(width: number): DOMRect {

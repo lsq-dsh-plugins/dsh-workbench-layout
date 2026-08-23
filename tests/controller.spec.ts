@@ -295,6 +295,42 @@ describe('WorkbenchController', () => {
     expect(setActive.mock.calls).toEqual([[true], [false], [true]])
   })
 
+  it('collapses the middle editor explicitly and reveals it for files, Diffs, terminals, and tab selections', async () => {
+    const layout = { openDetails: vi.fn(), closeDetails: vi.fn() }
+    const api = {
+      readFile: vi.fn(() => Promise.resolve(file('src/a.ts', 'content', '1'))),
+      gitDiff: vi.fn(() => Promise.resolve({
+        kind: 'worktree', path: 'src/a.ts', status: 'M', original: 'before', modified: 'after', binary: false,
+      })),
+    }
+    const logger = { info: vi.fn(), warn: vi.fn() }
+    const controller = new WorkbenchController(api as never, logger, layout)
+    controller.setWorkspace('workspace-1')
+    controller.synchronizeEditorLayout()
+    expect(layout.openDetails).toHaveBeenCalledOnce()
+
+    controller.toggleEditor()
+    expect(controller.store.getSnapshot().editorExpanded).toBe(false)
+    expect(layout.closeDetails).toHaveBeenCalledOnce()
+    await controller.openFile('workspace-1', 'src/a.ts')
+    expect(controller.store.getSnapshot().editorExpanded).toBe(true)
+
+    controller.toggleEditor()
+    await controller.openDiff('workspace-1', 'src/a.ts', false)
+    expect(controller.store.getSnapshot().editorExpanded).toBe(true)
+
+    controller.toggleEditor()
+    const terminalId = controller.openTerminal('workspace-1')
+    expect(controller.store.getSnapshot().editorExpanded).toBe(true)
+
+    controller.toggleEditor()
+    controller.selectTab(terminalId!)
+    expect(controller.store.getSnapshot().editorExpanded).toBe(true)
+    expect(layout.openDetails).toHaveBeenCalledTimes(5)
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('collapsed middle editor from sidebar control'))
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('expanded middle editor from content selection'))
+  })
+
   it('opens a Workspace-bound terminal from the Terminal mode and tracks its lifecycle', () => {
     const logger = { info: vi.fn(), warn: vi.fn() }
     const controller = new WorkbenchController({} as never, logger)

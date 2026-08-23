@@ -48,6 +48,7 @@ export type WorkbenchTab = WorkbenchFileTab | WorkbenchDiffTab | WorkbenchTermin
 
 export interface WorkbenchState {
   sidebarMode: SidebarMode
+  editorExpanded: boolean
   workspaceId?: string
   tabs: WorkbenchTab[]
   activeTabId?: string
@@ -56,6 +57,7 @@ export interface WorkbenchState {
 
 const INITIAL_STATE: WorkbenchState = {
   sidebarMode: 'files',
+  editorExpanded: true,
   tabs: [],
   diffViewMode: 'split',
 }
@@ -65,7 +67,12 @@ export interface WorkbenchLogger {
   warn(message: string): void
 }
 
-/** Own unified file/Diff tabs, async races, dirty state, and the sidebar shadow. */
+export interface WorkbenchEditorLayout {
+  openDetails(): void
+  closeDetails(): void
+}
+
+/** Own unified tabs, editor visibility, async races, dirty state, and the sidebar shadow. */
 export class WorkbenchController {
   readonly store: SnapshotStore<WorkbenchState> = createSnapshotStore(INITIAL_STATE)
   readonly api: WorkbenchApi
@@ -80,6 +87,7 @@ export class WorkbenchController {
   constructor(
     api: WorkbenchApi = new WorkbenchApi(),
     private readonly logger: WorkbenchLogger = console,
+    private readonly editorLayout?: WorkbenchEditorLayout,
   ) {
     this.api = api
   }
@@ -108,18 +116,38 @@ export class WorkbenchController {
     if (state.workspaceId === workspaceId) return
     if (state.workspaceId !== undefined) this.workspaceStates.set(state.workspaceId, stripTerminalTabs(state))
     if (workspaceId === undefined) {
-      this.store.set({ ...INITIAL_STATE, sidebarMode: state.sidebarMode })
+      this.store.set({
+        ...INITIAL_STATE,
+        sidebarMode: state.sidebarMode,
+        editorExpanded: state.editorExpanded,
+      })
       return
     }
     const restored = this.workspaceStates.get(workspaceId)
     this.store.set(restored === undefined
-      ? { ...INITIAL_STATE, sidebarMode: state.sidebarMode, workspaceId }
-      : { ...cloneState(restored), sidebarMode: state.sidebarMode, workspaceId })
+      ? { ...INITIAL_STATE, sidebarMode: state.sidebarMode, editorExpanded: state.editorExpanded, workspaceId }
+      : { ...cloneState(restored), sidebarMode: state.sidebarMode, editorExpanded: state.editorExpanded, workspaceId })
     this.logger.info(`workbench-layout: activated workspace ${JSON.stringify(workspaceId)}`)
+  }
+
+  /** Reapply the remembered middle-column state after AppFrame or Session remounts. */
+  synchronizeEditorLayout(): void {
+    if (this.store.getSnapshot().editorExpanded) this.editorLayout?.openDetails()
+    else this.editorLayout?.closeDetails()
+  }
+
+  toggleEditor(): void {
+    this.setEditorExpanded(!this.store.getSnapshot().editorExpanded, 'sidebar control')
+  }
+
+  /** Reveal content selected from the sidebar without coupling panels to individual views. */
+  revealEditor(): void {
+    this.setEditorExpanded(true, 'content selection')
   }
 
   async openFile(workspaceId: string, path: string): Promise<void> {
     this.setWorkspace(workspaceId)
+    this.revealEditor()
     const tabId = fileTabId(path)
     const current = this.store.getSnapshot()
     const existing = current.tabs.find(tab => tab.id === tabId)
@@ -165,6 +193,7 @@ export class WorkbenchController {
   openTerminal(workspaceId = this.store.getSnapshot().workspaceId): string | undefined {
     if (workspaceId === undefined) return undefined
     this.setWorkspace(workspaceId)
+    this.revealEditor()
     const state = this.store.getSnapshot()
     const sequence = state.tabs.reduce((highest, tab) => tab.kind === 'terminal'
       ? Math.max(highest, tab.sequence)
@@ -224,6 +253,7 @@ export class WorkbenchController {
     const state = this.store.getSnapshot()
     const tab = state.tabs.find(candidate => candidate.id === tabId)
     if (tab === undefined) return
+    this.revealEditor()
     this.store.update((draft) => { draft.activeTabId = tabId })
     this.logger.info(`workbench-layout: selected ${tab.kind} tab ${JSON.stringify(tabIdentity(tab))}`)
   }
@@ -381,6 +411,7 @@ export class WorkbenchController {
     logLabel: string,
   ): Promise<void> {
     this.setWorkspace(workspaceId)
+    this.revealEditor()
     const current = this.store.getSnapshot()
     const existing = current.tabs.find(tab => tab.id === descriptor.id)
     this.store.update((state) => {
@@ -456,6 +487,16 @@ export class WorkbenchController {
   private updateCurrentTerminal(tabId: string, update: (tab: WorkbenchTerminalTab) => void): void {
     const workspaceId = this.store.getSnapshot().workspaceId
     if (workspaceId !== undefined) this.updateTerminalTabState(workspaceId, tabId, update)
+  }
+
+  private setEditorExpanded(expanded: boolean, source: string): void {
+    const current = this.store.getSnapshot().editorExpanded
+    if (current !== expanded) {
+      this.store.update((state) => { state.editorExpanded = expanded })
+      this.logger.info(`workbench-layout: ${expanded ? 'expanded' : 'collapsed'} middle editor from ${source}`)
+    }
+    if (expanded) this.editorLayout?.openDetails()
+    else this.editorLayout?.closeDetails()
   }
 }
 

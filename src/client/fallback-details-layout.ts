@@ -19,6 +19,7 @@ export interface FallbackDetailsLogger {
 
 export interface FallbackDetailsTrack {
   reconcile(): void
+  setEnabled(enabled: boolean): void
   dispose(): void
 }
 
@@ -51,6 +52,7 @@ export function readNativeSidebarWidth(frame: HTMLElement, sidebar: HTMLElement)
 export function createFallbackDetailsTrack(
   frame: HTMLElement,
   logger: FallbackDetailsLogger,
+  initiallyEnabled = true,
 ): FallbackDetailsTrack {
   const handle = document.createElement('div')
   handle.hidden = true
@@ -69,6 +71,7 @@ export function createFallbackDetailsTrack(
   let latestPointer = 0
   let dragFrame: number | null = null
   let sidebarCollapsed: boolean | undefined
+  let enabled = initiallyEnabled
 
   const setActive = (next: boolean): void => {
     if (active === next) return
@@ -89,6 +92,10 @@ export function createFallbackDetailsTrack(
   }
 
   const reconcile = (): void => {
+    if (!enabled) {
+      clearPresentation()
+      return
+    }
     const sidebar = frame.children.item(0) as HTMLElement | null
     const conversation = frame.children.item(1) as HTMLElement | null
     const details = frame.children.item(2) as HTMLElement | null
@@ -185,6 +192,12 @@ export function createFallbackDetailsTrack(
 
   return {
     reconcile,
+    setEnabled: (next) => {
+      if (enabled === next) return
+      enabled = next
+      reconcile()
+      logger.info(`workbench-layout: ${next ? 'enabled' : 'disabled'} blank-Session middle editor fallback`)
+    },
     dispose: () => {
       mutationObserver.disconnect()
       resizeObserver?.disconnect()

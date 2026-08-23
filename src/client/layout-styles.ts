@@ -21,27 +21,47 @@ import {
 } from './fallback-details-layout.ts'
 
 const FRAME_ATTRIBUTE = 'data-dsh-workbench-frame'
+export const EDITOR_COLLAPSED_ATTRIBUTE = 'data-dsh-workbench-editor-collapsed'
+
+export interface WorkbenchEditorVisibilityStore {
+  getSnapshot(): { editorExpanded: boolean }
+  subscribe(listener: () => void): () => void
+}
 
 const CSS = `
-[${FRAME_ATTRIBUTE}]:not([data-details-collapsed]) > :nth-child(2),
-[${FRAME_ATTRIBUTE}][${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2) {
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2),
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2) {
   grid-column: 3;
   grid-row: 1;
   border-left: 1px solid var(--dsw-alias-border-l1);
   background: var(--dsw-specific-sidebar-fill);
 }
 
-/* The right conversation uses the same official theme surface as the left
-   sidebar. Rebinding the base token at the native root also keeps its sticky
-   composer fade and queue surfaces continuous in light and dark themes. */
-[${FRAME_ATTRIBUTE}]:not([data-details-collapsed]) > :nth-child(2) [data-phase],
-[${FRAME_ATTRIBUTE}][${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2) [data-phase] {
-  --dsw-alias-bg-base: var(--dsw-specific-sidebar-fill);
+/* The workbench right conversation uses the same official surface as the
+   sidebar without rebinding bg-base across the native component tree. */
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) [data-phase],
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2) [data-phase] {
   background: var(--dsw-specific-sidebar-fill);
 }
 
-[${FRAME_ATTRIBUTE}]:not([data-details-collapsed]) > :nth-child(3),
-[${FRAME_ATTRIBUTE}][${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(3) {
+/* Preserve the official input-card surface and paint only its active sticky
+   fade with the workbench conversation background. */
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) [data-phase='active'] [data-composer-seat],
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2) [data-phase='active'] [data-composer-seat] {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--dsw-specific-sidebar-fill) 0%, transparent) 0px,
+    var(--dsw-specific-sidebar-fill) 36px
+  );
+}
+
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) :has(> [data-input-scroll]),
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2) :has(> [data-input-scroll]) {
+  background: var(--dsw-specific-input-major);
+}
+
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(3),
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(3) {
   grid-column: 2;
   grid-row: 1;
   border-left: none !important;
@@ -174,8 +194,8 @@ const CSS = `
 }
 `
 
-/** 安装列顺序样式，并仅为空会话补足 AppFrame 主动隐藏的详情轨道。 */
-export function installWorkbenchLayout(ctx: ClientContext): void {
+/** 安装可收起的列顺序样式，并仅为空会话补足 AppFrame 主动隐藏的详情轨道。 */
+export function installWorkbenchLayout(ctx: ClientContext, visibility: WorkbenchEditorVisibilityStore): void {
   ctx.effect(() => {
     const style = document.createElement('style')
     style.dataset.dshWorkbenchLayout = ''
@@ -185,6 +205,12 @@ export function installWorkbenchLayout(ctx: ClientContext): void {
     let frame: HTMLElement | null = null
     let fallbackTrack: FallbackDetailsTrack | undefined
     let conversationLayout: ConversationLayout | undefined
+    let editorExpanded = visibility.getSnapshot().editorExpanded
+    const synchronizeVisibility = (): void => {
+      editorExpanded = visibility.getSnapshot().editorExpanded
+      frame?.toggleAttribute(EDITOR_COLLAPSED_ATTRIBUTE, !editorExpanded)
+      fallbackTrack?.setEnabled(editorExpanded)
+    }
     const attach = (): void => {
       const next = document.querySelector<HTMLElement>('[data-shell-overlay]')?.parentElement ?? null
       if (next === frame) return
@@ -193,10 +219,12 @@ export function installWorkbenchLayout(ctx: ClientContext): void {
       fallbackTrack?.dispose()
       fallbackTrack = undefined
       frame?.removeAttribute(FRAME_ATTRIBUTE)
+      frame?.removeAttribute(EDITOR_COLLAPSED_ATTRIBUTE)
       frame = next
       if (frame === null) return
       frame.setAttribute(FRAME_ATTRIBUTE, '')
-      fallbackTrack = createFallbackDetailsTrack(frame, ctx.logger)
+      frame.toggleAttribute(EDITOR_COLLAPSED_ATTRIBUTE, !editorExpanded)
+      fallbackTrack = createFallbackDetailsTrack(frame, ctx.logger, editorExpanded)
       const conversationColumn = frame.children.item(1)
       if (conversationColumn instanceof HTMLElement) {
         conversationLayout = createConversationLayout(conversationColumn, ctx.logger)
@@ -205,12 +233,15 @@ export function installWorkbenchLayout(ctx: ClientContext): void {
     attach()
     const documentObserver = new MutationObserver(attach)
     documentObserver.observe(document.body, { childList: true, subtree: true })
+    const unsubscribeVisibility = visibility.subscribe(synchronizeVisibility)
     ctx.logger.info('workbench-layout: native AppFrame tracks, drag handles, and themed narrow conversation presentation adopted')
     return () => {
       documentObserver.disconnect()
+      unsubscribeVisibility()
       conversationLayout?.dispose()
       fallbackTrack?.dispose()
       frame?.removeAttribute(FRAME_ATTRIBUTE)
+      frame?.removeAttribute(EDITOR_COLLAPSED_ATTRIBUTE)
       style.remove()
     }
   }, 'workbench-layout: AppFrame column presentation')

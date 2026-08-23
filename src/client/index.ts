@@ -21,8 +21,8 @@ export function apply(ctx: ClientContext): void {
   const controller = new WorkbenchController(new WorkbenchApi(), {
     info: message => { ctx.logger.info(message) },
     warn: message => { ctx.logger.warn(message) },
-  })
-  const activateWorkspace = createWorkbenchWorkspaceActivator(controller, ctx.layout, ctx.logger)
+  }, ctx.layout)
+  const activateWorkspace = createWorkbenchWorkspaceActivator(controller, ctx.logger)
   ctx.effect(() => ctx.locale.register('workbench', { zh, en }), 'workbench-layout: dictionaries')
 
   ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
@@ -62,6 +62,6 @@ export function apply(ctx: ClientContext): void {
     inject: () => ({ controller, activateWorkspace }),
   }, WorkbenchEditor))
 
-  installWorkbenchLayout(ctx)
+  installWorkbenchLayout(ctx, controller.store)
   ctx.logger.info('workbench-layout: sidebar switch and file editor registered')
 }

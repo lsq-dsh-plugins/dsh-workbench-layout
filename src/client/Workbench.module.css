@@ -17,6 +17,40 @@
   display: none;
 }
 
+.editorToggle {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-left: auto;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.editorToggle:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.editorToggle:not([data-wide]) {
+  width: 36px;
+  height: 36px;
+  margin-left: 0;
+  color: var(--dsw-alias-label-primary);
+}
+
+/* DSH currently exposes one panel glyph; mirroring its official geometry
+   produces the secondary-panel symbol used for the middle editor track. */
+.editorToggleIcon {
+  transform: scaleX(-1);
+}
+
 .modeSwitch {
   display: grid;
   grid-template-columns: 1fr;
