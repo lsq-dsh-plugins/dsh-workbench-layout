@@ -25,60 +25,60 @@ export class WorkbenchApiError extends Error {
 
 /** Typed fetch facade; all mutations stay explicit methods. */
 export class WorkbenchApi {
-  async listDirectory(sessionId: string, path: string): Promise<DirectoryListing> {
-    return this.post('/tree', { sessionId, path })
+  async listDirectory(workspaceId: string, path: string): Promise<DirectoryListing> {
+    return this.post('/tree', { workspaceId, path })
   }
 
-  async readFile(sessionId: string, path: string): Promise<WorkspaceFile> {
-    return this.post('/file/read', { sessionId, path })
+  async readFile(workspaceId: string, path: string): Promise<WorkspaceFile> {
+    return this.post('/file/read', { workspaceId, path })
   }
 
-  async saveFile(sessionId: string, path: string, content: string, version: string): Promise<SavedWorkspaceFile> {
-    return this.post('/file/save', { sessionId, path, content, version })
+  async saveFile(workspaceId: string, path: string, content: string, version: string): Promise<SavedWorkspaceFile> {
+    return this.post('/file/save', { workspaceId, path, content, version })
   }
 
-  async gitStatus(sessionId: string): Promise<GitStatus> {
-    return this.post('/git/status', { sessionId })
+  async gitStatus(workspaceId: string): Promise<GitStatus> {
+    return this.post('/git/status', { workspaceId })
   }
 
-  async gitDiff(sessionId: string, path: string, staged: boolean): Promise<GitFileDiff> {
-    return this.post('/git/diff', { sessionId, path, staged })
+  async gitDiff(workspaceId: string, path: string, staged: boolean): Promise<GitFileDiff> {
+    return this.post('/git/diff', { workspaceId, path, staged })
   }
 
-  async gitHistory(sessionId: string): Promise<GitHistory> {
-    return this.post('/git/history', { sessionId })
+  async gitHistory(workspaceId: string): Promise<GitHistory> {
+    return this.post('/git/history', { workspaceId })
   }
 
-  async gitBranches(sessionId: string): Promise<GitBranches> {
-    return this.post('/git/branches', { sessionId })
+  async gitBranches(workspaceId: string): Promise<GitBranches> {
+    return this.post('/git/branches', { workspaceId })
   }
 
-  async gitSwitchBranch(sessionId: string, ref: string): Promise<GitStatus> {
-    return this.post('/git/branch/switch', { sessionId, ref })
+  async gitSwitchBranch(workspaceId: string, ref: string): Promise<GitStatus> {
+    return this.post('/git/branch/switch', { workspaceId, ref })
   }
 
-  async gitRemoteOperation(sessionId: string, operation: GitRemoteOperation): Promise<GitRemoteResult> {
-    return this.post('/git/remote', { sessionId, operation })
+  async gitRemoteOperation(workspaceId: string, operation: GitRemoteOperation): Promise<GitRemoteResult> {
+    return this.post('/git/remote', { workspaceId, operation })
   }
 
-  async gitCommitFiles(sessionId: string, revision: string): Promise<GitCommitFiles> {
-    return this.post('/git/commit/files', { sessionId, revision })
+  async gitCommitFiles(workspaceId: string, revision: string): Promise<GitCommitFiles> {
+    return this.post('/git/commit/files', { workspaceId, revision })
   }
 
-  async gitCommitFileDiff(sessionId: string, revision: string, path: string): Promise<GitFileDiff> {
-    return this.post('/git/commit/file', { sessionId, revision, path })
+  async gitCommitFileDiff(workspaceId: string, revision: string, path: string): Promise<GitFileDiff> {
+    return this.post('/git/commit/file', { workspaceId, revision, path })
   }
 
-  async gitStage(sessionId: string, path: string): Promise<GitStatus> {
-    return this.post('/git/stage', { sessionId, path })
+  async gitStage(workspaceId: string, path: string): Promise<GitStatus> {
+    return this.post('/git/stage', { workspaceId, path })
   }
 
-  async gitUnstage(sessionId: string, path: string): Promise<GitStatus> {
-    return this.post('/git/unstage', { sessionId, path })
+  async gitUnstage(workspaceId: string, path: string): Promise<GitStatus> {
+    return this.post('/git/unstage', { workspaceId, path })
   }
 
-  async gitCommit(sessionId: string, message: string): Promise<GitCommitResult> {
-    return this.post('/git/commit', { sessionId, message })
+  async gitCommit(workspaceId: string, message: string): Promise<GitCommitResult> {
+    return this.post('/git/commit', { workspaceId, message })
   }
 
   private async post<T>(path: string, body: Record<string, unknown>): Promise<T> {

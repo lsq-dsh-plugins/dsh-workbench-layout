@@ -7,11 +7,13 @@ describe('published package metadata', () => {
       name: string
       exports: Record<string, unknown>
       dependencies: Record<string, string>
+      peerDependencies: Record<string, string>
       dsh: { bundle: { patch: string }; client: { inject: string[]; platform: string } }
     }
     expect(manifest.name).toBe('@lsq64737/dsh-workbench-layout')
     expect(manifest.exports).toHaveProperty('./client')
     expect(manifest.dependencies['@codemirror/merge']).toMatch(/^\^6\./u)
+    expect(manifest.peerDependencies['@deepseek-ai/dsh-workspace']).toBe('^0.1.1-rc.2')
     expect(manifest.dsh).toEqual(expect.objectContaining({
       bundle: { patch: './cordis.patch.yml' },
       client: expect.objectContaining({
@@ -20,7 +22,7 @@ describe('published package metadata', () => {
       }),
     }))
     const patch = await readFile(new URL('../cordis.patch.yml', import.meta.url), 'utf8')
-    expect(patch).toContain('inject: [webRuntime]')
+    expect(patch).toContain('inject: [webRuntime, workspaceRegistry]')
   })
 
   it('does not publish personal paths or private-network examples in documentation', async () => {

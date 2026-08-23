@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   IconChevronDownOutline14,
   IconChevronRightOutline14,
@@ -17,13 +17,15 @@ import css from './Workbench.module.css'
 
 interface FileTreeProps {
   controller: WorkbenchController
-  sessionId: string | undefined
+  workspaceId: string | undefined
   t: TranslateNS<'workbench'>
 }
 
 /** Lazy directory tree; each expansion performs one bounded Host listing. */
-export function FileTree({ controller, sessionId, t }: FileTreeProps) {
+export function FileTree({ controller, workspaceId, t }: FileTreeProps) {
   const workbench = useWorkbench(controller)
+  const activeWorkspace = useRef(workspaceId)
+  activeWorkspace.current = workspaceId
   const [listings, setListings] = useState<Record<string, DirectoryListing | undefined>>({})
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['']))
   const [loading, setLoading] = useState<Set<string>>(() => new Set())
@@ -34,10 +36,10 @@ export function FileTree({ controller, sessionId, t }: FileTreeProps) {
     setListings({})
     setExpanded(new Set(['']))
     setError(null)
-    if (sessionId === undefined) return
+    if (workspaceId === undefined) return
     let active = true
     setLoading(new Set(['']))
-    void controller.api.listDirectory(sessionId, '').then((listing) => {
+    void controller.api.listDirectory(workspaceId, '').then((listing) => {
       if (!active) return
       setListings({ '': listing })
       setLoading(new Set())
@@ -47,10 +49,11 @@ export function FileTree({ controller, sessionId, t }: FileTreeProps) {
       setError(messageOf(reason))
     })
     return () => { active = false }
-  }, [controller, sessionId, revision])
+  }, [controller, workspaceId, revision])
 
   const toggle = async (path: string): Promise<void> => {
-    if (sessionId === undefined) return
+    if (workspaceId === undefined) return
+    const targetWorkspace = workspaceId
     if (expanded.has(path)) {
       setExpanded(previous => {
         const next = new Set(previous)
@@ -63,20 +66,24 @@ export function FileTree({ controller, sessionId, t }: FileTreeProps) {
     if (listings[path] !== undefined || loading.has(path)) return
     setLoading(previous => new Set(previous).add(path))
     try {
-      const listing = await controller.api.listDirectory(sessionId, path)
+      const listing = await controller.api.listDirectory(targetWorkspace, path)
+      if (activeWorkspace.current !== targetWorkspace) return
       setListings(previous => ({ ...previous, [path]: listing }))
     } catch (reason: unknown) {
+      if (activeWorkspace.current !== targetWorkspace) return
       setError(messageOf(reason))
     } finally {
-      setLoading(previous => {
-        const next = new Set(previous)
-        next.delete(path)
-        return next
-      })
+      if (activeWorkspace.current === targetWorkspace) {
+        setLoading(previous => {
+          const next = new Set(previous)
+          next.delete(path)
+          return next
+        })
+      }
     }
   }
 
-  if (sessionId === undefined) return <div className={css.emptyState}>{t('files.emptySession')}</div>
+  if (workspaceId === undefined) return <div className={css.emptyState}>{t('files.emptyWorkspace')}</div>
   const root = listings['']
   return (
     <div className={css.panelBody}>
@@ -101,7 +108,7 @@ export function FileTree({ controller, sessionId, t }: FileTreeProps) {
               loading={loading}
               selected={workbench.file?.path}
               onToggle={path => { void toggle(path) }}
-              onOpen={path => { void controller.openFile(sessionId, path) }}
+              onOpen={path => { void controller.openFile(workspaceId, path) }}
             />
             {root.entries.length === 0 && <div className={css.emptyState}>{t('files.empty')}</div>}
             {root.truncated && <div className={css.notice}>{t('files.truncated')}</div>}

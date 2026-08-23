@@ -55,7 +55,7 @@ describe('Git panel', () => {
 
     await waitFor(() => { expect(view.getByRole('tab', { name: /更改/u })).toBeTruthy() })
     fireEvent.click(view.getAllByTitle('src/nested/a.ts')[1]!)
-    expect(controller.openDiff).toHaveBeenCalledWith('session-1', 'src/nested/a.ts', false)
+    expect(controller.openDiff).toHaveBeenCalledWith('workspace-1', 'src/nested/a.ts', false)
 
     fireEvent.click(view.getByRole('button', { name: '更改视图' }))
     fireEvent.click(view.getByRole('button', { name: '以目录树显示' }))
@@ -79,9 +79,9 @@ describe('Git panel', () => {
     fireEvent.click(row)
     await waitFor(() => { expect(view.getByTitle('src/history.ts')).toBeTruthy() })
     expect(row.getAttribute('aria-expanded')).toBe('true')
-    expect(controller.api.gitCommitFiles).toHaveBeenCalledWith('session-1', commit.hash)
+    expect(controller.api.gitCommitFiles).toHaveBeenCalledWith('workspace-1', commit.hash)
     fireEvent.click(view.getByTitle('src/history.ts'))
-    expect(controller.openCommitDiff).toHaveBeenCalledWith('session-1', commit, 'src/history.ts')
+    expect(controller.openCommitDiff).toHaveBeenCalledWith('workspace-1', commit, 'src/history.ts')
   })
 
   it('switches branches and runs explicit remote actions from DSH menus', async () => {
@@ -91,12 +91,12 @@ describe('Git panel', () => {
 
     fireEvent.click(view.getByRole('button', { name: '切换分支' }))
     fireEvent.click(view.getByRole('button', { name: 'topic' }))
-    await waitFor(() => { expect(controller.api.gitSwitchBranch).toHaveBeenCalledWith('session-1', 'refs/heads/topic') })
+    await waitFor(() => { expect(controller.api.gitSwitchBranch).toHaveBeenCalledWith('workspace-1', 'refs/heads/topic') })
     expect(controller.resetWorkspaceView).toHaveBeenCalled()
 
     fireEvent.click(view.getByRole('button', { name: '更多 Git 操作' }))
     fireEvent.click(view.getByRole('button', { name: '抓取远程更新' }))
-    await waitFor(() => { expect(controller.api.gitRemoteOperation).toHaveBeenCalledWith('session-1', 'fetch') })
+    await waitFor(() => { expect(controller.api.gitRemoteOperation).toHaveBeenCalledWith('workspace-1', 'fetch') })
   })
 
   it('blocks workspace-changing Git operations while the editor has an unsaved draft', async () => {
@@ -116,7 +116,7 @@ function renderPanel(controller: ReturnType<typeof harness>['controller']) {
   return render(
     <GitPanel
       controller={controller as never}
-      sessionId="session-1"
+      workspaceId="workspace-1"
       t={(key: keyof typeof zh) => zh[key]}
     />,
   )

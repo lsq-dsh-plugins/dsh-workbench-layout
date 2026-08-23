@@ -5,7 +5,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-fs'
 import type {} from '@deepseek-ai/dsh-host-webserver'
-import type {} from '@deepseek-ai/dsh-session'
+import type {} from '@deepseek-ai/dsh-workspace'
 import { WORKBENCH_API_PREFIX } from './contracts.ts'
 import { GitBackend } from './git-backend.ts'
 import { errorResponse, readJsonObject, sendJson, WorkbenchHttpError } from './http.ts'
@@ -13,7 +13,7 @@ import { isTrustedWorkbenchRequest } from './request-trust.ts'
 import { WorkspaceBackend } from './workspace-backend.ts'
 
 export const name = 'workbench-layout'
-export const inject = ['webServer', 'fs', 'sessions', 'webRuntime']
+export const inject = ['webServer', 'fs', 'workspaceRegistry', 'webRuntime']
 
 interface WebRuntimeValues {
   trustedHosts: string[]
@@ -79,33 +79,33 @@ async function dispatch(
 ): Promise<unknown> {
   switch (path) {
     case `${WORKBENCH_API_PREFIX}/tree`:
-      return workspace.list(body.sessionId, body.path)
+      return workspace.list(body.workspaceId, body.path)
     case `${WORKBENCH_API_PREFIX}/file/read`:
-      return workspace.read(body.sessionId, body.path)
+      return workspace.read(body.workspaceId, body.path)
     case `${WORKBENCH_API_PREFIX}/file/save`:
-      return workspace.save(body.sessionId, body.path, body.content, body.version)
+      return workspace.save(body.workspaceId, body.path, body.content, body.version)
     case `${WORKBENCH_API_PREFIX}/git/status`:
-      return git.status(body.sessionId)
+      return git.status(body.workspaceId)
     case `${WORKBENCH_API_PREFIX}/git/diff`:
-      return git.diff(body.sessionId, body.path, body.staged)
+      return git.diff(body.workspaceId, body.path, body.staged)
     case `${WORKBENCH_API_PREFIX}/git/history`:
-      return git.history(body.sessionId)
+      return git.history(body.workspaceId)
     case `${WORKBENCH_API_PREFIX}/git/branches`:
-      return git.branches(body.sessionId)
+      return git.branches(body.workspaceId)
     case `${WORKBENCH_API_PREFIX}/git/branch/switch`:
-      return git.switchBranch(body.sessionId, body.ref)
+      return git.switchBranch(body.workspaceId, body.ref)
     case `${WORKBENCH_API_PREFIX}/git/remote`:
-      return git.remoteOperation(body.sessionId, body.operation)
+      return git.remoteOperation(body.workspaceId, body.operation)
     case `${WORKBENCH_API_PREFIX}/git/commit/files`:
-      return git.commitFiles(body.sessionId, body.revision)
+      return git.commitFiles(body.workspaceId, body.revision)
     case `${WORKBENCH_API_PREFIX}/git/commit/file`:
-      return git.commitFileDiff(body.sessionId, body.revision, body.path)
+      return git.commitFileDiff(body.workspaceId, body.revision, body.path)
     case `${WORKBENCH_API_PREFIX}/git/stage`:
-      return git.stage(body.sessionId, body.path)
+      return git.stage(body.workspaceId, body.path)
     case `${WORKBENCH_API_PREFIX}/git/unstage`:
-      return git.unstage(body.sessionId, body.path)
+      return git.unstage(body.workspaceId, body.path)
     case `${WORKBENCH_API_PREFIX}/git/commit`:
-      return git.commit(body.sessionId, body.message)
+      return git.commit(body.workspaceId, body.message)
     default:
       throw new WorkbenchHttpError(404, 'ENDPOINT_NOT_FOUND', '工作台接口不存在。')
   }

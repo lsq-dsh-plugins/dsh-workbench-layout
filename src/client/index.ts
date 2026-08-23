@@ -10,7 +10,7 @@ import { WorkbenchController } from './controller.ts'
 import { installWorkbenchLayout } from './layout-styles.ts'
 import { en, zh } from './locales.ts'
 import { ModeSwitch } from './ModeSwitch.tsx'
-import { createWorkbenchSessionActivator } from './session-layout.ts'
+import { createWorkbenchWorkspaceActivator } from './workspace-layout.ts'
 import { WorkbenchEditor } from './WorkbenchEditor.tsx'
 import { WorkbenchSidebar } from './WorkbenchSidebar.tsx'
 
@@ -22,7 +22,7 @@ export function apply(ctx: ClientContext): void {
     info: message => { ctx.logger.info(message) },
     warn: message => { ctx.logger.warn(message) },
   })
-  const activateSession = createWorkbenchSessionActivator(controller, ctx.layout, ctx.logger)
+  const activateWorkspace = createWorkbenchWorkspaceActivator(controller, ctx.layout, ctx.logger)
   ctx.effect(() => ctx.locale.register('workbench', { zh, en }), 'workbench-layout: dictionaries')
 
   ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
@@ -59,7 +59,7 @@ export function apply(ctx: ClientContext): void {
     name: 'details',
     priority: -100,
     locale: 'workbench',
-    inject: () => ({ controller, activateSession }),
+    inject: () => ({ controller, activateWorkspace }),
   }, WorkbenchEditor))
 
   installWorkbenchLayout(ctx)

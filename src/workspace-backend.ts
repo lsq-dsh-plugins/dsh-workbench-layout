@@ -2,7 +2,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { FsTarget, FsVersion } from '@deepseek-ai/dsh-fs'
-import type { SessionId } from '@deepseek-ai/dsh-session'
+import type { WorkspaceId } from '@deepseek-ai/dsh-workspace'
 import type {
   DirectoryListing,
   SavedWorkspaceFile,
@@ -23,22 +23,22 @@ export interface WorkspaceGitText {
 }
 
 interface WorkspaceTarget {
+  workspaceId: WorkspaceId
   cwd: string
   root: FsTarget
   target: FsTarget
   path: string
-  sessionId: SessionId
 }
 
-/** Read and atomically update files under the current Session's workspace root. */
+/** Read and atomically update files under an official DSH Workspace root. */
 export class WorkspaceBackend {
   constructor(
     private readonly ctx: Context,
     private readonly limits: WorkspaceLimits,
   ) {}
 
-  async list(sessionIdValue: unknown, pathValue: unknown): Promise<DirectoryListing> {
-    const workspace = await this.resolve(sessionIdValue, pathValue)
+  async list(workspaceIdValue: unknown, pathValue: unknown): Promise<DirectoryListing> {
+    const workspace = await this.resolve(workspaceIdValue, pathValue)
     await this.requireType(workspace, 'directory')
     const source = await this.ctx.fs.listDir(workspace.target)
     const entries: WorkspaceEntry[] = []
@@ -73,8 +73,8 @@ export class WorkspaceBackend {
     }
   }
 
-  async read(sessionIdValue: unknown, pathValue: unknown): Promise<WorkspaceFile> {
-    const workspace = await this.resolve(sessionIdValue, pathValue)
+  async read(workspaceIdValue: unknown, pathValue: unknown): Promise<WorkspaceFile> {
+    const workspace = await this.resolve(workspaceIdValue, pathValue)
     if (workspace.path === '') throw new WorkbenchHttpError(400, 'FILE_REQUIRED', '请选择文件。')
     const info = await this.requireType(workspace, 'file')
     if (info.size !== undefined && info.size > this.limits.maxFileBytes) {
@@ -95,7 +95,7 @@ export class WorkspaceBackend {
   }
 
   async save(
-    sessionIdValue: unknown,
+    workspaceIdValue: unknown,
     pathValue: unknown,
     contentValue: unknown,
     versionValue: unknown,
@@ -110,7 +110,7 @@ export class WorkspaceBackend {
     if (size > this.limits.maxFileBytes) {
       throw new WorkbenchHttpError(413, 'FS_TOO_LARGE', '文件超过工作台允许的大小。')
     }
-    const workspace = await this.resolve(sessionIdValue, pathValue)
+    const workspace = await this.resolve(workspaceIdValue, pathValue)
     if (workspace.path === '') throw new WorkbenchHttpError(400, 'FILE_REQUIRED', '请选择文件。')
     await this.requireType(workspace, 'file')
     const outcome = await this.ctx.fs.writeText(
@@ -118,27 +118,29 @@ export class WorkspaceBackend {
       contentValue,
       { kind: 'replaceIfVersion', version: versionValue as FsVersion },
       undefined,
-      { mode: 'workspace-write', workspaceRoot: workspace.cwd, sessionId: workspace.sessionId },
+      { mode: 'workspace-write', workspaceRoot: workspace.cwd },
     )
-    this.ctx.logger.info(`workbench-layout: saved workspace file ${JSON.stringify(workspace.path)}`)
+    this.ctx.logger.info(
+      `workbench-layout: saved workspace file ${JSON.stringify(workspace.path)} in ${JSON.stringify(workspace.workspaceId)}`,
+    )
     return { path: workspace.path, version: outcome.version, size }
   }
 
-  async rootProcessPath(sessionIdValue: unknown): Promise<{ cwd: string; sessionId: SessionId }> {
-    const workspace = await this.resolve(sessionIdValue, '')
+  async rootProcessPath(workspaceIdValue: unknown): Promise<{ cwd: string; workspaceId: WorkspaceId }> {
+    const workspace = await this.resolve(workspaceIdValue, '')
     await this.requireType(workspace, 'directory')
-    return { cwd: this.ctx.fs.processPath(workspace.root), sessionId: workspace.sessionId }
+    return { cwd: this.ctx.fs.processPath(workspace.root), workspaceId: workspace.workspaceId }
   }
 
-  async assertGitPath(sessionIdValue: unknown, pathValue: unknown): Promise<string> {
-    const workspace = await this.resolve(sessionIdValue, pathValue, false)
+  async assertGitPath(workspaceIdValue: unknown, pathValue: unknown): Promise<string> {
+    const workspace = await this.resolve(workspaceIdValue, pathValue, false)
     if (workspace.path === '') throw new WorkbenchHttpError(400, 'FILE_REQUIRED', '请选择 Git 文件。')
     return workspace.path
   }
 
   /** 安全读取工作区中的 Git 文本；二进制文件只返回类型，不传输原始字节。 */
-  async readGitText(sessionIdValue: unknown, pathValue: unknown): Promise<WorkspaceGitText> {
-    const workspace = await this.resolve(sessionIdValue, pathValue)
+  async readGitText(workspaceIdValue: unknown, pathValue: unknown): Promise<WorkspaceGitText> {
+    const workspace = await this.resolve(workspaceIdValue, pathValue)
     if (workspace.path === '') throw new WorkbenchHttpError(400, 'FILE_REQUIRED', '请选择 Git 文件。')
     const info = await this.requireType(workspace, 'file')
     if (info.size !== undefined && info.size > this.limits.maxFileBytes) {
@@ -160,15 +162,14 @@ export class WorkspaceBackend {
     }
   }
 
-  private async resolve(sessionIdValue: unknown, pathValue: unknown, requireExisting = true): Promise<WorkspaceTarget> {
-    if (typeof sessionIdValue !== 'string' || sessionIdValue === '') {
-      throw new WorkbenchHttpError(400, 'SESSION_REQUIRED', '缺少当前会话。')
+  private async resolve(workspaceIdValue: unknown, pathValue: unknown, requireExisting = true): Promise<WorkspaceTarget> {
+    if (typeof workspaceIdValue !== 'string' || workspaceIdValue === '') {
+      throw new WorkbenchHttpError(400, 'WORKSPACE_REQUIRED', '缺少当前工作区。')
     }
-    const sessionId = sessionIdValue as SessionId
-    const session = this.ctx.sessions.get(sessionId)
-    if (session === undefined) throw new WorkbenchHttpError(404, 'SESSION_NOT_FOUND', '当前会话不存在。')
-    const cwd = session.header.cwd
-    if (cwd === undefined) throw new WorkbenchHttpError(409, 'WORKSPACE_UNAVAILABLE', '当前会话没有工作区。')
+    const workspaceId = workspaceIdValue as WorkspaceId
+    const record = this.ctx.workspaceRegistry.get(workspaceId)
+    if (record === undefined) throw new WorkbenchHttpError(404, 'WORKSPACE_NOT_FOUND', '当前工作区不存在。')
+    const cwd = record.path
     const path = normalizeWorkspacePath(pathValue)
     const root = await this.ctx.fs.resolve(cwd)
     const target = path === '' ? root : await this.ctx.fs.resolve(path, { cwd })
@@ -184,7 +185,7 @@ export class WorkspaceBackend {
         throw new WorkbenchHttpError(404, 'FS_NOT_FOUND', '文件或目录不存在。')
       }
     }
-    return { cwd, root, target, path, sessionId }
+    return { workspaceId, cwd, root, target, path }
   }
 
   private async requireType(workspace: WorkspaceTarget, expected: 'file' | 'directory') {

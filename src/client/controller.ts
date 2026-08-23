@@ -10,7 +10,7 @@ export type DiffViewMode = 'split' | 'inline'
 
 export interface WorkbenchState {
   sidebarMode: SidebarMode
-  sessionId?: string
+  workspaceId?: string
   file: WorkspaceFile | null
   draft: string
   dirty: boolean
@@ -51,7 +51,7 @@ export class WorkbenchController {
 
   private requestId = 0
   private setSidebarShadow: ((active: boolean) => void) | undefined
-  private readonly sessionStates = new Map<string, WorkbenchState>()
+  private readonly workspaceStates = new Map<string, WorkbenchState>()
 
   constructor(
     api: WorkbenchApi = new WorkbenchApi(),
@@ -74,11 +74,11 @@ export class WorkbenchController {
     this.logger.info(`workbench-layout: sidebar mode changed to ${mode}`)
   }
 
-  setSession(sessionId: string): void {
+  setWorkspace(workspaceId: string | undefined): void {
     const state = this.store.getSnapshot()
-    if (state.sessionId === sessionId) return
-    if (state.sessionId !== undefined) {
-      this.sessionStates.set(state.sessionId, {
+    if (state.workspaceId === workspaceId) return
+    if (state.workspaceId !== undefined) {
+      this.workspaceStates.set(state.workspaceId, {
         ...state,
         loading: false,
         saving: false,
@@ -86,14 +86,19 @@ export class WorkbenchController {
       })
     }
     this.requestId += 1
-    const restored = this.sessionStates.get(sessionId)
+    if (workspaceId === undefined) {
+      this.store.set({ ...INITIAL_STATE, sidebarMode: state.sidebarMode })
+      return
+    }
+    const restored = this.workspaceStates.get(workspaceId)
     this.store.set(restored === undefined
-      ? { ...INITIAL_STATE, sidebarMode: state.sidebarMode, sessionId }
-      : { ...restored, sidebarMode: state.sidebarMode, sessionId, loading: false, saving: false, error: null })
+      ? { ...INITIAL_STATE, sidebarMode: state.sidebarMode, workspaceId }
+      : { ...restored, sidebarMode: state.sidebarMode, workspaceId, loading: false, saving: false, error: null })
+    this.logger.info(`workbench-layout: activated workspace ${JSON.stringify(workspaceId)}`)
   }
 
-  async openFile(sessionId: string, path: string): Promise<void> {
-    this.setSession(sessionId)
+  async openFile(workspaceId: string, path: string): Promise<void> {
+    this.setWorkspace(workspaceId)
     const current = this.store.getSnapshot()
     if (current.dirty && current.file?.path !== path) {
       this.store.update((state) => { state.error = UNSAVED_SWITCH_ERROR })
@@ -106,7 +111,7 @@ export class WorkbenchController {
       state.centerMode = 'file'
     })
     try {
-      const file = await this.api.readFile(sessionId, path)
+      const file = await this.api.readFile(workspaceId, path)
       if (requestId !== this.requestId) return
       this.store.update((state) => {
         state.file = file
@@ -151,19 +156,21 @@ export class WorkbenchController {
 
   async save(): Promise<void> {
     const current = this.store.getSnapshot()
-    if (current.file === null || current.sessionId === undefined || current.saving || !current.dirty) return
+    if (current.file === null || current.workspaceId === undefined || current.saving || !current.dirty) return
+    const workspaceId = current.workspaceId
     const filePath = current.file.path
+    const savedContent = current.draft
     this.store.update((state) => { state.saving = true; state.error = null })
     try {
-      const saved = await this.api.saveFile(current.sessionId, filePath, current.draft, current.file.version)
-      this.store.update((state) => {
-        if (state.file === null || state.file.path !== filePath || state.sessionId !== current.sessionId) return
-        state.file = { ...state.file, content: state.draft, version: saved.version, size: saved.size }
-        state.dirty = false
+      const saved = await this.api.saveFile(workspaceId, filePath, savedContent, current.file.version)
+      this.updateWorkspaceState(workspaceId, (state) => {
+        if (state.file === null || state.file.path !== filePath) return
+        state.file = { ...state.file, content: savedContent, version: saved.version, size: saved.size }
+        state.dirty = state.draft !== savedContent
         state.saving = false
       })
     } catch (error: unknown) {
-      this.store.update((state) => {
+      this.updateWorkspaceState(workspaceId, (state) => {
         state.saving = false
         state.error = messageOf(error)
       })
@@ -171,8 +178,8 @@ export class WorkbenchController {
     }
   }
 
-  async openDiff(sessionId: string, path: string, staged: boolean): Promise<void> {
-    this.setSession(sessionId)
+  async openDiff(workspaceId: string, path: string, staged: boolean): Promise<void> {
+    this.setWorkspace(workspaceId)
     const requestId = ++this.requestId
     this.store.update((state) => {
       state.loading = true
@@ -181,7 +188,7 @@ export class WorkbenchController {
       state.centerMode = 'diff'
     })
     try {
-      const diff = await this.api.gitDiff(sessionId, path, staged)
+      const diff = await this.api.gitDiff(workspaceId, path, staged)
       if (requestId !== this.requestId) return
       this.store.update((state) => {
         state.diff = diff
@@ -196,8 +203,8 @@ export class WorkbenchController {
     }
   }
 
-  async openCommitDiff(sessionId: string, commit: GitCommit, path: string): Promise<void> {
-    this.setSession(sessionId)
+  async openCommitDiff(workspaceId: string, commit: GitCommit, path: string): Promise<void> {
+    this.setWorkspace(workspaceId)
     const requestId = ++this.requestId
     this.store.update((state) => {
       state.loading = true
@@ -206,7 +213,7 @@ export class WorkbenchController {
       state.centerMode = 'diff'
     })
     try {
-      const diff = await this.api.gitCommitFileDiff(sessionId, commit.hash, path)
+      const diff = await this.api.gitCommitFileDiff(workspaceId, commit.hash, path)
       if (requestId !== this.requestId) return
       this.store.update((state) => {
         state.diff = diff
@@ -230,10 +237,11 @@ export class WorkbenchController {
     this.store.update((state) => { state.centerMode = 'file' })
   }
 
-  /** 分支切换或拉取后清空可能已失效的文件快照。 */
-  resetWorkspaceView(): void {
-    this.requestId += 1
-    this.store.update((state) => {
+  /** 分支切换或拉取后清空指定工作区中可能已失效的文件快照。 */
+  resetWorkspaceView(workspaceId = this.store.getSnapshot().workspaceId): void {
+    if (workspaceId === undefined) return
+    if (this.store.getSnapshot().workspaceId === workspaceId) this.requestId += 1
+    this.updateWorkspaceState(workspaceId, (state) => {
       state.file = null
       state.draft = ''
       state.dirty = false
@@ -244,7 +252,20 @@ export class WorkbenchController {
       state.saving = false
       state.error = null
     })
-    this.logger.info('workbench-layout: cleared editor after Git changed the workspace')
+    this.logger.info(`workbench-layout: cleared editor after Git changed workspace ${JSON.stringify(workspaceId)}`)
+  }
+
+  /** Apply an async result only to the Workspace that started the operation. */
+  private updateWorkspaceState(workspaceId: string, update: (state: WorkbenchState) => void): void {
+    if (this.store.getSnapshot().workspaceId === workspaceId) {
+      this.store.update(update)
+      return
+    }
+    const cached = this.workspaceStates.get(workspaceId)
+    if (cached === undefined) return
+    const next = { ...cached }
+    update(next)
+    this.workspaceStates.set(workspaceId, next)
   }
 }
 

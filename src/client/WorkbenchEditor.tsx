@@ -12,19 +12,22 @@ import { UNSAVED_SWITCH_ERROR, type WorkbenchController } from './controller.ts'
 import { CodeEditor } from './CodeEditor.tsx'
 import { GitDiffEditor } from './GitDiffEditor.tsx'
 import { useWorkbench } from './use-workbench.ts'
+import { workspaceIdForSession } from './workspace-binding.ts'
 import css from './Workbench.module.css'
 
 export type WorkbenchEditorProps = PropsRuntime<'details'> & PropsLocale<'workbench'> & {
   controller: WorkbenchController
-  activateSession: (sessionId: string) => void
+  activateWorkspace: (workspaceId: string | undefined) => void
 }
 
 /** Middle file surface, with Markdown preview as the default mode. */
-export function WorkbenchEditor({ sessionId, controller, activateSession, t }: WorkbenchEditorProps) {
+export function WorkbenchEditor({ sessionId, useWorkspaces, controller, activateWorkspace, t }: WorkbenchEditorProps) {
   const state = useWorkbench(controller)
-  useEffect(() => { activateSession(sessionId) }, [activateSession, sessionId])
+  const workspaceId = useWorkspaces(snapshot => workspaceIdForSession(snapshot.items, sessionId))
+  useEffect(() => { activateWorkspace(workspaceId) }, [activateWorkspace, workspaceId])
 
-  if (state.sessionId !== sessionId) return <EditorEmpty text={t('editor.loading')} />
+  if (workspaceId === undefined) return <EditorEmpty text={t('editor.emptyWorkspace')} />
+  if (state.workspaceId !== workspaceId) return <EditorEmpty text={t('editor.loading')} />
   if (state.loading && (state.file === null || (state.centerMode === 'diff' && state.diff === null))) {
     return <EditorEmpty text={t('editor.loading')} />
   }

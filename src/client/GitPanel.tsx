@@ -18,16 +18,18 @@ import css from './Workbench.module.css'
 
 interface GitPanelProps {
   controller: WorkbenchController
-  sessionId: string | undefined
+  workspaceId: string | undefined
   t: TranslateNS<'workbench'>
 }
 
 type GitView = 'changes' | 'history'
 
 /** 组合源码管理状态；具体的更改、历史和仓库工具栏各自保持独立。 */
-export function GitPanel({ controller, sessionId, t }: GitPanelProps) {
+export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
   const workbench = useWorkbench(controller)
   const refreshId = useRef(0)
+  const activeWorkspace = useRef(workspaceId)
+  activeWorkspace.current = workspaceId
   const [view, setView] = useState<GitView>('changes')
   const [changeLayout, setChangeLayout] = useState<GitChangeLayout>('list')
   const [status, setStatus] = useState<GitStatus | null>(null)
@@ -42,14 +44,14 @@ export function GitPanel({ controller, sessionId, t }: GitPanelProps) {
   const [result, setResult] = useState<string | null>(null)
 
   const refresh = useCallback(async (): Promise<void> => {
-    if (sessionId === undefined) return
+    if (workspaceId === undefined) return
     const request = ++refreshId.current
     setLoading(true)
     setError(null)
     try {
-      const nextStatus = await controller.api.gitStatus(sessionId)
+      const nextStatus = await controller.api.gitStatus(workspaceId)
       const [nextHistory, nextBranches] = nextStatus.available
-        ? await Promise.all([controller.api.gitHistory(sessionId), controller.api.gitBranches(sessionId)])
+        ? await Promise.all([controller.api.gitHistory(workspaceId), controller.api.gitBranches(workspaceId)])
         : [null, null]
       if (request !== refreshId.current) return
       setStatus(nextStatus)
@@ -62,64 +64,74 @@ export function GitPanel({ controller, sessionId, t }: GitPanelProps) {
     } finally {
       if (request === refreshId.current) setLoading(false)
     }
-  }, [controller, sessionId])
+  }, [controller, workspaceId])
 
   useEffect(() => {
     refreshId.current += 1
     setStatus(null)
     setBranches(null)
     setHistory(null)
+    setBusy(null)
+    setMessage('')
+    setError(null)
     setResult(null)
     setExpandedCommit(null)
     setCommitFiles({})
     void refresh()
   }, [refresh])
 
-  const update = async (operation: () => Promise<GitStatus>): Promise<boolean> => {
+  const update = async (targetWorkspace: string, operation: () => Promise<GitStatus>): Promise<boolean> => {
     setError(null)
     try {
-      setStatus(await operation())
+      const next = await operation()
+      if (activeWorkspace.current !== targetWorkspace) return false
+      setStatus(next)
       return true
     } catch (reason: unknown) {
+      if (activeWorkspace.current !== targetWorkspace) return false
       setError(messageOf(reason))
       return false
     }
   }
 
   const stage = async (file: GitFileStatus): Promise<void> => {
-    if (sessionId === undefined) return
-    if (await update(() => controller.api.gitStage(sessionId, file.path))) {
-      await controller.openDiff(sessionId, file.path, true)
+    if (workspaceId === undefined) return
+    if (await update(workspaceId, () => controller.api.gitStage(workspaceId, file.path))) {
+      await controller.openDiff(workspaceId, file.path, true)
     }
   }
 
   const unstage = async (file: GitFileStatus): Promise<void> => {
-    if (sessionId === undefined) return
-    if (await update(() => controller.api.gitUnstage(sessionId, file.path))) {
-      await controller.openDiff(sessionId, file.path, false)
+    if (workspaceId === undefined) return
+    if (await update(workspaceId, () => controller.api.gitUnstage(workspaceId, file.path))) {
+      await controller.openDiff(workspaceId, file.path, false)
     }
   }
 
   const commit = async (): Promise<void> => {
-    if (sessionId === undefined) return
+    if (workspaceId === undefined) return
+    const targetWorkspace = workspaceId
     setBusy('commit')
     setError(null)
     setResult(null)
     try {
-      const committed = await controller.api.gitCommit(sessionId, message)
+      const committed = await controller.api.gitCommit(targetWorkspace, message)
+      if (activeWorkspace.current !== targetWorkspace) return
       setMessage('')
       setResult(committed.summary)
       controller.showFile()
       await refresh()
     } catch (reason: unknown) {
+      if (activeWorkspace.current !== targetWorkspace) return
       setError(messageOf(reason))
     } finally {
-      setBusy(null)
+      if (activeWorkspace.current === targetWorkspace) setBusy(null)
     }
   }
 
   const toggleCommit = async (commitValue: GitCommit): Promise<void> => {
-    if (sessionId === undefined) return
+    if (workspaceId === undefined) return
+    const targetWorkspace = workspaceId
     if (expandedCommit === commitValue.hash) {
       setExpandedCommit(null)
       return
@@ -128,9 +140,11 @@ export function GitPanel({ controller, sessionId, t }: GitPanelProps) {
     if (commitFiles[commitValue.hash] !== undefined) return
     setCommitFiles(current => ({ ...current, [commitValue.hash]: { state: 'loading' } }))
     try {
-      const value = await controller.api.gitCommitFiles(sessionId, commitValue.hash)
+      const value = await controller.api.gitCommitFiles(targetWorkspace, commitValue.hash)
+      if (activeWorkspace.current !== targetWorkspace) return
       setCommitFiles(current => ({ ...current, [commitValue.hash]: { state: 'ready', value } }))
     } catch (reason: unknown) {
+      if (activeWorkspace.current !== targetWorkspace) return
       setCommitFiles(current => ({
         ...current,
         [commitValue.hash]: { state: 'error', message: messageOf(reason) },
@@ -139,7 +153,8 @@ export function GitPanel({ controller, sessionId, t }: GitPanelProps) {
   }
 
   const switchBranch = async (ref: string): Promise<void> => {
-    if (sessionId === undefined) return
+    if (workspaceId === undefined) return
+    const targetWorkspace = workspaceId
     if (workbench.dirty) {
       setError(t('git.unsavedOperation'))
       return
@@ -149,19 +164,22 @@ export function GitPanel({ controller, sessionId, t }: GitPanelProps) {
     setError(null)
     setResult(null)
     try {
-      await controller.api.gitSwitchBranch(sessionId, ref)
-      controller.resetWorkspaceView()
+      await controller.api.gitSwitchBranch(targetWorkspace, ref)
+      controller.resetWorkspaceView(targetWorkspace)
+      if (activeWorkspace.current !== targetWorkspace) return
       setResult(`${t('git.switchedBranch')} ${target?.name ?? ref}`)
       await refresh()
     } catch (reason: unknown) {
+      if (activeWorkspace.current !== targetWorkspace) return
       setError(messageOf(reason))
     } finally {
-      setBusy(null)
+      if (activeWorkspace.current === targetWorkspace) setBusy(null)
     }
   }
 
   const remoteOperation = async (operation: GitRemoteOperation): Promise<void> => {
-    if (sessionId === undefined) return
+    if (workspaceId === undefined) return
+    const targetWorkspace = workspaceId
     if ((operation === 'pull' || operation === 'sync') && workbench.dirty) {
       setError(t('git.unsavedOperation'))
       return
@@ -170,18 +188,20 @@ export function GitPanel({ controller, sessionId, t }: GitPanelProps) {
     setError(null)
     setResult(null)
     try {
-      await controller.api.gitRemoteOperation(sessionId, operation)
-      if (operation === 'pull' || operation === 'sync') controller.resetWorkspaceView()
+      await controller.api.gitRemoteOperation(targetWorkspace, operation)
+      if (operation === 'pull' || operation === 'sync') controller.resetWorkspaceView(targetWorkspace)
+      if (activeWorkspace.current !== targetWorkspace) return
       setResult(t(`git.${operation}Done`))
       await refresh()
     } catch (reason: unknown) {
+      if (activeWorkspace.current !== targetWorkspace) return
       setError(messageOf(reason))
     } finally {
-      setBusy(null)
+      if (activeWorkspace.current === targetWorkspace) setBusy(null)
     }
   }
 
-  if (sessionId === undefined) return <div className={css.emptyState}>{t('git.emptySession')}</div>
+  if (workspaceId === undefined) return <div className={css.emptyState}>{t('git.emptyWorkspace')}</div>
   const stagedFiles = status?.files.filter(isStaged) ?? []
   const changedFiles = status?.files.filter(hasWorktreeChange) ?? []
   return (
@@ -230,7 +250,7 @@ export function GitPanel({ controller, sessionId, t }: GitPanelProps) {
             layout={changeLayout}
             selectedKind={workbench.diff?.kind === 'staged' || workbench.diff?.kind === 'worktree' ? workbench.diff.kind : undefined}
             selectedPath={workbench.diff?.path}
-            onOpen={(file, staged) => { void controller.openDiff(sessionId, file.path, staged) }}
+            onOpen={(file, staged) => { void controller.openDiff(workspaceId, file.path, staged) }}
             onStage={file => { void stage(file) }}
             onUnstage={file => { void unstage(file) }}
             t={t}
@@ -245,7 +265,7 @@ export function GitPanel({ controller, sessionId, t }: GitPanelProps) {
           selectedRevision={workbench.diff?.revision}
           selectedPath={workbench.diff?.path}
           onToggle={commitValue => { void toggleCommit(commitValue) }}
-          onOpen={(commitValue, path) => { void controller.openCommitDiff(sessionId, commitValue, path) }}
+          onOpen={(commitValue, path) => { void controller.openCommitDiff(workspaceId, commitValue, path) }}
           t={t}
         />
       )}

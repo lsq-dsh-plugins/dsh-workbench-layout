@@ -215,10 +215,10 @@ export class GitBackend {
     private readonly limits: GitLimits,
   ) {}
 
-  async status(sessionId: unknown): Promise<GitStatus> {
+  async status(workspaceId: unknown): Promise<GitStatus> {
     let cwd: string
     try {
-      cwd = await this.repositoryRoot(sessionId)
+      cwd = await this.repositoryRoot(workspaceId)
     } catch (error) {
       if (error instanceof WorkbenchHttpError && error.code === 'GIT_UNAVAILABLE') {
         return { available: false, files: [], message: error.message }
@@ -252,9 +252,9 @@ export class GitBackend {
     }
   }
 
-  async diff(sessionId: unknown, pathValue: unknown, stagedValue: unknown): Promise<GitFileDiff> {
-    const path = await this.workspace.assertGitPath(sessionId, pathValue)
-    const cwd = await this.repositoryRoot(sessionId)
+  async diff(workspaceId: unknown, pathValue: unknown, stagedValue: unknown): Promise<GitFileDiff> {
+    const path = await this.workspace.assertGitPath(workspaceId, pathValue)
+    const cwd = await this.repositoryRoot(workspaceId)
     const status = parsePorcelainStatus((await this.run(cwd, [
       'status', '--porcelain=v1', '-z', '--untracked-files=all', '--', path,
     ])).stdout).find(file => file.path === path)
@@ -266,7 +266,7 @@ export class GitBackend {
 
     const [original, modified] = staged
       ? await this.stagedSides(cwd, status)
-      : await this.worktreeSides(sessionId, cwd, status)
+      : await this.worktreeSides(workspaceId, cwd, status)
     const stat = await this.changeStat(cwd, path, staged, status, modified)
     const binary = original.binary || modified.binary || stat?.binary === true
     this.ctx.logger.info(`workbench-layout: opened ${staged ? 'staged' : 'worktree'} Git diff for ${JSON.stringify(path)}`)
@@ -283,8 +283,8 @@ export class GitBackend {
     }
   }
 
-  async history(sessionId: unknown): Promise<GitHistory> {
-    const cwd = await this.repositoryRoot(sessionId)
+  async history(workspaceId: unknown): Promise<GitHistory> {
+    const cwd = await this.repositoryRoot(workspaceId)
     if (!await this.hasHead(cwd)) return { commits: [], truncated: false }
     const limit = 40
     const result = await this.run(cwd, [
@@ -295,8 +295,8 @@ export class GitBackend {
     return { commits: commits.slice(0, limit), truncated: commits.length > limit }
   }
 
-  async branches(sessionId: unknown): Promise<GitBranches> {
-    const cwd = await this.repositoryRoot(sessionId)
+  async branches(workspaceId: unknown): Promise<GitBranches> {
+    const cwd = await this.repositoryRoot(workspaceId)
     const result = await this.run(cwd, [
       'for-each-ref',
       '--format=%(refname)%00%(refname:short)%00%(HEAD)%00%(upstream:short)%00%(symref)',
@@ -311,15 +311,15 @@ export class GitBackend {
     }
   }
 
-  async switchBranch(sessionId: unknown, refValue: unknown): Promise<GitStatus> {
+  async switchBranch(workspaceId: unknown, refValue: unknown): Promise<GitStatus> {
     if (typeof refValue !== 'string' || refValue === '') {
       throw new WorkbenchHttpError(400, 'GIT_BRANCH_REQUIRED', '请选择要切换的分支。')
     }
-    const cwd = await this.repositoryRoot(sessionId)
-    const available = await this.branches(sessionId)
+    const cwd = await this.repositoryRoot(workspaceId)
+    const available = await this.branches(workspaceId)
     const target = available.branches.find(branch => branch.ref === refValue)
     if (target === undefined) throw new WorkbenchHttpError(404, 'GIT_BRANCH_NOT_FOUND', '找不到所选分支。')
-    if (target.current) return this.status(sessionId)
+    if (target.current) return this.status(workspaceId)
 
     if (target.kind === 'local') {
       await this.run(cwd, ['switch', '--', target.name])
@@ -334,16 +334,16 @@ export class GitBackend {
       else await this.run(cwd, ['switch', '--', local.name])
     }
     this.ctx.logger.info(`workbench-layout: switched Git branch to ${JSON.stringify(target.name)}`)
-    return this.status(sessionId)
+    return this.status(workspaceId)
   }
 
-  async remoteOperation(sessionId: unknown, operationValue: unknown): Promise<GitRemoteResult> {
+  async remoteOperation(workspaceId: unknown, operationValue: unknown): Promise<GitRemoteResult> {
     if (typeof operationValue !== 'string' || !REMOTE_OPERATIONS.has(operationValue as GitRemoteOperation)) {
       throw new WorkbenchHttpError(400, 'GIT_REMOTE_OPERATION_INVALID', '不支持该远程 Git 操作。')
     }
     const operation = operationValue as GitRemoteOperation
-    const cwd = await this.repositoryRoot(sessionId)
-    const status = await this.status(sessionId)
+    const cwd = await this.repositoryRoot(workspaceId)
+    const status = await this.status(workspaceId)
     if (status.hasRemote !== true) throw new WorkbenchHttpError(409, 'GIT_REMOTE_UNAVAILABLE', '当前仓库没有配置远程地址。')
     if ((operation === 'pull' || operation === 'sync') && status.upstream === undefined) {
       throw new WorkbenchHttpError(409, 'GIT_UPSTREAM_UNAVAILABLE', '当前分支没有配置上游分支。')
@@ -363,20 +363,20 @@ export class GitBackend {
     return { operation }
   }
 
-  async commitFiles(sessionId: unknown, revisionValue: unknown): Promise<GitCommitFiles> {
-    const cwd = await this.repositoryRoot(sessionId)
+  async commitFiles(workspaceId: unknown, revisionValue: unknown): Promise<GitCommitFiles> {
+    const cwd = await this.repositoryRoot(workspaceId)
     const details = await this.loadCommitFiles(cwd, revisionValue)
     this.ctx.logger.info(`workbench-layout: listed files for Git commit ${details.commit.shortHash}`)
     return details
   }
 
-  async commitFileDiff(sessionId: unknown, revisionValue: unknown, pathValue: unknown): Promise<GitFileDiff> {
-    const path = await this.workspace.assertGitPath(sessionId, pathValue)
-    const cwd = await this.repositoryRoot(sessionId)
+  async commitFileDiff(workspaceId: unknown, revisionValue: unknown, pathValue: unknown): Promise<GitFileDiff> {
+    const path = await this.workspace.assertGitPath(workspaceId, pathValue)
+    const cwd = await this.repositoryRoot(workspaceId)
     const details = await this.loadCommitFiles(cwd, revisionValue)
     const file = details.files.find(candidate => candidate.path === path)
     if (file === undefined) throw new WorkbenchHttpError(404, 'GIT_COMMIT_FILE_NOT_FOUND', '该提交中找不到所选文件。')
-    if (file.originalPath !== undefined) await this.workspace.assertGitPath(sessionId, file.originalPath)
+    if (file.originalPath !== undefined) await this.workspace.assertGitPath(workspaceId, file.originalPath)
 
     const original = details.parentRevision === undefined || file.status === 'A'
       ? emptyGitText()
@@ -403,33 +403,33 @@ export class GitBackend {
     }
   }
 
-  async stage(sessionId: unknown, pathValue: unknown): Promise<GitStatus> {
-    const path = await this.workspace.assertGitPath(sessionId, pathValue)
-    const cwd = await this.repositoryRoot(sessionId)
+  async stage(workspaceId: unknown, pathValue: unknown): Promise<GitStatus> {
+    const path = await this.workspace.assertGitPath(workspaceId, pathValue)
+    const cwd = await this.repositoryRoot(workspaceId)
     await this.run(cwd, ['add', '--', path])
     this.ctx.logger.info(`workbench-layout: staged Git path ${JSON.stringify(path)}`)
-    return this.status(sessionId)
+    return this.status(workspaceId)
   }
 
-  async unstage(sessionId: unknown, pathValue: unknown): Promise<GitStatus> {
-    const path = await this.workspace.assertGitPath(sessionId, pathValue)
-    const cwd = await this.repositoryRoot(sessionId)
+  async unstage(workspaceId: unknown, pathValue: unknown): Promise<GitStatus> {
+    const path = await this.workspace.assertGitPath(workspaceId, pathValue)
+    const cwd = await this.repositoryRoot(workspaceId)
     if (await this.hasHead(cwd)) {
       await this.run(cwd, ['restore', '--staged', '--', path])
     } else {
       await this.run(cwd, ['rm', '--cached', '--ignore-unmatch', '--', path])
     }
     this.ctx.logger.info(`workbench-layout: unstaged Git path ${JSON.stringify(path)}`)
-    return this.status(sessionId)
+    return this.status(workspaceId)
   }
 
-  async commit(sessionId: unknown, messageValue: unknown): Promise<GitCommitResult> {
+  async commit(workspaceId: unknown, messageValue: unknown): Promise<GitCommitResult> {
     if (typeof messageValue !== 'string' || messageValue.trim() === '') {
       throw new WorkbenchHttpError(400, 'COMMIT_MESSAGE_REQUIRED', '请输入提交说明。')
     }
     const message = messageValue.trim()
     if (message.length > 5000) throw new WorkbenchHttpError(400, 'COMMIT_MESSAGE_TOO_LONG', '提交说明过长。')
-    const cwd = await this.repositoryRoot(sessionId)
+    const cwd = await this.repositoryRoot(workspaceId)
     const result = await this.run(cwd, ['commit', '-m', message])
     const summary = result.stdout.trim().split(/\r?\n/u)[0] ?? 'Git 提交完成。'
     this.ctx.logger.info('workbench-layout: Git commit created from explicit user action')
@@ -446,7 +446,7 @@ export class GitBackend {
     return [original, modified]
   }
 
-  private async worktreeSides(sessionId: unknown, cwd: string, file: GitFileStatus): Promise<[GitText, WorkspaceGitText]> {
+  private async worktreeSides(workspaceId: unknown, cwd: string, file: GitFileStatus): Promise<[GitText, WorkspaceGitText]> {
     const conflict = isConflict(file)
     const original = file.index === '?'
       ? emptyGitText()
@@ -455,7 +455,7 @@ export class GitBackend {
         : await this.readGitBlob(cwd, `:${file.originalPath ?? file.path}`)
     const modified = file.worktree === 'D'
       ? emptyGitText()
-      : await this.workspace.readGitText(sessionId, file.path)
+      : await this.workspace.readGitText(workspaceId, file.path)
     return [original, modified]
   }
 
@@ -540,8 +540,8 @@ export class GitBackend {
     }
   }
 
-  private async repositoryRoot(sessionId: unknown): Promise<string> {
-    const workspace = await this.workspace.rootProcessPath(sessionId)
+  private async repositoryRoot(workspaceId: unknown): Promise<string> {
+    const workspace = await this.workspace.rootProcessPath(workspaceId)
     let top: GitRunResult
     try {
       top = await this.run(workspace.cwd, ['rev-parse', '--show-toplevel'])

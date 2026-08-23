@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { workspaceIdForSession } from '../src/client/workspace-binding.ts'
 
 vi.mock('@deepseek-ai/dsh-client-runtime/client', () => ({
   createSnapshotStore: <T,>(initial: T) => {
@@ -33,13 +34,13 @@ describe('WorkbenchController', () => {
       saveFile: vi.fn(() => Promise.resolve({ path: 'README.md', version: 'v2', size: 8 })),
     }
     const controller = new WorkbenchController(api as never, { info: vi.fn(), warn: vi.fn() })
-    await controller.openFile('session-1', 'README.md')
+    await controller.openFile('workspace-1', 'README.md')
 
     expect(controller.store.getSnapshot()).toMatchObject({ preview: true, dirty: false, draft: '# Title' })
     controller.setDraft('# Title!')
     expect(controller.store.getSnapshot().dirty).toBe(true)
     await controller.save()
-    expect(api.saveFile).toHaveBeenCalledWith('session-1', 'README.md', '# Title!', 'v1')
+    expect(api.saveFile).toHaveBeenCalledWith('workspace-1', 'README.md', '# Title!', 'v1')
     expect(controller.store.getSnapshot()).toMatchObject({ dirty: false, saving: false })
   })
 
@@ -52,8 +53,8 @@ describe('WorkbenchController', () => {
         .mockResolvedValueOnce({ path: 'new.ts', content: 'new', version: '2', size: 3, markdown: false }),
     }
     const controller = new WorkbenchController(api as never, { info: vi.fn(), warn: vi.fn() })
-    const oldRequest = controller.openFile('session-1', 'old.ts')
-    await controller.openFile('session-1', 'new.ts')
+    const oldRequest = controller.openFile('workspace-1', 'old.ts')
+    await controller.openFile('workspace-1', 'new.ts')
     resolveFirst?.({ path: 'old.ts', content: 'old', version: '1', size: 3, markdown: false })
     await oldRequest
     expect(controller.store.getSnapshot().file?.path).toBe('new.ts')
@@ -75,30 +76,98 @@ describe('WorkbenchController', () => {
         .mockResolvedValueOnce({ path: 'second.ts', content: 'two', version: '2', size: 3, markdown: false }),
     }
     const controller = new WorkbenchController(api as never, { info: vi.fn(), warn: vi.fn() })
-    await controller.openFile('session-1', 'first.ts')
+    await controller.openFile('workspace-1', 'first.ts')
     controller.setDraft('changed')
-    await controller.openFile('session-1', 'second.ts')
+    await controller.openFile('workspace-1', 'second.ts')
     expect(api.readFile).toHaveBeenCalledTimes(1)
     expect(controller.store.getSnapshot()).toMatchObject({ file: { path: 'first.ts' }, dirty: true })
 
     controller.revert()
-    await controller.openFile('session-1', 'second.ts')
+    await controller.openFile('workspace-1', 'second.ts')
     expect(controller.store.getSnapshot()).toMatchObject({ file: { path: 'second.ts' }, dirty: false })
   })
 
-  it('retains an unsaved draft while switching away from and back to a Session', async () => {
+  it('retains an unsaved draft while switching away from and back to a Workspace', async () => {
     const api = {
       readFile: vi.fn(() => Promise.resolve({
         path: 'draft.txt', content: 'base', version: '1', size: 4, markdown: false,
       })),
     }
     const controller = new WorkbenchController(api as never, { info: vi.fn(), warn: vi.fn() })
-    await controller.openFile('session-1', 'draft.txt')
+    await controller.openFile('workspace-1', 'draft.txt')
     controller.setDraft('unsaved')
-    controller.setSession('session-2')
-    controller.setSession('session-1')
+    controller.setWorkspace('workspace-2')
+    controller.setWorkspace('workspace-1')
     expect(controller.store.getSnapshot()).toMatchObject({
-      sessionId: 'session-1', file: { path: 'draft.txt' }, draft: 'unsaved', dirty: true,
+      workspaceId: 'workspace-1', file: { path: 'draft.txt' }, draft: 'unsaved', dirty: true,
+    })
+  })
+
+  it('keeps editor state when another Session resolves to the same Workspace', async () => {
+    const api = {
+      readFile: vi.fn(() => Promise.resolve({
+        path: 'shared.txt', content: 'base', version: '1', size: 4, markdown: false,
+      })),
+    }
+    const controller = new WorkbenchController(api as never, { info: vi.fn(), warn: vi.fn() })
+    await controller.openFile('workspace-shared', 'shared.txt')
+    controller.setDraft('shared draft')
+
+    const workspaces = [{
+      workspaceId: 'workspace-shared',
+      sessionIds: ['conversation-one', 'conversation-two'],
+    }]
+    controller.setWorkspace(workspaceIdForSession(workspaces, 'conversation-two'))
+
+    expect(controller.store.getSnapshot()).toMatchObject({
+      workspaceId: 'workspace-shared', file: { path: 'shared.txt' }, draft: 'shared draft', dirty: true,
+    })
+  })
+
+  it('applies a late save result to its Workspace without mutating the newly selected Workspace', async () => {
+    let finishSave: ((value: { path: string; version: string; size: number }) => void) | undefined
+    const api = {
+      readFile: vi.fn((workspaceId: string) => Promise.resolve({
+        path: `${workspaceId}.txt`, content: 'base', version: '1', size: 4, markdown: false,
+      })),
+      saveFile: vi.fn(() => new Promise(resolve => { finishSave = resolve })),
+    }
+    const controller = new WorkbenchController(api as never, { info: vi.fn(), warn: vi.fn() })
+    await controller.openFile('workspace-a', 'workspace-a.txt')
+    controller.setDraft('saved content')
+    const saving = controller.save()
+    await controller.openFile('workspace-b', 'workspace-b.txt')
+
+    finishSave?.({ path: 'workspace-a.txt', version: '2', size: 13 })
+    await saving
+    expect(controller.store.getSnapshot()).toMatchObject({
+      workspaceId: 'workspace-b', file: { path: 'workspace-b.txt', version: '1' }, dirty: false,
+    })
+
+    controller.setWorkspace('workspace-a')
+    expect(controller.store.getSnapshot()).toMatchObject({
+      workspaceId: 'workspace-a', file: { path: 'workspace-a.txt', version: '2' }, dirty: false, saving: false,
+    })
+  })
+
+  it('keeps newer edits dirty when they are typed while an older draft is saving', async () => {
+    let finishSave: ((value: { path: string; version: string; size: number }) => void) | undefined
+    const api = {
+      readFile: vi.fn(() => Promise.resolve({
+        path: 'draft.txt', content: 'base', version: '1', size: 4, markdown: false,
+      })),
+      saveFile: vi.fn(() => new Promise(resolve => { finishSave = resolve })),
+    }
+    const controller = new WorkbenchController(api as never, { info: vi.fn(), warn: vi.fn() })
+    await controller.openFile('workspace-1', 'draft.txt')
+    controller.setDraft('first draft')
+    const saving = controller.save()
+    controller.setDraft('newer draft')
+    finishSave?.({ path: 'draft.txt', version: '2', size: 11 })
+    await saving
+
+    expect(controller.store.getSnapshot()).toMatchObject({
+      file: { content: 'first draft', version: '2' }, draft: 'newer draft', dirty: true, saving: false,
     })
   })
 
@@ -114,8 +183,8 @@ describe('WorkbenchController', () => {
       })),
     }
     const controller = new WorkbenchController(api as never, { info: vi.fn(), warn: vi.fn() })
-    await controller.openCommitDiff('session-1', commit, 'src/a.ts')
-    expect(api.gitCommitFileDiff).toHaveBeenCalledWith('session-1', commit.hash, 'src/a.ts')
+    await controller.openCommitDiff('workspace-1', commit, 'src/a.ts')
+    expect(api.gitCommitFileDiff).toHaveBeenCalledWith('workspace-1', commit.hash, 'src/a.ts')
     expect(controller.store.getSnapshot()).toMatchObject({
       centerMode: 'diff', loading: false, diff: { kind: 'commit', revision: commit.hash, path: 'src/a.ts' },
     })
@@ -132,9 +201,9 @@ describe('WorkbenchController', () => {
         .mockReturnValueOnce(second),
     }
     const controller = new WorkbenchController(api as never, { info: vi.fn(), warn: vi.fn() })
-    await controller.openDiff('session-1', 'old.ts', false)
+    await controller.openDiff('workspace-1', 'old.ts', false)
 
-    const request = controller.openDiff('session-1', 'new.ts', false)
+    const request = controller.openDiff('workspace-1', 'new.ts', false)
     expect(controller.store.getSnapshot()).toMatchObject({ centerMode: 'diff', loading: true, diff: null })
     resolveSecond?.({
       kind: 'worktree', path: 'new.ts', status: 'M', original: 'before', modified: 'after', binary: false,
@@ -143,10 +212,10 @@ describe('WorkbenchController', () => {
     expect(controller.store.getSnapshot()).toMatchObject({ loading: false, diff: { path: 'new.ts' } })
   })
 
-  it('stores the preferred Diff layout in the current Session state', () => {
+  it('stores the preferred Diff layout in the current Workspace state', () => {
     const logger = { info: vi.fn(), warn: vi.fn() }
     const controller = new WorkbenchController({} as never, logger)
-    controller.setSession('session-1')
+    controller.setWorkspace('workspace-1')
     controller.setDiffViewMode('inline')
     expect(controller.store.getSnapshot().diffViewMode).toBe('inline')
     expect(logger.info).toHaveBeenCalledWith('workbench-layout: Diff view mode changed to inline')
@@ -160,11 +229,30 @@ describe('WorkbenchController', () => {
       })),
     }
     const controller = new WorkbenchController(api as never, logger)
-    await controller.openFile('session-1', 'src/a.ts')
+    await controller.openFile('workspace-1', 'src/a.ts')
     controller.resetWorkspaceView()
     expect(controller.store.getSnapshot()).toMatchObject({
       file: null, draft: '', dirty: false, diff: null, centerMode: 'file', loading: false,
     })
-    expect(logger.info).toHaveBeenCalledWith('workbench-layout: cleared editor after Git changed the workspace')
+    expect(logger.info).toHaveBeenCalledWith('workbench-layout: cleared editor after Git changed workspace "workspace-1"')
+  })
+
+  it('invalidates an inactive Workspace without clearing the active Workspace editor', async () => {
+    const api = {
+      readFile: vi.fn((workspaceId: string) => Promise.resolve({
+        path: `${workspaceId}.ts`, content: workspaceId, version: '1', size: workspaceId.length, markdown: false,
+      })),
+    }
+    const controller = new WorkbenchController(api as never, { info: vi.fn(), warn: vi.fn() })
+    await controller.openFile('workspace-a', 'workspace-a.ts')
+    await controller.openFile('workspace-b', 'workspace-b.ts')
+
+    controller.resetWorkspaceView('workspace-a')
+    expect(controller.store.getSnapshot()).toMatchObject({
+      workspaceId: 'workspace-b', file: { path: 'workspace-b.ts' },
+    })
+
+    controller.setWorkspace('workspace-a')
+    expect(controller.store.getSnapshot()).toMatchObject({ workspaceId: 'workspace-a', file: null, diff: null })
   })
 })

@@ -73,31 +73,31 @@ describe('GitBackend single-file diffs', () => {
     const fixture = await createRepository()
     await writeFile(join(fixture.root, 'note.txt'), 'one\n')
 
-    expect((await fixture.backend.status('session-1')).files[0]).toMatchObject({ path: 'note.txt', index: '?', worktree: '?' })
-    const untracked = await fixture.backend.diff('session-1', 'note.txt', false)
+    expect((await fixture.backend.status('workspace-1')).files[0]).toMatchObject({ path: 'note.txt', index: '?', worktree: '?' })
+    const untracked = await fixture.backend.diff('workspace-1', 'note.txt', false)
     expect(untracked).toMatchObject({
       kind: 'worktree', path: 'note.txt', status: 'U', original: '', modified: 'one\n',
       additions: 1, deletions: 0, binary: false,
     })
 
-    const staged = await fixture.backend.stage('session-1', 'note.txt')
+    const staged = await fixture.backend.stage('workspace-1', 'note.txt')
     expect(staged.files[0]).toMatchObject({ path: 'note.txt', index: 'A', worktree: ' ' })
-    const stagedDiff = await fixture.backend.diff('session-1', 'note.txt', true)
+    const stagedDiff = await fixture.backend.diff('workspace-1', 'note.txt', true)
     expect(stagedDiff).toMatchObject({ original: '', modified: 'one\n', status: 'A' })
 
-    const unstaged = await fixture.backend.unstage('session-1', 'note.txt')
+    const unstaged = await fixture.backend.unstage('workspace-1', 'note.txt')
     expect(unstaged.files[0]).toMatchObject({ path: 'note.txt', index: '?', worktree: '?' })
-    await fixture.backend.stage('session-1', 'note.txt')
-    const committed = await fixture.backend.commit('session-1', '添加说明')
+    await fixture.backend.stage('workspace-1', 'note.txt')
+    const committed = await fixture.backend.commit('workspace-1', '添加说明')
     expect(committed.summary).toContain('添加说明')
-    expect((await fixture.backend.status('session-1')).files).toEqual([])
+    expect((await fixture.backend.status('workspace-1')).files).toEqual([])
 
-    const history = await fixture.backend.history('session-1')
+    const history = await fixture.backend.history('workspace-1')
     const revision = history.commits[0]?.hash
     expect(history).toMatchObject({ truncated: false, commits: [{ subject: '添加说明', author: 'Workbench Test' }] })
-    const files = await fixture.backend.commitFiles('session-1', revision)
+    const files = await fixture.backend.commitFiles('workspace-1', revision)
     expect(files).toMatchObject({ files: [{ path: 'note.txt', status: 'A' }] })
-    const historical = await fixture.backend.commitFileDiff('session-1', revision, 'note.txt')
+    const historical = await fixture.backend.commitFileDiff('workspace-1', revision, 'note.txt')
     expect(historical).toMatchObject({
       kind: 'commit', path: 'note.txt', status: 'A', original: '', modified: 'one\n', binary: false,
     })
@@ -112,38 +112,38 @@ describe('GitBackend single-file diffs', () => {
     git(fixture.root, ['commit', '--quiet', '-m', 'baseline'])
 
     await writeFile(join(fixture.root, 'alpha.txt'), 'before\nafter\n')
-    const worktree = await fixture.backend.diff('session-1', 'alpha.txt', false)
+    const worktree = await fixture.backend.diff('workspace-1', 'alpha.txt', false)
     expect(worktree).toMatchObject({
       kind: 'worktree', original: 'before\n', modified: 'before\nafter\n', additions: 1, deletions: 0,
     })
-    await fixture.backend.stage('session-1', 'alpha.txt')
-    const staged = await fixture.backend.diff('session-1', 'alpha.txt', true)
+    await fixture.backend.stage('workspace-1', 'alpha.txt')
+    const staged = await fixture.backend.diff('workspace-1', 'alpha.txt', true)
     expect(staged).toMatchObject({
       kind: 'staged', original: 'before\n', modified: 'before\nafter\n', additions: 1, deletions: 0,
     })
-    await fixture.backend.commit('session-1', 'modify alpha')
+    await fixture.backend.commit('workspace-1', 'modify alpha')
 
     await rename(join(fixture.root, 'old-name.txt'), join(fixture.root, 'new-name.txt'))
     git(fixture.root, ['add', '-A'])
-    await fixture.backend.commit('session-1', 'rename file')
-    const renameCommit = (await fixture.backend.history('session-1')).commits[0]
-    const renameFiles = await fixture.backend.commitFiles('session-1', renameCommit?.hash)
+    await fixture.backend.commit('workspace-1', 'rename file')
+    const renameCommit = (await fixture.backend.history('workspace-1')).commits[0]
+    const renameFiles = await fixture.backend.commitFiles('workspace-1', renameCommit?.hash)
     expect(renameFiles.files).toEqual([{ path: 'new-name.txt', originalPath: 'old-name.txt', status: 'R' }])
-    const renamed = await fixture.backend.commitFileDiff('session-1', renameCommit?.hash, 'new-name.txt')
+    const renamed = await fixture.backend.commitFileDiff('workspace-1', renameCommit?.hash, 'new-name.txt')
     expect(renamed).toMatchObject({
       path: 'new-name.txt', originalPath: 'old-name.txt', status: 'R', original: 'legacy\n', modified: 'legacy\n',
     })
 
     await unlink(join(fixture.root, 'new-name.txt'))
     git(fixture.root, ['add', '-A'])
-    const deleted = await fixture.backend.diff('session-1', 'new-name.txt', true)
+    const deleted = await fixture.backend.diff('workspace-1', 'new-name.txt', true)
     expect(deleted).toMatchObject({ status: 'D', original: 'legacy\n', modified: '', deletions: 1 })
   })
 
   it('marks binary files without returning their bytes', async () => {
     const fixture = await createRepository()
     await writeFile(join(fixture.root, 'asset.bin'), Buffer.from([0, 1, 2, 3]))
-    const diff = await fixture.backend.diff('session-1', 'asset.bin', false)
+    const diff = await fixture.backend.diff('workspace-1', 'asset.bin', false)
     expect(diff).toMatchObject({ path: 'asset.bin', binary: true, original: '', modified: '' })
   })
 
@@ -154,28 +154,28 @@ describe('GitBackend single-file diffs', () => {
     git(fixture.root, ['commit', '--quiet', '-m', 'baseline'])
     git(fixture.root, ['branch', 'topic'])
 
-    const local = await fixture.backend.branches('session-1')
+    const local = await fixture.backend.branches('workspace-1')
     expect(local).toMatchObject({ current: 'main', detached: false })
     expect(local.branches).toEqual(expect.arrayContaining([
       expect.objectContaining({ ref: 'refs/heads/main', current: true }),
       expect.objectContaining({ ref: 'refs/heads/topic', current: false }),
     ]))
-    await expect(fixture.backend.switchBranch('session-1', 'refs/heads/missing')).rejects.toMatchObject({
+    await expect(fixture.backend.switchBranch('workspace-1', 'refs/heads/missing')).rejects.toMatchObject({
       code: 'GIT_BRANCH_NOT_FOUND',
     })
-    await expect(fixture.backend.switchBranch('session-1', 'refs/heads/topic')).resolves.toMatchObject({ branch: 'topic' })
+    await expect(fixture.backend.switchBranch('workspace-1', 'refs/heads/topic')).resolves.toMatchObject({ branch: 'topic' })
 
     const remote = await createBareRepository()
     git(fixture.root, ['remote', 'add', 'origin', remote])
-    await expect(fixture.backend.remoteOperation('session-1', 'push')).resolves.toEqual({ operation: 'push' })
-    await expect(fixture.backend.status('session-1')).resolves.toMatchObject({ upstream: 'origin/topic' })
+    await expect(fixture.backend.remoteOperation('workspace-1', 'push')).resolves.toEqual({ operation: 'push' })
+    await expect(fixture.backend.status('workspace-1')).resolves.toMatchObject({ upstream: 'origin/topic' })
     git(fixture.root, ['push', '--quiet', 'origin', 'main:main'])
     git(fixture.root, ['branch', '-D', 'main'])
     git(fixture.root, ['fetch', '--quiet', 'origin'])
-    const remoteBranch = (await fixture.backend.branches('session-1')).branches
+    const remoteBranch = (await fixture.backend.branches('workspace-1')).branches
       .find(branch => branch.ref === 'refs/remotes/origin/main')
     expect(remoteBranch).toMatchObject({ name: 'origin/main', kind: 'remote' })
-    await expect(fixture.backend.switchBranch('session-1', remoteBranch?.ref)).resolves.toMatchObject({ branch: 'main' })
+    await expect(fixture.backend.switchBranch('workspace-1', remoteBranch?.ref)).resolves.toMatchObject({ branch: 'main' })
   })
 
   it('fetches, pulls, pushes, and syncs against an isolated local remote', async () => {
@@ -196,25 +196,25 @@ describe('GitBackend single-file diffs', () => {
     git(peer, ['commit', '--quiet', '-m', 'peer update'])
     git(peer, ['push', '--quiet'])
 
-    await expect(fixture.backend.remoteOperation('session-1', 'fetch')).resolves.toEqual({ operation: 'fetch' })
-    await expect(fixture.backend.status('session-1')).resolves.toMatchObject({
+    await expect(fixture.backend.remoteOperation('workspace-1', 'fetch')).resolves.toEqual({ operation: 'fetch' })
+    await expect(fixture.backend.status('workspace-1')).resolves.toMatchObject({
       branch: 'main', upstream: 'origin/main', ahead: 0, behind: 1, hasRemote: true,
     })
-    await expect(fixture.backend.remoteOperation('session-1', 'pull')).resolves.toEqual({ operation: 'pull' })
+    await expect(fixture.backend.remoteOperation('workspace-1', 'pull')).resolves.toEqual({ operation: 'pull' })
     await expect(readFile(join(fixture.root, 'shared.txt'), 'utf8')).resolves.toBe('from peer\n')
 
     await writeFile(join(fixture.root, 'local.txt'), 'local\n')
     git(fixture.root, ['add', '.'])
-    await fixture.backend.commit('session-1', 'local update')
-    await expect(fixture.backend.remoteOperation('session-1', 'push')).resolves.toEqual({ operation: 'push' })
-    await expect(fixture.backend.status('session-1')).resolves.toMatchObject({ ahead: 0, behind: 0 })
+    await fixture.backend.commit('workspace-1', 'local update')
+    await expect(fixture.backend.remoteOperation('workspace-1', 'push')).resolves.toEqual({ operation: 'push' })
+    await expect(fixture.backend.status('workspace-1')).resolves.toMatchObject({ ahead: 0, behind: 0 })
 
     git(peer, ['pull', '--quiet', '--ff-only'])
     await writeFile(join(peer, 'sync.txt'), 'sync\n')
     git(peer, ['add', '.'])
     git(peer, ['commit', '--quiet', '-m', 'sync update'])
     git(peer, ['push', '--quiet'])
-    await expect(fixture.backend.remoteOperation('session-1', 'sync')).resolves.toEqual({ operation: 'sync' })
+    await expect(fixture.backend.remoteOperation('workspace-1', 'sync')).resolves.toEqual({ operation: 'sync' })
     await expect(readFile(join(fixture.root, 'sync.txt'), 'utf8')).resolves.toBe('sync\n')
     expect(fixture.logger.info).toHaveBeenCalledWith('workbench-layout: completed explicit Git remote operation sync')
   })
@@ -231,9 +231,9 @@ async function createRepository(): Promise<{
   configureIdentity(root)
   const logger = { info: vi.fn(), warn: vi.fn() }
   const workspace = {
-    rootProcessPath: vi.fn(() => Promise.resolve({ cwd: root, sessionId: 'session-1' })),
-    assertGitPath: vi.fn((_sessionId, path) => Promise.resolve(String(path))),
-    readGitText: vi.fn(async (_sessionId, pathValue) => {
+    rootProcessPath: vi.fn(() => Promise.resolve({ cwd: root, workspaceId: 'workspace-1' })),
+    assertGitPath: vi.fn((_workspaceId, path) => Promise.resolve(String(path))),
+    readGitText: vi.fn(async (_workspaceId, pathValue) => {
       const bytes = await readFile(join(root, String(pathValue)))
       if (bytes.includes(0)) return { text: '', binary: true }
       try {
