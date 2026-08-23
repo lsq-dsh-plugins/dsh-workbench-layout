@@ -37,31 +37,23 @@ const CSS = `
   background: var(--dsw-specific-sidebar-fill);
 }
 
-/* The workbench right conversation uses the same official surface as the
-   sidebar without rebinding bg-base across the native component tree. */
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) [data-phase],
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2) [data-phase] {
+/* Only the native ConversationRoot directly mounted by CenterColumn receives
+   the workbench surface. InputBar and its phase-bearing textarea stay wholly
+   owned by DSH's official component styles. */
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) > [data-phase],
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2) > [data-phase] {
   background: var(--dsw-specific-sidebar-fill);
 }
 
-/* Preserve the official input-card surface and paint only its active sticky
-   fade with the workbench conversation background. */
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) [data-phase='active'] [data-composer-seat],
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2) [data-phase='active'] [data-composer-seat] {
+/* The official active composer mask references the original center surface;
+   only its backdrop stop follows the relocated conversation surface. */
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) > [data-phase='active'] [data-composer-seat],
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2) > [data-phase='active'] [data-composer-seat] {
   background: linear-gradient(
     180deg,
     color-mix(in srgb, var(--dsw-specific-sidebar-fill) 0%, transparent) 0px,
     var(--dsw-specific-sidebar-fill) 36px
   );
-}
-
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) [data-composer-card],
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) [data-composer-card] [data-input-scroll],
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) [data-composer-card] [data-input-scroll] + div,
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2) [data-composer-card],
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2) [data-composer-card] [data-input-scroll],
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2) [data-composer-card] [data-input-scroll] + div {
-  background: var(--dsw-specific-input-major);
 }
 
 [${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(3),
@@ -238,7 +230,7 @@ export function installWorkbenchLayout(ctx: ClientContext, visibility: Workbench
     const documentObserver = new MutationObserver(attach)
     documentObserver.observe(document.body, { childList: true, subtree: true })
     const unsubscribeVisibility = visibility.subscribe(synchronizeVisibility)
-    ctx.logger.info('workbench-layout: native AppFrame tracks, drag handles, and themed narrow conversation presentation adopted')
+    ctx.logger.info('workbench-layout: native AppFrame tracks, drag handles, and root-scoped conversation presentation adopted')
     return () => {
       documentObserver.disconnect()
       unsubscribeVisibility()

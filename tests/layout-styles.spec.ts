@@ -46,11 +46,10 @@ describe('workbench layout presentation', () => {
     expect(style?.textContent).toContain("[role='status']:has(> code) > code")
     expect(style?.textContent).toContain('[data-input-scroll] + div')
     expect(style?.textContent).toContain("[data-slot='conversation.input.model']")
-    expect(style?.textContent).toContain('background: var(--dsw-specific-input-major)')
     expect(style?.textContent).toContain('[data-composer-seat]')
-    expect(style?.textContent).toContain('[data-composer-card] [data-input-scroll]')
-    expect(style?.textContent).toContain('[data-input-scroll] + div')
-    expect(style?.textContent).not.toContain(':has(> [data-input-scroll])')
+    expect(style?.textContent).toContain('> :nth-child(2) > [data-phase]')
+    expect(style?.textContent).not.toContain('> :nth-child(2) [data-phase]')
+    expect(style?.textContent).not.toContain('[data-composer-card]')
     expect(style?.textContent).not.toContain('--dsw-alias-bg-base: var(--dsw-specific-sidebar-fill)')
     expect(style?.textContent).toContain(EDITOR_COLLAPSED_ATTRIBUTE)
     expect(style?.textContent).toContain('data-dsh-workbench-session-log-button')
@@ -140,6 +139,12 @@ function appFrameFixture(phase: 'hero' | 'active', sidebarWidth = 280) {
   const conversationColumn = document.createElement('div')
   const conversation = document.createElement('div')
   conversation.dataset.phase = phase
+  const conversationScroll = document.createElement('div')
+  conversationScroll.dataset.conversationScroll = ''
+  const textarea = document.createElement('textarea')
+  textarea.dataset.phase = 'inert'
+  conversationScroll.appendChild(textarea)
+  conversation.appendChild(conversationScroll)
   conversationColumn.appendChild(conversation)
   const details = document.createElement('div')
   details.appendChild(document.createElement('div'))
@@ -148,6 +153,8 @@ function appFrameFixture(phase: 'hero' | 'active', sidebarWidth = 280) {
   frame.append(sidebar, conversationColumn, details, overlay)
   vi.spyOn(frame, 'getBoundingClientRect').mockReturnValue(rect(1400))
   vi.spyOn(sidebar, 'getBoundingClientRect').mockReturnValue(rect(sidebarWidth))
+  expect(conversationColumn.querySelector(':scope > [data-phase]')).toBe(conversation)
+  expect(conversationColumn.querySelector(':scope > textarea[data-phase]')).toBeNull()
   return { frame, conversation }
 }
 
