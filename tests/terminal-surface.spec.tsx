@@ -3,9 +3,12 @@
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  EDITOR_COLLAPSED_ATTRIBUTE,
+  EDITOR_TRANSITION_ATTRIBUTE,
   EDITOR_TRANSITION_END_EVENT,
   EDITOR_TRANSITION_START_EVENT,
-} from '../src/client/editor-track-transition.ts'
+  FRAME_ATTRIBUTE,
+} from '../src/client/editor-layout-contract.ts'
 import { zh } from '../src/client/locales.ts'
 import { TerminalSurface } from '../src/client/TerminalSurface.tsx'
 
@@ -115,6 +118,7 @@ describe('中栏终端画布', () => {
 
   it('中栏显隐过渡期间冻结网格，并在稳定端点只适配一次', () => {
     const frame = document.createElement('div')
+    frame.setAttribute(FRAME_ATTRIBUTE, '')
     const container = document.createElement('div')
     frame.appendChild(container)
     document.body.appendChild(frame)
@@ -133,12 +137,53 @@ describe('中栏终端画布', () => {
     const fitsBeforeTransition = fit.mock.calls.length
 
     act(() => { frame.dispatchEvent(new CustomEvent(EDITOR_TRANSITION_START_EVENT, { bubbles: true })) })
+    frame.setAttribute(EDITOR_COLLAPSED_ATTRIBUTE, '')
     act(() => { resizeObserver.trigger() })
     act(() => { resizeObserver.trigger() })
     expect(fit).toHaveBeenCalledTimes(fitsBeforeTransition)
 
-    act(() => { frame.dispatchEvent(new CustomEvent(EDITOR_TRANSITION_END_EVENT, { bubbles: true })) })
+    act(() => { frame.dispatchEvent(new CustomEvent(EDITOR_TRANSITION_END_EVENT, {
+      bubbles: true,
+      detail: { expanded: false },
+    })) })
+    expect(fit).toHaveBeenCalledTimes(fitsBeforeTransition)
+
+    act(() => { frame.dispatchEvent(new CustomEvent(EDITOR_TRANSITION_START_EVENT, { bubbles: true })) })
+    frame.removeAttribute(EDITOR_COLLAPSED_ATTRIBUTE)
+    act(() => { resizeObserver.trigger() })
+    act(() => { frame.dispatchEvent(new CustomEvent(EDITOR_TRANSITION_END_EVENT, {
+      bubbles: true,
+      detail: { expanded: true },
+    })) })
     expect(fit).toHaveBeenCalledTimes(fitsBeforeTransition + 1)
+  })
+
+  it('终端在过渡中挂载时等待最终展开宽度', () => {
+    const frame = document.createElement('div')
+    frame.setAttribute(FRAME_ATTRIBUTE, '')
+    frame.setAttribute(EDITOR_TRANSITION_ATTRIBUTE, '')
+    const container = document.createElement('div')
+    frame.appendChild(container)
+    document.body.appendChild(frame)
+    render(
+      <TerminalSurface
+        tab={{ id: 'terminal:4', kind: 'terminal', sequence: 4, generation: 0, status: 'running', error: null }}
+        workspaceId="workspace-1"
+        active
+        controller={controllerFake() as never}
+        t={translate}
+      />,
+      { container },
+    )
+    const fit = terminalHarness.fitInstances[0]!.fit
+    expect(fit).not.toHaveBeenCalled()
+
+    frame.removeAttribute(EDITOR_TRANSITION_ATTRIBUTE)
+    act(() => { frame.dispatchEvent(new CustomEvent(EDITOR_TRANSITION_END_EVENT, {
+      bubbles: true,
+      detail: { expanded: true },
+    })) })
+    expect(fit).toHaveBeenCalledOnce()
   })
 })
 

@@ -13,12 +13,17 @@ import {
 } from './conversation-layout.ts'
 import {
   createEditorTrackTransition,
+  type EditorTrackTransition,
+} from './editor-track-transition.ts'
+import {
+  EDITOR_COLLAPSED_ATTRIBUTE,
+  EDITOR_RELEASE_ATTRIBUTE,
   EDITOR_TRANSITION_ATTRIBUTE,
+  FRAME_ATTRIBUTE,
   TRANSITION_CONVERSATION_WIDTH,
   TRANSITION_EDITOR_WIDTH,
   TRANSITION_SIDEBAR_WIDTH,
-  type EditorTrackTransition,
-} from './editor-track-transition.ts'
+} from './editor-layout-contract.ts'
 import {
   createFallbackDetailsTrack,
   FALLBACK_DETAILS_ATTRIBUTE,
@@ -29,8 +34,7 @@ import {
   type FallbackDetailsTrack,
 } from './fallback-details-layout.ts'
 
-const FRAME_ATTRIBUTE = 'data-dsh-workbench-frame'
-export const EDITOR_COLLAPSED_ATTRIBUTE = 'data-dsh-workbench-editor-collapsed'
+export { EDITOR_COLLAPSED_ATTRIBUTE } from './editor-layout-contract.ts'
 
 export interface WorkbenchEditorVisibilityStore {
   getSnapshot(): { editorExpanded: boolean }
@@ -38,6 +42,24 @@ export interface WorkbenchEditorVisibilityStore {
 }
 
 const CSS = `
+@property ${TRANSITION_SIDEBAR_WIDTH} {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property ${TRANSITION_EDITOR_WIDTH} {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property ${TRANSITION_CONVERSATION_WIDTH} {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
 [${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2),
 [${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2),
 [${FRAME_ATTRIBUTE}][${EDITOR_TRANSITION_ATTRIBUTE}] > :nth-child(2) {
@@ -84,14 +106,23 @@ const CSS = `
 }
 
 /* During a visibility toggle, keep the reordered occupants fixed and animate
-   two matching pixel tracks. The endpoints coincide with native AppFrame, so
-   removing this temporary override after transitionend is visually inert. */
+   two registered length tracks. Registering the variables is required for
+   Firefox and Chromium to interpolate their dependent grid geometry. */
 [${FRAME_ATTRIBUTE}][${EDITOR_TRANSITION_ATTRIBUTE}] {
   grid-template-columns:
     var(${TRANSITION_SIDEBAR_WIDTH})
     minmax(0, var(${TRANSITION_EDITOR_WIDTH}))
     minmax(0, var(${TRANSITION_CONVERSATION_WIDTH})) !important;
-  transition: grid-template-columns var(--ds-transition-duration-slow) var(--ds-ease-in-out) !important;
+  transition:
+    ${TRANSITION_EDITOR_WIDTH} var(--ds-transition-duration-slow) var(--ds-ease-in-out),
+    ${TRANSITION_CONVERSATION_WIDTH} var(--ds-transition-duration-slow) var(--ds-ease-in-out) !important;
+}
+
+/* Swapping reordered and native track definitions must be one atomic layout
+   update. Otherwise AppFrame animates the reversed native tracks a second time
+   and briefly gives the collapsed editor the full conversation width. */
+[${FRAME_ATTRIBUTE}][${EDITOR_RELEASE_ATTRIBUTE}] {
+  transition: none !important;
 }
 
 [${FRAME_ATTRIBUTE}][${FALLBACK_DRAGGING_ATTRIBUTE}] {

@@ -14,10 +14,11 @@ import {
 import type { WorkbenchController, WorkbenchTerminalTab } from './controller.ts'
 import type { WorkbenchKey } from './locales.ts'
 import {
-  EDITOR_TRANSITION_ATTRIBUTE,
   EDITOR_TRANSITION_END_EVENT,
   EDITOR_TRANSITION_START_EVENT,
-} from './editor-track-transition.ts'
+  isEditorTrackExpanded,
+  isEditorTrackTransitioning,
+} from './editor-layout-contract.ts'
 import css from './Workbench.module.css'
 
 export interface TerminalSurfaceProps {
@@ -59,10 +60,10 @@ export function TerminalSurface({ tab, workspaceId, active, controller, t }: Ter
     terminal.open(host)
     terminalRef.current = terminal
     fitRef.current = fit
-    let editorTransitionActive = host.closest(`[${EDITOR_TRANSITION_ATTRIBUTE}]`) !== null
-    let fitPending = editorTransitionActive
+    let editorTransitionActive = isEditorTrackTransitioning(host)
+    let fitPending = editorTransitionActive || !isEditorTrackExpanded(host)
     const fitWhenStable = (): void => {
-      if (editorTransitionActive) {
+      if (editorTransitionActive || isEditorTrackTransitioning(host) || !isEditorTrackExpanded(host)) {
         fitPending = true
         return
       }

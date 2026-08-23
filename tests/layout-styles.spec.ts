@@ -3,7 +3,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import { CONVERSATION_ROOT_ATTRIBUTE } from '../src/client/conversation-layout.ts'
-import { EDITOR_TRANSITION_ATTRIBUTE } from '../src/client/editor-track-transition.ts'
+import {
+  EDITOR_RELEASE_ATTRIBUTE,
+  EDITOR_TRANSITION_ATTRIBUTE,
+  TRANSITION_EDITOR_WIDTH,
+} from '../src/client/editor-track-transition.ts'
 import { readNativeSidebarWidth, resolveFallbackDetailsWidth } from '../src/client/fallback-details-layout.ts'
 import { EDITOR_COLLAPSED_ATTRIBUTE, installWorkbenchLayout } from '../src/client/layout-styles.ts'
 
@@ -56,7 +60,10 @@ describe('workbench layout presentation', () => {
     expect(style?.textContent).toContain(`:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}]`)
     expect(style?.textContent).toContain(`:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[data-dsh-workbench-fallback-details] > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}]`)
     expect(style?.textContent).toContain(`[${EDITOR_TRANSITION_ATTRIBUTE}] > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}]`)
-    expect(style?.textContent).toContain('transition: grid-template-columns var(--ds-transition-duration-slow) var(--ds-ease-in-out)')
+    expect(style?.textContent).toContain(`@property ${TRANSITION_EDITOR_WIDTH}`)
+    expect(style?.textContent).toContain(`${TRANSITION_EDITOR_WIDTH} var(--ds-transition-duration-slow) var(--ds-ease-in-out)`)
+    expect(style?.textContent).toContain(`[${EDITOR_RELEASE_ATTRIBUTE}] {
+  transition: none !important;`)
     expect(style?.textContent).not.toContain('> :nth-child(2) [data-phase]')
     expect(style?.textContent).not.toContain('[data-composer-card]')
     expect(style?.textContent).not.toContain('--dsw-alias-bg-base: var(--dsw-specific-sidebar-fill)')

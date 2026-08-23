@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createEditorTrackTransition,
+  EDITOR_RELEASE_ATTRIBUTE,
   EDITOR_TRANSITION_ATTRIBUTE,
   EDITOR_TRANSITION_END_EVENT,
   EDITOR_TRANSITION_START_EVENT,
@@ -45,25 +46,20 @@ describe('中栏轨道过渡', () => {
     expect(frame.style.getPropertyValue(TRANSITION_CONVERSATION_WIDTH)).toBe('360px')
 
     flushAnimationFrame()
-    expect(frame.style.getPropertyValue(TRANSITION_EDITOR_WIDTH)).toBe('560px')
-    expect(frame.style.getPropertyValue(TRANSITION_CONVERSATION_WIDTH)).toBe('360px')
-    finishGridTransition(frame)
-    expect(frame.hasAttribute(EDITOR_TRANSITION_ATTRIBUTE)).toBe(true)
-    expect(end).not.toHaveBeenCalled()
-    flushAnimationFrame()
     expect(frame.style.getPropertyValue(TRANSITION_EDITOR_WIDTH)).toBe('0px')
     expect(frame.style.getPropertyValue(TRANSITION_CONVERSATION_WIDTH)).toBe('920px')
-    finishGridTransition(frame)
+    finishEditorTransition(frame)
     expect(frame.hasAttribute(EDITOR_TRANSITION_ATTRIBUTE)).toBe(false)
+    expect(frame.hasAttribute(EDITOR_RELEASE_ATTRIBUTE)).toBe(true)
+    expect(end).not.toHaveBeenCalled()
+    flushAnimationFrame()
+    expect(frame.hasAttribute(EDITOR_RELEASE_ATTRIBUTE)).toBe(false)
     expect(end).toHaveBeenCalledTimes(1)
 
     vi.spyOn(conversation, 'getBoundingClientRect').mockReturnValue(rect(920))
     vi.spyOn(editor, 'getBoundingClientRect').mockReturnValue(rect(0))
     transition.setExpanded(true)
     expect(start).toHaveBeenCalledTimes(2)
-    flushAnimationFrame()
-    expect(frame.style.getPropertyValue(TRANSITION_EDITOR_WIDTH)).toBe('0px')
-    expect(frame.style.getPropertyValue(TRANSITION_CONVERSATION_WIDTH)).toBe('920px')
     flushAnimationFrame()
     expect(frame.style.getPropertyValue(TRANSITION_EDITOR_WIDTH)).toBe('560px')
     expect(frame.style.getPropertyValue(TRANSITION_CONVERSATION_WIDTH)).toBe('360px')
@@ -97,9 +93,9 @@ function flushAnimationFrame(): void {
   callback?.(0)
 }
 
-function finishGridTransition(frame: HTMLElement): void {
+function finishEditorTransition(frame: HTMLElement): void {
   const event = new Event('transitionend', { bubbles: true })
-  Object.defineProperty(event, 'propertyName', { value: 'grid-template-columns' })
+  Object.defineProperty(event, 'propertyName', { value: TRANSITION_EDITOR_WIDTH })
   frame.dispatchEvent(event)
 }
 
