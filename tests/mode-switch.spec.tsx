@@ -9,7 +9,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconFolderOpenOutline16: ({ size }: { size: number }) => <svg data-icon="files" width={size} />,
   IconNewChatOutline16: ({ size }: { size: number }) => <svg data-icon="sessions" width={size} />,
   IconPanelLeftOutline16: ({ size, className }: { size: number; className?: string }) => <svg data-icon="editor" className={className} width={size} />,
-  Tooltip: ({ children }: { children: React.ReactNode }) => children,
+  Tooltip: ({ children, label }: { children: React.ReactNode; label: string }) => <span data-tooltip-label={label}>{children}</span>,
 }))
 
 const workbench = vi.hoisted(() => ({ sidebarMode: 'git', editorExpanded: true }))
@@ -58,6 +58,7 @@ describe('工作台模式切换', () => {
     expect(setSidebarMode).toHaveBeenCalledWith('git')
     expect(view.getByRole('button', { name: '终端' }).querySelector('svg')?.getAttribute('width')).toBe('18')
     const editorButton = view.getByRole('button', { name: '收起中栏' })
+    const previousTooltip = editorButton.parentElement
     expect(editorButton.querySelector('svg')?.getAttribute('width')).toBe('18')
     fireEvent.click(editorButton)
     expect(toggleEditor).toHaveBeenCalledOnce()
@@ -78,7 +79,9 @@ describe('工作台模式切换', () => {
         })[key] ?? key}
       />,
     )
-    expect(view.getByRole('button', { name: '展开中栏' }).getAttribute('aria-pressed')).toBe('false')
+    const expandedButton = view.getByRole('button', { name: '展开中栏' })
+    expect(expandedButton.getAttribute('aria-pressed')).toBe('false')
+    expect(expandedButton.parentElement).not.toBe(previousTooltip)
   })
 
   it('在展开侧栏中使用 DSH 的 16px 图标规格', () => {
@@ -117,6 +120,7 @@ function sidebarFixture(): void {
   const settingsArea = document.createElement('div')
   const settingsSeat = document.createElement('div')
   settingsSeat.dataset.slot = 'sidebar.settings'
+  settingsSeat.appendChild(document.createElement('button'))
   settingsArea.appendChild(settingsSeat)
   foot.append(footerActions, settingsArea)
   root.append(brand, newSession, region, foot)

@@ -6,13 +6,14 @@ import {
   SIDEBAR_FOOT_ACTIONS_ATTRIBUTE,
   SIDEBAR_FOOT_ATTRIBUTE,
   SIDEBAR_SETTINGS_AREA_ATTRIBUTE,
+  SIDEBAR_SETTINGS_TRIGGER_ATTRIBUTE,
 } from '../src/client/sidebar-footer-layout.ts'
 
 afterEach(() => { document.body.innerHTML = '' })
 
 describe('侧栏底部同行布局', () => {
   it('只标记官方 footer action 与 Settings 的共同结构并同步宽栏状态', () => {
-    const { foot, actions, settings } = sidebarFooterFixture()
+    const { foot, actions, settings, settingsTrigger } = sidebarFooterFixture()
     const logger = { info: vi.fn() }
     const layout = createSidebarFooterLayout(true, logger)
 
@@ -20,7 +21,9 @@ describe('侧栏底部同行布局', () => {
     expect(foot.hasAttribute('data-wide')).toBe(true)
     expect(actions.hasAttribute(SIDEBAR_FOOT_ACTIONS_ATTRIBUTE)).toBe(true)
     expect(settings.hasAttribute(SIDEBAR_SETTINGS_AREA_ATTRIBUTE)).toBe(true)
-    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('official Settings row'))
+    expect(settingsTrigger.hasAttribute(SIDEBAR_SETTINGS_TRIGGER_ATTRIBUTE)).toBe(true)
+    expect(actions.nextElementSibling).toBe(settings)
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('content-sized Settings action'))
 
     layout.setWide(false)
     expect(foot.hasAttribute('data-wide')).toBe(false)
@@ -30,6 +33,7 @@ describe('侧栏底部同行布局', () => {
     expect(foot.hasAttribute(SIDEBAR_FOOT_ATTRIBUTE)).toBe(false)
     expect(actions.hasAttribute(SIDEBAR_FOOT_ACTIONS_ATTRIBUTE)).toBe(false)
     expect(settings.hasAttribute(SIDEBAR_SETTINGS_AREA_ATTRIBUTE)).toBe(false)
+    expect(settingsTrigger.hasAttribute(SIDEBAR_SETTINGS_TRIGGER_ATTRIBUTE)).toBe(false)
   })
 
   it('在官方底部结构替换后释放旧标记并接管新节点', async () => {
@@ -55,8 +59,10 @@ function sidebarFooterFixture() {
   const settings = document.createElement('div')
   const settingsSeat = document.createElement('div')
   settingsSeat.dataset.slot = 'sidebar.settings'
+  const settingsTrigger = document.createElement('button')
+  settingsSeat.appendChild(settingsTrigger)
   settings.appendChild(settingsSeat)
   foot.append(actions, settings)
   document.body.appendChild(foot)
-  return { foot, actions, settings }
+  return { foot, actions, settings, settingsTrigger }
 }

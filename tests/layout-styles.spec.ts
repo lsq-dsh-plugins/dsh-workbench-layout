@@ -2,6 +2,8 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import { CONVERSATION_ROOT_ATTRIBUTE } from '../src/client/conversation-layout.ts'
+import { EDITOR_TRANSITION_ATTRIBUTE } from '../src/client/editor-track-transition.ts'
 import { readNativeSidebarWidth, resolveFallbackDetailsWidth } from '../src/client/fallback-details-layout.ts'
 import { EDITOR_COLLAPSED_ATTRIBUTE, installWorkbenchLayout } from '../src/client/layout-styles.ts'
 
@@ -36,6 +38,7 @@ describe('workbench layout presentation', () => {
 
     installWorkbenchLayout(ctx, visibility)
     expect(frame.hasAttribute('data-dsh-workbench-frame')).toBe(true)
+    expect(frame.querySelector(`[${CONVERSATION_ROOT_ATTRIBUTE}]`)).not.toBeNull()
     expect(frame.style.gridTemplateColumns).toBe('312px minmax(0, 1fr) 0px')
     expect(frame.hasAttribute('data-dsh-workbench-fallback-details')).toBe(false)
     const style = document.head.querySelector<HTMLStyleElement>('[data-dsh-workbench-layout]')
@@ -49,8 +52,11 @@ describe('workbench layout presentation', () => {
     expect(style?.textContent).toContain('[data-composer-seat]')
     expect(style?.textContent).toContain("[data-slot='conversation.input.model'] > div {\n  flex: 0 1 auto;")
     expect(style?.textContent).toContain("button[aria-haspopup='menu'] {\n  width: auto;")
-    expect(style?.textContent).toContain(`:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) > [data-phase]`)
-    expect(style?.textContent).toContain(`:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[data-dsh-workbench-fallback-details] > :nth-child(2) > [data-phase]`)
+    expect(style?.textContent).toContain('padding-inline: 8px')
+    expect(style?.textContent).toContain(`:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) > [${CONVERSATION_ROOT_ATTRIBUTE}]`)
+    expect(style?.textContent).toContain(`:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[data-dsh-workbench-fallback-details] > :nth-child(2) > [${CONVERSATION_ROOT_ATTRIBUTE}]`)
+    expect(style?.textContent).toContain(`[${EDITOR_TRANSITION_ATTRIBUTE}] > :nth-child(2) > [${CONVERSATION_ROOT_ATTRIBUTE}]`)
+    expect(style?.textContent).toContain('transition: grid-template-columns var(--ds-transition-duration-slow) var(--ds-ease-in-out)')
     expect(style?.textContent).not.toContain('> :nth-child(2) [data-phase]')
     expect(style?.textContent).not.toContain('[data-composer-card]')
     expect(style?.textContent).not.toContain('--dsw-alias-bg-base: var(--dsw-specific-sidebar-fill)')

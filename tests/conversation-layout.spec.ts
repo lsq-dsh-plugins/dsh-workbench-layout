@@ -3,6 +3,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   CONVERSATION_NARROW_ATTRIBUTE,
+  CONVERSATION_ROOT_ATTRIBUTE,
   createConversationLayout,
   FLOATING_MENU_LEFT_PROPERTY,
   FLOATING_MENU_TOP_PROPERTY,
@@ -17,13 +18,14 @@ afterEach(() => {
 
 describe('右侧原生会话窄栏适配', () => {
   it('按会话栏实际宽度切换窄栏状态', () => {
-    const { column } = conversationFixture()
+    const { column, conversationRoot } = conversationFixture()
     let width = 360
     vi.spyOn(column, 'getBoundingClientRect').mockImplementation(() => rect(0, 0, width, 800))
     const logger = { info: vi.fn() }
     const layout = createConversationLayout(column, logger)
 
     expect(column.hasAttribute(CONVERSATION_NARROW_ATTRIBUTE)).toBe(true)
+    expect(conversationRoot.hasAttribute(CONVERSATION_ROOT_ATTRIBUTE)).toBe(true)
     width = 480
     layout.reconcile()
     expect(column.hasAttribute(CONVERSATION_NARROW_ATTRIBUTE)).toBe(false)
@@ -31,6 +33,7 @@ describe('右侧原生会话窄栏适配', () => {
     expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('released narrow conversation'))
 
     layout.dispose()
+    expect(conversationRoot.hasAttribute(CONVERSATION_ROOT_ATTRIBUTE)).toBe(false)
   })
 
   it('以视口坐标抬升模型菜单且不移动 React 持有的节点', async () => {
@@ -89,6 +92,11 @@ describe('右侧原生会话窄栏适配', () => {
 
 function conversationFixture() {
   const column = document.createElement('div')
+  const conversationRoot = document.createElement('div')
+  conversationRoot.dataset.phase = 'active'
+  const conversationScroll = document.createElement('div')
+  conversationScroll.dataset.conversationScroll = ''
+  conversationRoot.appendChild(conversationScroll)
   const slot = document.createElement('div')
   slot.dataset.slot = 'conversation.input.model'
   const modelRoot = document.createElement('div')
@@ -107,9 +115,9 @@ function conversationFixture() {
   sessionLogLabel.textContent = 'Session log'
   sessionLogButton.append(sessionLogLabel, document.createElementNS('http://www.w3.org/2000/svg', 'svg'))
   utilities.append(unrelatedButton, sessionLogButton)
-  column.append(slot, utilities)
+  column.append(conversationRoot, slot, utilities)
   document.body.appendChild(column)
-  return { column, modelRoot, trigger, menu, sessionLogButton, unrelatedButton }
+  return { column, conversationRoot, modelRoot, trigger, menu, sessionLogButton, unrelatedButton }
 }
 
 function rect(x: number, y: number, width: number, height: number): DOMRect {

@@ -1,6 +1,7 @@
 /** 右侧原生会话栏的窄栏状态、头部操作标记与模型菜单浮层几何。 */
 
 export const CONVERSATION_NARROW_ATTRIBUTE = 'data-dsh-workbench-conversation-narrow'
+export const CONVERSATION_ROOT_ATTRIBUTE = 'data-dsh-workbench-conversation-root'
 export const FLOATING_MODEL_MENU_ATTRIBUTE = 'data-dsh-workbench-floating-model-menu'
 export const SESSION_LOG_BUTTON_ATTRIBUTE = 'data-dsh-workbench-session-log-button'
 export const FLOATING_MENU_LEFT_PROPERTY = '--dsh-workbench-floating-menu-left'
@@ -39,6 +40,18 @@ export function createConversationLayout(
   let sessionLogButton: HTMLButtonElement | null = null
   let ownsSessionLogAriaLabel = false
   let ownsSessionLogTitle = false
+  let conversationRoot: HTMLElement | null = null
+
+  const reconcileConversationRoot = (): void => {
+    const nextRoot = findConversationRoot(column)
+    if (nextRoot === conversationRoot) return
+    conversationRoot?.removeAttribute(CONVERSATION_ROOT_ATTRIBUTE)
+    conversationRoot = nextRoot
+    conversationRoot?.setAttribute(CONVERSATION_ROOT_ATTRIBUTE, '')
+    if (conversationRoot !== null) {
+      logger.info('workbench-layout: adopted native ConversationRoot for workbench surface presentation')
+    }
+  }
 
   const applyWidth = (): void => {
     const width = Math.round(column.getBoundingClientRect().width)
@@ -145,6 +158,7 @@ export function createConversationLayout(
   }
 
   const reconcileDynamicControls = (): void => {
+    reconcileConversationRoot()
     reconcileMenu()
     reconcileSessionLogButton()
   }
@@ -175,9 +189,21 @@ export function createConversationLayout(
       window.removeEventListener('scroll', schedulePosition, true)
       releaseMenu()
       releaseSessionLogButton()
+      conversationRoot?.removeAttribute(CONVERSATION_ROOT_ATTRIBUTE)
+      conversationRoot = null
       column.removeAttribute(CONVERSATION_NARROW_ATTRIBUTE)
     },
   }
+}
+
+function findConversationRoot(column: HTMLElement): HTMLElement | null {
+  for (const child of column.children) {
+    if (!(child instanceof HTMLElement) || !child.hasAttribute('data-phase')) continue
+    const ownsScrollBody = Array.from(child.children).some(grandchild =>
+      grandchild instanceof HTMLElement && grandchild.hasAttribute('data-conversation-scroll'))
+    if (ownsScrollBody) return child
+  }
+  return null
 }
 
 function findSessionLogButton(utilities: HTMLElement): HTMLButtonElement | null {

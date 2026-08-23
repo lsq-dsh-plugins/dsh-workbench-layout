@@ -3,6 +3,7 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import {
   CONVERSATION_NARROW_ATTRIBUTE,
+  CONVERSATION_ROOT_ATTRIBUTE,
   createConversationLayout,
   FLOATING_MENU_LEFT_PROPERTY,
   FLOATING_MENU_TOP_PROPERTY,
@@ -10,6 +11,14 @@ import {
   SESSION_LOG_BUTTON_ATTRIBUTE,
   type ConversationLayout,
 } from './conversation-layout.ts'
+import {
+  createEditorTrackTransition,
+  EDITOR_TRANSITION_ATTRIBUTE,
+  TRANSITION_CONVERSATION_WIDTH,
+  TRANSITION_EDITOR_WIDTH,
+  TRANSITION_SIDEBAR_WIDTH,
+  type EditorTrackTransition,
+} from './editor-track-transition.ts'
 import {
   createFallbackDetailsTrack,
   FALLBACK_DETAILS_ATTRIBUTE,
@@ -30,7 +39,8 @@ export interface WorkbenchEditorVisibilityStore {
 
 const CSS = `
 [${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2),
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2) {
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2),
+[${FRAME_ATTRIBUTE}][${EDITOR_TRANSITION_ATTRIBUTE}] > :nth-child(2) {
   grid-column: 3;
   grid-row: 1;
   border-left: 1px solid var(--dsw-alias-border-l1);
@@ -40,15 +50,17 @@ const CSS = `
 /* Only the native ConversationRoot directly mounted by CenterColumn receives
    the workbench surface. InputBar and its phase-bearing textarea stay wholly
    owned by DSH's official component styles. */
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) > [data-phase],
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2) > [data-phase] {
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) > [${CONVERSATION_ROOT_ATTRIBUTE}],
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2) > [${CONVERSATION_ROOT_ATTRIBUTE}],
+[${FRAME_ATTRIBUTE}][${EDITOR_TRANSITION_ATTRIBUTE}] > :nth-child(2) > [${CONVERSATION_ROOT_ATTRIBUTE}] {
   background: var(--dsw-specific-sidebar-fill);
 }
 
 /* The official active composer mask references the original center surface;
    only its backdrop stop follows the relocated conversation surface. */
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) > [data-phase='active'] [data-composer-seat],
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2) > [data-phase='active'] [data-composer-seat] {
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) > [${CONVERSATION_ROOT_ATTRIBUTE}][data-phase='active'] [data-composer-seat],
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2) > [${CONVERSATION_ROOT_ATTRIBUTE}][data-phase='active'] [data-composer-seat],
+[${FRAME_ATTRIBUTE}][${EDITOR_TRANSITION_ATTRIBUTE}] > :nth-child(2) > [${CONVERSATION_ROOT_ATTRIBUTE}][data-phase='active'] [data-composer-seat] {
   background: linear-gradient(
     180deg,
     color-mix(in srgb, var(--dsw-specific-sidebar-fill) 0%, transparent) 0px,
@@ -57,7 +69,8 @@ const CSS = `
 }
 
 [${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(3),
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(3) {
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(3),
+[${FRAME_ATTRIBUTE}][${EDITOR_TRANSITION_ATTRIBUTE}] > :nth-child(3) {
   grid-column: 2;
   grid-row: 1;
   border-left: none !important;
@@ -68,6 +81,17 @@ const CSS = `
     var(${FALLBACK_SIDEBAR_WIDTH})
     minmax(0, 1fr)
     var(${FALLBACK_DETAILS_WIDTH}) !important;
+}
+
+/* During a visibility toggle, keep the reordered occupants fixed and animate
+   two matching pixel tracks. The endpoints coincide with native AppFrame, so
+   removing this temporary override after transitionend is visually inert. */
+[${FRAME_ATTRIBUTE}][${EDITOR_TRANSITION_ATTRIBUTE}] {
+  grid-template-columns:
+    var(${TRANSITION_SIDEBAR_WIDTH})
+    minmax(0, var(${TRANSITION_EDITOR_WIDTH}))
+    minmax(0, var(${TRANSITION_CONVERSATION_WIDTH})) !important;
+  transition: grid-template-columns var(--ds-transition-duration-slow) var(--ds-ease-in-out) !important;
 }
 
 [${FRAME_ATTRIBUTE}][${FALLBACK_DRAGGING_ATTRIBUTE}] {
@@ -143,6 +167,7 @@ const CSS = `
 [${FRAME_ATTRIBUTE}] > :nth-child(2)[${CONVERSATION_NARROW_ATTRIBUTE}] [data-slot='conversation.input.model'] button[aria-haspopup='menu'] {
   width: auto;
   max-width: 100%;
+  padding-inline: 8px;
 }
 
 [${FRAME_ATTRIBUTE}] > :nth-child(2)[${CONVERSATION_NARROW_ATTRIBUTE}] [data-slot='conversation.input.model'] button[aria-haspopup='menu'] > span:nth-of-type(2) {
@@ -151,6 +176,10 @@ const CSS = `
 
 /* Only the PermissionSelect chevron is omitted from the left tool group.
    The Plan chip and conversation-header disclosure controls remain intact. */
+[${FRAME_ATTRIBUTE}] > :nth-child(2)[${CONVERSATION_NARROW_ATTRIBUTE}] [data-input-scroll] + div > div:first-child > div:first-of-type > span:first-child > button {
+  padding-inline: 8px;
+}
+
 [${FRAME_ATTRIBUTE}] > :nth-child(2)[${CONVERSATION_NARROW_ATTRIBUTE}] [data-input-scroll] + div > div:first-child > div:first-of-type > span:first-child > button > span[aria-hidden]:last-child,
 [${FRAME_ATTRIBUTE}] > :nth-child(2)[${CONVERSATION_NARROW_ATTRIBUTE}] [data-slot='conversation.input.model'] button[aria-haspopup='menu'] > svg:last-child {
   display: none;
@@ -201,17 +230,22 @@ export function installWorkbenchLayout(ctx: ClientContext, visibility: Workbench
     let frame: HTMLElement | null = null
     let fallbackTrack: FallbackDetailsTrack | undefined
     let conversationLayout: ConversationLayout | undefined
+    let editorTransition: EditorTrackTransition | undefined
     let editorExpanded = visibility.getSnapshot().editorExpanded
     const synchronizeVisibility = (): void => {
-      editorExpanded = visibility.getSnapshot().editorExpanded
-      frame?.toggleAttribute(EDITOR_COLLAPSED_ATTRIBUTE, !editorExpanded)
-      fallbackTrack?.setEnabled(editorExpanded)
+      const nextExpanded = visibility.getSnapshot().editorExpanded
+      editorTransition?.setExpanded(nextExpanded)
+      editorExpanded = nextExpanded
+      frame?.toggleAttribute(EDITOR_COLLAPSED_ATTRIBUTE, !nextExpanded)
+      fallbackTrack?.setEnabled(nextExpanded)
     }
     const attach = (): void => {
       const next = document.querySelector<HTMLElement>('[data-shell-overlay]')?.parentElement ?? null
       if (next === frame) return
       conversationLayout?.dispose()
       conversationLayout = undefined
+      editorTransition?.dispose()
+      editorTransition = undefined
       fallbackTrack?.dispose()
       fallbackTrack = undefined
       frame?.removeAttribute(FRAME_ATTRIBUTE)
@@ -221,6 +255,7 @@ export function installWorkbenchLayout(ctx: ClientContext, visibility: Workbench
       frame.setAttribute(FRAME_ATTRIBUTE, '')
       frame.toggleAttribute(EDITOR_COLLAPSED_ATTRIBUTE, !editorExpanded)
       fallbackTrack = createFallbackDetailsTrack(frame, ctx.logger, editorExpanded)
+      editorTransition = createEditorTrackTransition(frame, ctx.logger, editorExpanded)
       const conversationColumn = frame.children.item(1)
       if (conversationColumn instanceof HTMLElement) {
         conversationLayout = createConversationLayout(conversationColumn, ctx.logger)
@@ -235,6 +270,7 @@ export function installWorkbenchLayout(ctx: ClientContext, visibility: Workbench
       documentObserver.disconnect()
       unsubscribeVisibility()
       conversationLayout?.dispose()
+      editorTransition?.dispose()
       fallbackTrack?.dispose()
       frame?.removeAttribute(FRAME_ATTRIBUTE)
       frame?.removeAttribute(EDITOR_COLLAPSED_ATTRIBUTE)

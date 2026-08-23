@@ -72,7 +72,7 @@ export function ModeSwitch({ wide, controller, logger, t }: ModeSwitchProps) {
               ))}
             </div>
           ), target)}
-      <Tooltip label={editorToggleLabel} delayMs={500}>
+      <Tooltip key={editorToggleLabel} label={editorToggleLabel} delayMs={500}>
         <button
           type="button"
           className={css.editorToggle}

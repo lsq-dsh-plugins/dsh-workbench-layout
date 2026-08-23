@@ -51,21 +51,34 @@
   transform: scaleX(-1);
 }
 
-/* The official footer renders extension actions above Settings. Once the
-   stable seats are annotated, the expanded sidebar overlays this single
-   icon into the unused right end of the Settings row without moving React
-   nodes. The compact rail intentionally keeps its vertical icon rhythm. */
+/* The official footer owns separate action and Settings seats. In the wide
+   sidebar, arrange those existing siblings as an independent two-column tool
+   row; no React node is moved and neither hit target overlays the other. */
 [data-dsh-workbench-sidebar-foot][data-wide] {
-  position: relative;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
+  column-gap: 8px;
 }
 
 [data-dsh-workbench-sidebar-foot][data-wide] > [data-dsh-workbench-sidebar-foot-actions] {
-  position: absolute;
-  right: 0;
-  bottom: 5px;
-  z-index: 1;
-  width: 32px;
-  height: 32px;
+  grid-column: 2;
+  grid-row: 1;
+  justify-content: flex-end;
+  width: auto;
+}
+
+[data-dsh-workbench-sidebar-foot][data-wide] > [data-dsh-workbench-sidebar-settings-area] {
+  grid-column: 1;
+  grid-row: 1;
+  width: max-content;
+  max-width: 100%;
+}
+
+[data-dsh-workbench-sidebar-settings-trigger] {
+  width: auto;
+  margin-right: 0;
+  margin-left: 0;
 }
 
 .modeSwitch {
