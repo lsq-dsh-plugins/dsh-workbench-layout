@@ -12,9 +12,6 @@ export type TerminalStatus = 'connecting' | 'running' | 'exited' | 'error'
 export type WorkbenchSidebarAction =
   | 'files.newFile'
   | 'files.newDirectory'
-  | 'files.refresh'
-  | 'git.refresh'
-  | 'git.sync'
 
 export interface WorkbenchSidebarActionRequest {
   id: number

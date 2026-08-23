@@ -3,8 +3,6 @@
 import {
   IconListPenOutline16,
   IconPlusOutline16,
-  IconRefreshOutline14,
-  IconRefreshOutline16,
   Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
@@ -24,7 +22,7 @@ interface WorkbenchRailProps {
 
 export function WorkbenchRail({ controller, workspaceId, expandSidebar, t }: WorkbenchRailProps) {
   const state = useWorkbench(controller)
-  const requestAndExpand = (action: 'files.newFile' | 'files.newDirectory' | 'files.refresh' | 'git.refresh' | 'git.sync'): void => {
+  const requestAndExpand = (action: 'files.newFile' | 'files.newDirectory'): void => {
     controller.requestSidebarAction(action, workspaceId)
     expandSidebar()
   }
@@ -37,9 +35,6 @@ export function WorkbenchRail({ controller, workspaceId, expandSidebar, t }: Wor
         </RailButton>
         <RailButton label={t('files.newDirectory')} disabled={workspaceId === undefined} onClick={() => { requestAndExpand('files.newDirectory') }}>
           <IconFolderAddOutline16 size={18} />
-        </RailButton>
-        <RailButton label={t('files.refresh')} disabled={workspaceId === undefined} onClick={() => { requestAndExpand('files.refresh') }}>
-          <IconRefreshOutline14 size={18} />
         </RailButton>
       </RailActions>
     )
@@ -59,12 +54,6 @@ export function WorkbenchRail({ controller, workspaceId, expandSidebar, t }: Wor
           }}
         >
           {graph ? <IconListPenOutline16 size={18} /> : <IconCommitGraphOutline16 size={18} />}
-        </RailButton>
-        <RailButton label={t('git.sync')} disabled={workspaceId === undefined} onClick={() => { requestAndExpand('git.sync') }}>
-          <IconRefreshOutline16 size={18} />
-        </RailButton>
-        <RailButton label={t('git.refresh')} disabled={workspaceId === undefined} onClick={() => { requestAndExpand('git.refresh') }}>
-          <IconRefreshOutline14 size={18} />
         </RailButton>
       </RailActions>
     )

@@ -14,7 +14,6 @@ const workbenchStore = vi.hoisted(() => {
     gitView: 'changes' as 'changes' | 'graph',
     gitChangeLayout: 'list' as 'list' | 'tree',
     gitGraphFileLayout: 'list' as 'list' | 'tree',
-    sidebarAction: undefined as { id: number; action: string; workspaceId: string } | undefined,
   }
   const listeners = new Set<() => void>()
   return {
@@ -31,7 +30,6 @@ const workbenchStore = vi.hoisted(() => {
         gitView: 'changes',
         gitChangeLayout: 'list',
         gitGraphFileLayout: 'list',
-        sidebarAction: undefined,
       }
       listeners.forEach(listener => { listener() })
     },
@@ -189,17 +187,6 @@ describe('Git panel', () => {
     expect(controller.closeDiffTabs).toHaveBeenCalledWith('workspace-1')
   })
 
-  it('waits for Git status before consuming a queued collapsed-rail sync', async () => {
-    workbenchStore.update({ sidebarAction: { id: 9, action: 'git.sync', workspaceId: 'workspace-1' } })
-    const { controller } = harness()
-    renderPanel(controller)
-
-    await waitFor(() => {
-      expect(controller.consumeSidebarAction).toHaveBeenCalledWith(9)
-      expect(controller.api.gitRemoteOperation).toHaveBeenCalledWith('workspace-1', 'sync')
-    })
-  })
-
   it('blocks workspace-changing Git operations while the editor has an unsaved draft', async () => {
     workbenchStore.update({ tabs: [
       { id: 'file:a.ts', kind: 'file', dirty: false },
@@ -282,9 +269,6 @@ function harness() {
     }),
     setGitFileLayout: vi.fn((view: 'changes' | 'graph', layout: 'list' | 'tree') => {
       workbenchStore.update(view === 'changes' ? { gitChangeLayout: layout } : { gitGraphFileLayout: layout })
-    }),
-    consumeSidebarAction: vi.fn((id: number) => {
-      if (workbenchStore.getSnapshot().sidebarAction?.id === id) workbenchStore.update({ sidebarAction: undefined })
     }),
   }
   return { controller, commit }

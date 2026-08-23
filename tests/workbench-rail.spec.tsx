@@ -12,8 +12,6 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconFolderClose16: () => <span data-icon="official-folder" />,
   IconListPenOutline16: () => <span data-icon="changes" />,
   IconPlusOutline16: ({ className }: { className?: string }) => <span data-icon="plus" className={className} />,
-  IconRefreshOutline14: () => <span data-icon="refresh" />,
-  IconRefreshOutline16: () => <span data-icon="sync" />,
   Tooltip: ({ children }: { children: React.ReactNode }) => children,
 }))
 
@@ -23,30 +21,33 @@ afterEach(() => {
 })
 
 describe('模式化收起栏快捷操作', () => {
-  it('为文件模式提供新建与刷新并在发出一次性命令后展开侧栏', () => {
+  it('为文件模式只保留两个新建入口并在发出一次性命令后展开侧栏', () => {
     workbench.current = state('files')
     const controller = controllerFixture()
     const expandSidebar = vi.fn()
     const view = renderRail(controller, expandSidebar)
 
-    expect(view.getAllByRole('button')).toHaveLength(3)
+    expect(view.getAllByRole('button')).toHaveLength(2)
+    expect(view.queryByRole('button', { name: '刷新文件目录' })).toBeNull()
     fireEvent.click(view.getByRole('button', { name: '新建文件' }))
     expect(controller.requestSidebarAction).toHaveBeenCalledWith('files.newFile', 'workspace-1')
     expect(expandSidebar).toHaveBeenCalledOnce()
   })
 
-  it('让 Git 收起栏与共享提交图状态及同步命令保持一致', () => {
+  it('让 Git 收起栏只保留与共享提交图状态一致的视图切换', () => {
     workbench.current = { ...state('git'), gitView: 'graph' }
     const controller = controllerFixture()
     const expandSidebar = vi.fn()
     const view = renderRail(controller, expandSidebar)
 
     expect(view.getByRole('button', { name: '切换到更改' }).getAttribute('aria-pressed')).toBe('true')
+    expect(view.getAllByRole('button')).toHaveLength(1)
+    expect(view.queryByRole('button', { name: '同步更改' })).toBeNull()
+    expect(view.queryByRole('button', { name: '刷新 Git 状态' })).toBeNull()
     fireEvent.click(view.getByRole('button', { name: '切换到更改' }))
     expect(controller.toggleGitView).toHaveBeenCalledOnce()
-    fireEvent.click(view.getByRole('button', { name: '同步更改' }))
-    expect(controller.requestSidebarAction).toHaveBeenCalledWith('git.sync', 'workspace-1')
-    expect(expandSidebar).toHaveBeenCalledTimes(2)
+    expect(controller.requestSidebarAction).not.toHaveBeenCalled()
+    expect(expandSidebar).toHaveBeenCalledOnce()
   })
 
   it('为终端模式提供新建入口和已有终端选择', () => {

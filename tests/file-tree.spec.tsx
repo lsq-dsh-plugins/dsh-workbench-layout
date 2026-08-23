@@ -9,7 +9,7 @@ const workbench = vi.hoisted(() => ({
   current: {
     activeTabId: undefined as string | undefined,
     tabs: [] as Array<{ id: string; kind: 'file'; path: string; dirty: boolean }>,
-    sidebarAction: undefined as { id: number; action: 'files.newFile' | 'files.newDirectory' | 'files.refresh'; workspaceId: string } | undefined,
+    sidebarAction: undefined as { id: number; action: 'files.newFile' | 'files.newDirectory'; workspaceId: string } | undefined,
   },
 }))
 

@@ -120,10 +120,6 @@ export function FileTree({ controller, workspaceId, t }: FileTreeProps) {
   useEffect(() => {
     const request = workbench.sidebarAction
     if (request === undefined || request.workspaceId !== workspaceId || !request.action.startsWith('files.')) return
-    if (request.action === 'files.refresh') {
-      controller.consumeSidebarAction(request.id)
-      return
-    }
     if (listings[''] === undefined && error === null) return
     controller.consumeSidebarAction(request.id)
     if (error !== null) return

@@ -63,5 +63,5 @@ export function apply(ctx: ClientContext): void {
   }, WorkbenchEditor))
 
   installWorkbenchLayout(ctx, controller.store)
-  ctx.logger.info('workbench-layout: official rail states, semantic file glyphs, and root-aware tree selection registered')
+  ctx.logger.info('workbench-layout: essential collapsed actions and root-aware file navigation registered')
 }
