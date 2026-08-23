@@ -605,6 +605,13 @@ export class GitBackend {
     return this.status(workspaceId)
   }
 
+  async stageAll(workspaceId: unknown): Promise<GitStatus> {
+    const cwd = await this.repositoryRoot(workspaceId)
+    await this.run(cwd, ['add', '-A', '--', '.'])
+    this.ctx.logger.info('workbench-layout: staged all Git changes')
+    return this.status(workspaceId)
+  }
+
   async unstage(workspaceId: unknown, pathValue: unknown): Promise<GitStatus> {
     const path = await this.workspace.assertGitPath(workspaceId, pathValue)
     const cwd = await this.repositoryRoot(workspaceId)
@@ -614,6 +621,38 @@ export class GitBackend {
       await this.run(cwd, ['rm', '--cached', '--ignore-unmatch', '--', path])
     }
     this.ctx.logger.info(`workbench-layout: unstaged Git path ${JSON.stringify(path)}`)
+    return this.status(workspaceId)
+  }
+
+  async unstageAll(workspaceId: unknown): Promise<GitStatus> {
+    const cwd = await this.repositoryRoot(workspaceId)
+    if (await this.hasHead(cwd)) {
+      await this.run(cwd, ['restore', '--staged', '--', '.'])
+    } else {
+      await this.run(cwd, ['rm', '--cached', '-r', '--ignore-unmatch', '--', '.'])
+    }
+    this.ctx.logger.info('workbench-layout: unstaged all Git changes')
+    return this.status(workspaceId)
+  }
+
+  async discard(workspaceId: unknown, pathValue: unknown): Promise<GitStatus> {
+    const path = await this.workspace.assertGitPath(workspaceId, pathValue)
+    const cwd = await this.repositoryRoot(workspaceId)
+    const file = (await this.status(workspaceId)).files.find(candidate => candidate.path === path)
+    if (file === undefined || !hasWorktreeChange(file)) {
+      throw new WorkbenchHttpError(404, 'GIT_CHANGE_NOT_WORKTREE', '该文件没有可放弃的工作区更改。')
+    }
+    if (file.index === '?') await this.run(cwd, ['clean', '-f', '--', path])
+    else await this.run(cwd, ['restore', '--worktree', '--', path])
+    this.ctx.logger.info(`workbench-layout: discarded Git worktree change for ${JSON.stringify(path)}`)
+    return this.status(workspaceId)
+  }
+
+  async discardAll(workspaceId: unknown): Promise<GitStatus> {
+    const cwd = await this.repositoryRoot(workspaceId)
+    await this.run(cwd, ['restore', '--worktree', '--', '.'])
+    await this.run(cwd, ['clean', '-fd', '--', '.'])
+    this.ctx.logger.info('workbench-layout: discarded all Git worktree changes and untracked files')
     return this.status(workspaceId)
   }
 

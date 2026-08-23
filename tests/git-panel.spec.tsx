@@ -267,6 +267,23 @@ describe('Git panel', () => {
     })
   })
 
+  it('runs batch index actions and confirms destructive worktree discard', async () => {
+    const { controller } = harness()
+    const view = renderPanel(controller)
+    await waitFor(() => { expect(view.getByRole('button', { name: '暂存全部更改' })).toBeTruthy() })
+
+    fireEvent.click(view.getByRole('button', { name: '暂存全部更改' }))
+    await waitFor(() => { expect(controller.api.gitStageAll).toHaveBeenCalledWith('workspace-1') })
+    expect(controller.closeDiffTabs).toHaveBeenCalledWith('workspace-1')
+
+    fireEvent.click(view.getByRole('button', { name: '放弃更改 src/nested/a.ts' }))
+    const confirmation = view.getByRole('dialog', { name: '放弃此文件的更改？' })
+    fireEvent.click(view.getByLabelText('我明白这些工作区内容无法通过此操作恢复。'))
+    fireEvent.click(confirmation.querySelector<HTMLButtonElement>('button:last-child')!)
+    await waitFor(() => { expect(controller.api.gitDiscard).toHaveBeenCalledWith('workspace-1', 'src/nested/a.ts') })
+    expect(controller.resetWorkspaceView).toHaveBeenCalledWith('workspace-1')
+  })
+
   it('blocks workspace-changing Git operations while the editor has an unsaved draft', async () => {
     workbenchStore.update({ tabs: [
       { id: 'file:a.ts', kind: 'file', dirty: false },
@@ -348,6 +365,12 @@ function harness() {
       gitUpdateRemote: vi.fn(() => Promise.resolve({ remotes: [] })),
       gitDeleteRemote: vi.fn(() => Promise.resolve({ remotes: [] })),
       gitTargetRemoteOperation: vi.fn((operation: string, remote: string, branch?: string) => Promise.resolve({ operation, remote, branch })),
+      gitStage: vi.fn(() => Promise.resolve(status)),
+      gitStageAll: vi.fn(() => Promise.resolve(status)),
+      gitUnstage: vi.fn(() => Promise.resolve(status)),
+      gitUnstageAll: vi.fn(() => Promise.resolve(status)),
+      gitDiscard: vi.fn(() => Promise.resolve(status)),
+      gitDiscardAll: vi.fn(() => Promise.resolve(status)),
     },
     openDiff: vi.fn(() => Promise.resolve()),
     openCommitDiff: vi.fn(() => Promise.resolve()),

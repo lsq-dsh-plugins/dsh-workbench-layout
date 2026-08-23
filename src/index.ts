@@ -138,8 +138,16 @@ async function dispatch(
       return git.commitFileDiff(body.workspaceId, body.revision, body.path)
     case `${WORKBENCH_API_PREFIX}/git/stage`:
       return git.stage(body.workspaceId, body.path)
+    case `${WORKBENCH_API_PREFIX}/git/stage-all`:
+      return git.stageAll(body.workspaceId)
     case `${WORKBENCH_API_PREFIX}/git/unstage`:
       return git.unstage(body.workspaceId, body.path)
+    case `${WORKBENCH_API_PREFIX}/git/unstage-all`:
+      return git.unstageAll(body.workspaceId)
+    case `${WORKBENCH_API_PREFIX}/git/discard`:
+      return git.discard(body.workspaceId, body.path)
+    case `${WORKBENCH_API_PREFIX}/git/discard-all`:
+      return git.discardAll(body.workspaceId)
     case `${WORKBENCH_API_PREFIX}/git/commit`:
       return git.commit(body.workspaceId, body.message)
     default:

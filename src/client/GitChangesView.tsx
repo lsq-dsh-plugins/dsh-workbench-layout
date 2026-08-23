@@ -8,6 +8,7 @@ import {
   IconFolderClose16,
   IconFolderOpen16,
   IconPlusOutline16,
+  IconTrashOutline16,
   Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
@@ -21,9 +22,14 @@ interface GitChangesViewProps {
   layout: GitFileLayout
   selectedKind: 'staged' | 'worktree' | undefined
   selectedPath: string | undefined
+  busy: boolean
   onOpen: (file: GitFileStatus, staged: boolean) => void
   onStage: (file: GitFileStatus) => void
   onUnstage: (file: GitFileStatus) => void
+  onStageAll: () => void
+  onUnstageAll: () => void
+  onDiscard: (file: GitFileStatus) => void
+  onDiscardAll: () => void
   t: TranslateNS<'workbench'>
 }
 
@@ -42,6 +48,8 @@ export function GitChangesView(props: GitChangesViewProps) {
         onAction={props.onUnstage}
         actionLabel={props.t('git.unstage')}
         actionIcon={<IconCloseOutline16 size={14} />}
+        headerActions={[{ label: props.t('git.unstageAll'), icon: <IconCloseOutline16 size={14} />, action: props.onUnstageAll }]}
+        busy={props.busy}
       />
       <ChangeSection
         title={props.t('git.changes')}
@@ -54,6 +62,14 @@ export function GitChangesView(props: GitChangesViewProps) {
         onAction={props.onStage}
         actionLabel={props.t('git.stage')}
         actionIcon={<IconPlusOutline16 size={14} />}
+        secondaryAction={props.onDiscard}
+        secondaryActionLabel={props.t('git.discard')}
+        secondaryActionIcon={<IconTrashOutline16 size={14} />}
+        headerActions={[
+          { label: props.t('git.stageAll'), icon: <IconPlusOutline16 size={14} />, action: props.onStageAll },
+          { label: props.t('git.discardAll'), icon: <IconTrashOutline16 size={14} />, action: props.onDiscardAll },
+        ]}
+        busy={props.busy}
       />
     </div>
   )
@@ -70,14 +86,30 @@ function ChangeSection(props: {
   onAction: (file: GitFileStatus) => void
   actionLabel: string
   actionIcon: ReactNode
+  secondaryAction?: (file: GitFileStatus) => void
+  secondaryActionLabel?: string
+  secondaryActionIcon?: ReactNode
+  headerActions: Array<{ label: string; icon: ReactNode; action: () => void }>
+  busy: boolean
 }) {
   const [expanded, setExpanded] = useState(true)
   return (
     <section className={css.gitSection}>
-      <button type="button" className={css.gitSectionHeader} aria-expanded={expanded} onClick={() => { setExpanded(value => !value) }}>
-        {expanded ? <IconChevronDownOutline14 size={14} /> : <IconChevronRightOutline14 size={14} />}
-        <span>{props.title}</span><span className={css.gitCount}>{props.files.length}</span>
-      </button>
+      <div className={css.gitSectionHeader}>
+        <button type="button" className={css.gitSectionToggle} aria-expanded={expanded} onClick={() => { setExpanded(value => !value) }}>
+          {expanded ? <IconChevronDownOutline14 size={14} /> : <IconChevronRightOutline14 size={14} />}
+          <span>{props.title}</span><span className={css.gitCount}>{props.files.length}</span>
+        </button>
+        <div className={css.gitSectionActions}>
+          {props.headerActions.map(action => (
+            <Tooltip key={action.label} label={action.label} delayMs={400}>
+              <button type="button" className={css.gitSectionAction} aria-label={action.label} disabled={props.busy || props.files.length === 0} onClick={action.action}>
+                {action.icon}
+              </button>
+            </Tooltip>
+          ))}
+        </div>
+      </div>
       {expanded && (props.files.length === 0
         ? <div className={css.gitSectionEmpty}>{props.empty}</div>
         : props.layout === 'list'
@@ -95,6 +127,12 @@ function rowProps(props: Parameters<typeof ChangeSection>[0], file: GitFileStatu
     onAction: () => { props.onAction(file) },
     actionLabel: props.actionLabel,
     actionIcon: props.actionIcon,
+    busy: props.busy,
+    ...(props.secondaryAction === undefined ? {} : {
+      secondaryAction: () => { props.secondaryAction?.(file) },
+      secondaryActionLabel: props.secondaryActionLabel,
+      secondaryActionIcon: props.secondaryActionIcon,
+    }),
   }
 }
 
@@ -164,6 +202,10 @@ interface ChangeRowProps {
   onAction: () => void
   actionLabel: string
   actionIcon: ReactNode
+  secondaryAction?: () => void
+  secondaryActionLabel?: string
+  secondaryActionIcon?: ReactNode
+  busy: boolean
   showDirectory?: boolean
   depth?: number
 }
@@ -186,10 +228,17 @@ function ChangeRow(props: ChangeRowProps) {
         <span className={css.statusBadge} data-status={props.status}>{props.status}</span>
       </button>
       <Tooltip label={props.actionLabel} delayMs={400}>
-        <button type="button" className={css.gitRowAction} aria-label={`${props.actionLabel} ${props.file.path}`} onClick={props.onAction}>
+        <button type="button" className={css.gitRowAction} aria-label={`${props.actionLabel} ${props.file.path}`} disabled={props.busy} onClick={props.onAction}>
           {props.actionIcon}
         </button>
       </Tooltip>
+      {props.secondaryAction !== undefined && props.secondaryActionLabel !== undefined && (
+        <Tooltip label={props.secondaryActionLabel} delayMs={400}>
+          <button type="button" className={css.gitRowAction} aria-label={`${props.secondaryActionLabel} ${props.file.path}`} disabled={props.busy} onClick={props.secondaryAction}>
+            {props.secondaryActionIcon}
+          </button>
+        </Tooltip>
+      )}
     </div>
   )
 }

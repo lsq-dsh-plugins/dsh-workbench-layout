@@ -155,6 +155,41 @@ describe('GitBackend single-file diffs', () => {
     expect(deleted).toMatchObject({ status: 'D', original: 'legacy\n', modified: '', deletions: 1 })
   })
 
+  it('stages, unstages, and discards worktree changes in explicit batches', async () => {
+    const fixture = await createRepository()
+    await writeFile(join(fixture.root, 'tracked.txt'), 'base\n')
+    git(fixture.root, ['add', '.'])
+    git(fixture.root, ['commit', '--quiet', '-m', 'baseline'])
+    await writeFile(join(fixture.root, 'tracked.txt'), 'staged\n')
+    await writeFile(join(fixture.root, 'untracked.txt'), 'temporary\n')
+
+    const staged = await fixture.backend.stageAll('workspace-1')
+    expect(staged.files).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'tracked.txt', index: 'M' }),
+      expect.objectContaining({ path: 'untracked.txt', index: 'A' }),
+    ]))
+    const unstaged = await fixture.backend.unstageAll('workspace-1')
+    expect(unstaged.files).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'tracked.txt', worktree: 'M' }),
+      expect.objectContaining({ path: 'untracked.txt', index: '?' }),
+    ]))
+
+    await fixture.backend.stage('workspace-1', 'tracked.txt')
+    await writeFile(join(fixture.root, 'tracked.txt'), 'worktree after stage\n')
+    await fixture.backend.discard('workspace-1', 'tracked.txt')
+    await expect(readFile(join(fixture.root, 'tracked.txt'), 'utf8')).resolves.toBe('staged\n')
+    await fixture.backend.discard('workspace-1', 'untracked.txt')
+    await expect(readFile(join(fixture.root, 'untracked.txt'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+
+    await writeFile(join(fixture.root, 'tracked.txt'), 'discard all\n')
+    await writeFile(join(fixture.root, 'another.tmp'), 'temporary\n')
+    const discarded = await fixture.backend.discardAll('workspace-1')
+    expect(discarded.files).toEqual([expect.objectContaining({ path: 'tracked.txt', index: 'M', worktree: ' ' })])
+    await expect(readFile(join(fixture.root, 'tracked.txt'), 'utf8')).resolves.toBe('staged\n')
+    await expect(readFile(join(fixture.root, 'another.tmp'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(fixture.logger.info).toHaveBeenCalledWith('workbench-layout: discarded all Git worktree changes and untracked files')
+  })
+
   it('returns all branch tips and both parents of a merge commit for the graph', async () => {
     const fixture = await createRepository()
     await writeFile(join(fixture.root, 'base.txt'), 'base\n')

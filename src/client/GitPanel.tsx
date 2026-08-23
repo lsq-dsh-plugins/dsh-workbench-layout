@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, RiskConfirmation } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
   GitBranches,
@@ -52,6 +52,8 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
   const [remoteDialog, setRemoteDialog] = useState<GitRemoteDialogMode | null>(null)
   const [remotes, setRemotes] = useState<GitRemotes | null>(null)
   const [remoteDialogError, setRemoteDialogError] = useState<string | null>(null)
+  const [discardRequest, setDiscardRequest] = useState<{ scope: 'all' } | { scope: 'file'; file: GitFileStatus } | null>(null)
+  const [discardAcknowledged, setDiscardAcknowledged] = useState(false)
 
   const refresh = useCallback(async (): Promise<void> => {
     if (workspaceId === undefined) return
@@ -92,6 +94,8 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
     setRemoteDialog(null)
     setRemotes(null)
     setRemoteDialogError(null)
+    setDiscardRequest(null)
+    setDiscardAcknowledged(false)
     void refresh()
   }, [refresh])
 
@@ -122,6 +126,62 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
     if (await update(workspaceId, () => controller.api.gitUnstage(workspaceId, file.path))) {
       controller.closeDiffTabs(workspaceId)
       await controller.openDiff(workspaceId, file.path, false)
+    }
+  }
+
+  const batchIndexOperation = async (operation: 'stage' | 'unstage'): Promise<void> => {
+    if (workspaceId === undefined) return
+    const targetWorkspace = workspaceId
+    setBusy(`${operation}-all`)
+    setError(null)
+    setResult(null)
+    try {
+      const next = operation === 'stage'
+        ? await controller.api.gitStageAll(targetWorkspace)
+        : await controller.api.gitUnstageAll(targetWorkspace)
+      if (activeWorkspace.current !== targetWorkspace) return
+      setStatus(next)
+      controller.closeDiffTabs(targetWorkspace)
+      setResult(t(operation === 'stage' ? 'git.stageAllDone' : 'git.unstageAllDone'))
+    } catch (reason: unknown) {
+      if (activeWorkspace.current === targetWorkspace) setError(messageOf(reason))
+    } finally {
+      if (activeWorkspace.current === targetWorkspace) setBusy(null)
+    }
+  }
+
+  const requestDiscard = (request: { scope: 'all' } | { scope: 'file'; file: GitFileStatus }): void => {
+    if (workbench.tabs.some(tab => tab.kind === 'file' && tab.dirty)) {
+      setError(t('git.unsavedOperation'))
+      return
+    }
+    setDiscardAcknowledged(false)
+    setDiscardRequest(request)
+  }
+
+  const confirmDiscard = async (): Promise<void> => {
+    if (workspaceId === undefined || discardRequest === null) return
+    const targetWorkspace = workspaceId
+    const request = discardRequest
+    setBusy('discard')
+    setError(null)
+    setResult(null)
+    try {
+      const next = request.scope === 'all'
+        ? await controller.api.gitDiscardAll(targetWorkspace)
+        : await controller.api.gitDiscard(targetWorkspace, request.file.path)
+      controller.resetWorkspaceView(targetWorkspace)
+      if (activeWorkspace.current !== targetWorkspace) return
+      setStatus(next)
+      setDiscardRequest(null)
+      setResult(t(request.scope === 'all' ? 'git.discardAllDone' : 'git.discardDone'))
+    } catch (reason: unknown) {
+      if (activeWorkspace.current === targetWorkspace) {
+        setDiscardRequest(null)
+        setError(messageOf(reason))
+      }
+    } finally {
+      if (activeWorkspace.current === targetWorkspace) setBusy(null)
     }
   }
 
@@ -383,9 +443,14 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
             layout={changeLayout}
             selectedKind={activeDiff?.kind === 'staged' || activeDiff?.kind === 'worktree' ? activeDiff.kind : undefined}
             selectedPath={activeDiff?.path}
+            busy={busy !== null}
             onOpen={(file, staged) => { void controller.openDiff(workspaceId, file.path, staged) }}
             onStage={file => { void stage(file) }}
             onUnstage={file => { void unstage(file) }}
+            onStageAll={() => { void batchIndexOperation('stage') }}
+            onUnstageAll={() => { void batchIndexOperation('unstage') }}
+            onDiscard={file => { requestDiscard({ scope: 'file', file }) }}
+            onDiscardAll={() => { requestDiscard({ scope: 'all' }) }}
             t={t}
           />
         </>
@@ -424,6 +489,21 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
         onDelete={name => { void deleteRemote(name) }}
         onRun={(operation, remote, branch) => { void targetRemoteOperation(operation, remote, branch) }}
         t={t}
+      />
+      <RiskConfirmation
+        open={discardRequest !== null}
+        title={t(discardRequest?.scope === 'all' ? 'git.discardDialog.allTitle' : 'git.discardDialog.fileTitle')}
+        description={t(discardRequest?.scope === 'all' ? 'git.discardDialog.allDescription' : 'git.discardDialog.fileDescription', {
+          path: discardRequest?.scope === 'file' ? discardRequest.file.path : '',
+        })}
+        acknowledgeLabel={t('git.discardDialog.acknowledge')}
+        cancelLabel={t('git.discardDialog.cancel')}
+        confirmLabel={t('git.discardDialog.confirm')}
+        acknowledged={discardAcknowledged}
+        disabled={busy === 'discard'}
+        onAcknowledgedChange={setDiscardAcknowledged}
+        onCancel={() => { if (busy !== 'discard') setDiscardRequest(null) }}
+        onConfirm={() => { void confirmDiscard() }}
       />
     </div>
   )

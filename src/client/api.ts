@@ -123,8 +123,24 @@ export class WorkbenchApi {
     return this.post('/git/stage', { workspaceId, path })
   }
 
+  async gitStageAll(workspaceId: string): Promise<GitStatus> {
+    return this.post('/git/stage-all', { workspaceId })
+  }
+
   async gitUnstage(workspaceId: string, path: string): Promise<GitStatus> {
     return this.post('/git/unstage', { workspaceId, path })
+  }
+
+  async gitUnstageAll(workspaceId: string): Promise<GitStatus> {
+    return this.post('/git/unstage-all', { workspaceId })
+  }
+
+  async gitDiscard(workspaceId: string, path: string): Promise<GitStatus> {
+    return this.post('/git/discard', { workspaceId, path })
+  }
+
+  async gitDiscardAll(workspaceId: string): Promise<GitStatus> {
+    return this.post('/git/discard-all', { workspaceId })
   }
 
   async gitCommit(workspaceId: string, message: string): Promise<GitCommitResult> {
