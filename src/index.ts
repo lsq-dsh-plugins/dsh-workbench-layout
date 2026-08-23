@@ -88,8 +88,8 @@ async function dispatch(
       return git.status(body.workspaceId)
     case `${WORKBENCH_API_PREFIX}/git/diff`:
       return git.diff(body.workspaceId, body.path, body.staged)
-    case `${WORKBENCH_API_PREFIX}/git/history`:
-      return git.history(body.workspaceId)
+    case `${WORKBENCH_API_PREFIX}/git/graph`:
+      return git.graph(body.workspaceId)
     case `${WORKBENCH_API_PREFIX}/git/branches`:
       return git.branches(body.workspaceId)
     case `${WORKBENCH_API_PREFIX}/git/branch/switch`:

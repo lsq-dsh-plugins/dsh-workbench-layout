@@ -13,7 +13,7 @@ import type {
   GitCommitResult,
   GitFileDiff,
   GitFileStatus,
-  GitHistory,
+  GitGraph,
   GitReference,
   GitRemoteOperation,
   GitRemoteResult,
@@ -101,17 +101,21 @@ export function parsePorcelainStatus(output: string): GitFileStatus[] {
   return files
 }
 
-/** 解析每行使用 NUL 字段的 Git log 记录。 */
-export function parseGitHistory(output: string): GitCommit[] {
+/** 解析每行使用 NUL 字段的 Git Graph 记录，并校验全部父提交。 */
+export function parseGitGraph(output: string): GitCommit[] {
   if (output.trim() === '') return []
   return output.trimEnd().split('\n').map((record) => {
-    const [hash, shortHash, author, authoredAt, subject, decorations, ...extra] = record.split('\0')
+    const [hash, shortHash, parentList, author, authoredAt, subject, decorations, ...extra] = record.split('\0')
     if (hash === undefined || shortHash === undefined || author === undefined
-      || authoredAt === undefined || subject === undefined || decorations === undefined || extra.length > 0
+      || parentList === undefined || authoredAt === undefined || subject === undefined || decorations === undefined || extra.length > 0
       || !REVISION_PATTERN.test(hash)) {
-      throw new WorkbenchHttpError(502, 'GIT_HISTORY_INVALID', 'Git 返回了无法识别的提交历史。')
+      throw new WorkbenchHttpError(502, 'GIT_GRAPH_INVALID', 'Git 返回了无法识别的提交图数据。')
     }
-    return { hash, shortHash, author, authoredAt, subject, references: parseGitReferences(decorations) }
+    const parents = parentList === '' ? [] : parentList.split(' ')
+    if (parents.some(parent => !REVISION_PATTERN.test(parent))) {
+      throw new WorkbenchHttpError(502, 'GIT_GRAPH_INVALID', 'Git 返回了无法识别的提交图父节点。')
+    }
+    return { hash, shortHash, parents, author, authoredAt, subject, references: parseGitReferences(decorations) }
   })
 }
 
@@ -143,7 +147,7 @@ export function parseGitBranches(output: string): GitBranch[] {
     || left.name.localeCompare(right.name))
 }
 
-/** 解析 `--name-status -z`，一个历史条目只代表一个文件。 */
+/** 解析 `--name-status -z`，一个提交图条目只代表一个文件。 */
 export function parseGitNameStatus(output: string): GitCommitFile[] {
   const fields = output.split('\0')
   const files: GitCommitFile[] = []
@@ -283,16 +287,18 @@ export class GitBackend {
     }
   }
 
-  async history(workspaceId: unknown): Promise<GitHistory> {
+  async graph(workspaceId: unknown): Promise<GitGraph> {
     const cwd = await this.repositoryRoot(workspaceId)
     if (!await this.hasHead(cwd)) return { commits: [], truncated: false }
     const limit = 40
     const result = await this.run(cwd, [
-      'log', '-n', String(limit + 1), '--date=iso-strict', '--decorate=full',
-      '--format=%H%x00%h%x00%an%x00%aI%x00%s%x00%D',
+      'log', '--all', '--topo-order', '-n', String(limit + 1), '--date=iso-strict', '--decorate=full',
+      '--format=%H%x00%h%x00%P%x00%an%x00%aI%x00%s%x00%D',
     ])
-    const commits = parseGitHistory(result.stdout)
-    return { commits: commits.slice(0, limit), truncated: commits.length > limit }
+    const commits = parseGitGraph(result.stdout)
+    const graph = { commits: commits.slice(0, limit), truncated: commits.length > limit }
+    this.ctx.logger.info(`workbench-layout: loaded Git graph with ${graph.commits.length} visible commits`)
+    return graph
   }
 
   async branches(workspaceId: unknown): Promise<GitBranches> {
@@ -481,12 +487,11 @@ export class GitBackend {
     const revision = requireRevision(revisionValue)
     const metadata = await this.run(cwd, [
       'show', '-s', '--date=iso-strict', '--decorate=full',
-      '--format=%H%x00%h%x00%an%x00%aI%x00%s%x00%D', revision,
+      '--format=%H%x00%h%x00%P%x00%an%x00%aI%x00%s%x00%D', revision,
     ])
-    const commit = parseGitHistory(metadata.stdout)[0]
+    const commit = parseGitGraph(metadata.stdout)[0]
     if (commit === undefined) throw new WorkbenchHttpError(404, 'GIT_COMMIT_NOT_FOUND', '找不到该提交。')
-    const parentLine = (await this.run(cwd, ['rev-list', '--parents', '-n', '1', commit.hash])).stdout.trim()
-    const [, parentRevision] = parentLine.split(' ')
+    const parentRevision = commit.parents[0]
     const result = parentRevision === undefined
       ? await this.run(cwd, [
           'diff-tree', '--root', '--no-commit-id', '--name-status', '-z', '-r',

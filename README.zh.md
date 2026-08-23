@@ -12,12 +12,12 @@
 - 文件、编辑器选择、草稿、Diff 与 Git 状态绑定到 DSH 官方工作区 id；在同一工作区的不同会话之间切换会保留工作台，只有切换工作区才会切换整套状态。没有当前会话、会话尚未产生消息或会话暂未归属工作区时，工作台使用 DSH 官方最近工作区，因此仍可浏览文件与 Git。
 - Markdown 文件首次打开默认显示 DSH 官方 Markdown 渲染结果，可在“预览 / 源码”之间切换。
 - 中右栏优先使用 DSH AppFrame 原生列宽和拖拽处理；官方 AppFrame 在空会话 Hero 中主动隐藏详情轨道时，插件按同一套 300–520px 约束、360px 默认值、640px 中栏让步规则和无装饰拖拽热区补足轨道，首条消息产生后立即交还官方处理。
-- Git 左栏按 VS Code 的源码管理习惯分成“更改 / 历史”标签；更改页区分“已暂存”和“工作区”，并可在扁平列表与可折叠目录树之间切换。
-- 历史提交默认保持单行，只显示分支/标签标志、提交说明和作者；悬浮显示完整哈希与时间，点击整行后在原位置展开该提交的文件。
-- 点击工作区、暂存区或历史中的文件时，中栏只打开该文件的差异，不会把整次提交的所有文件拼在一起。
+- Git 左栏按 VS Code 的源码管理习惯分成“更改 / 提交图”标签；更改页区分“已暂存”和“工作区”，并可在扁平列表与可折叠目录树之间切换。
+- 提交图读取所有本地和远程分支，按拓扑顺序绘制彩色提交节点、分叉、汇合与 Merge commit；图中提交保持单行，只显示分支/标签标志、提交说明和作者。悬浮显示完整哈希与时间，点击整行后在原位置展开该提交的文件。
+- 点击工作区、暂存区或提交图中的文件时，中栏只打开该文件的差异，不会把整次提交的所有文件拼在一起。
 - 仓库工具栏支持查看和切换本地/远程分支，并显示上游分支的拉取/推送计数；提供 Fetch、快进 Pull、Push、发布当前分支和先拉后推的 Sync。
 - 中栏使用 CodeMirror MergeView 渲染只读 Diff，默认左右对照，包含行号、红绿变更块、未修改区域折叠和增删统计；可手动切换行内模式，窄列下会自动采用行内模式。
-- 支持暂存、取消暂存以及显式提交；提交后历史列表会立即刷新。
+- 支持暂存、取消暂存以及显式提交；提交后提交图会立即刷新。
 - 右栏继续使用 DSH 原生聊天、输入框、任务状态与交互流程。
 - 布局、文字、边框、按钮、图标、Markdown 和明暗主题尽量复用 DSH 官方组件与设计变量；Git 模块入口和分支选择器统一使用三节点源码管理图形。
 
@@ -49,7 +49,7 @@ dsh plugin --profile web remove @lsq64737/dsh-workbench-layout
 - 符号链接不会在文件树中打开。
 - 已打开标签及其草稿只保留在当前页面内，刷新页面会丢失未保存内容。
 - 二进制文件由 Git 标记为二进制差异，不展示二进制内容。
-- 提交历史当前显示最近 40 条，不包含分页加载。
+- 提交图当前显示最近 40 条，不包含分页加载；未加载父提交的轨道会在底部保持延续，不会被错误画成终点。
 - 远程操作依赖系统中已经配置好的 Git 凭据；插件不收集或保存远程账号、密码和令牌。
 - 当前支持切换已有分支，不在界面中创建、重命名或删除分支。
 - DSH 尚未提供公开的“移动原生聊天栏”接口，因此插件使用官方 AppFrame 的稳定标记调整列顺序。若未来官方重构页面骨架，布局选择器可能需要同步适配。
@@ -68,7 +68,7 @@ npm run test:bundle
 
 - `src/index.ts`：宿主路由注册和请求分发。
 - `src/workspace-backend.ts`：受控的目录、读取和原子保存。
-- `src/git-backend.ts`：Git 状态、分支、远程同步、提交文件清单、单文件前后版本、暂存和提交。
+- `src/git-backend.ts`：Git 状态、全部分支的拓扑提交、远程同步、提交文件清单、单文件前后版本、暂存和提交。
 - `src/client/controller.ts`：按工作区隔离的多文件标签、异步读写、Diff 和视图状态。
 - `src/client/EditorTabs.tsx`：DSH 风格的可滚动文件标签、滚轮横移、边界放行、脏状态和关闭入口。
 - `src/client/SourceControlIcon.tsx`：符合 DSH 尺寸与颜色约定的源码管理入口图标。
@@ -77,7 +77,8 @@ npm run test:bundle
 - `src/client/fallback-details-layout.ts`：空会话 Hero 下与官方几何约束一致的临时详情轨道。
 - `src/client/FileTree.tsx`、`GitPanel.tsx`：左栏文件树和源码管理状态编排。
 - `src/client/GitChangesView.tsx`、`git-tree.ts`：更改分组、列表/目录树和文件操作。
-- `src/client/GitHistoryView.tsx`、`GitRepositoryToolbar.tsx`：紧凑历史、提交详情、分支和远程操作菜单。
+- `src/client/GitGraphView.tsx`、`git-graph.ts`：提交图渲染、轨道布局、分叉/汇合连线和行内提交详情。
+- `src/client/GitRepositoryToolbar.tsx`：分支选择与远程操作菜单。
 - `src/client/WorkbenchEditor.tsx`：中栏源码编辑、Markdown 预览和 Diff 入口。
 - `src/client/GitDiffEditor.tsx`、`DiffSurface.tsx`：单文件 Diff 工具栏、自适应布局和 CodeMirror 差异渲染。
 - `src/client/layout-styles.ts`：官方 AppFrame 列顺序与原生分隔线视觉适配。

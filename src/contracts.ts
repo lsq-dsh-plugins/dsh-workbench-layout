@@ -61,13 +61,14 @@ export interface GitReference {
 export interface GitCommit {
   hash: string
   shortHash: string
+  parents: string[]
   subject: string
   author: string
   authoredAt: string
   references: GitReference[]
 }
 
-export interface GitHistory {
+export interface GitGraph {
   commits: GitCommit[]
   truncated: boolean
 }

@@ -14,9 +14,11 @@ describe('Workbench browser API', () => {
 
     await api.listDirectory('workspace-1', 'src')
     await api.gitStatus('workspace-1')
+    await api.gitGraph('workspace-1')
 
     const fileRequest = fetch.mock.calls[0]?.[1] as RequestInit
     const gitRequest = fetch.mock.calls[1]?.[1] as RequestInit
+    expect(fetch.mock.calls[2]?.[0]).toBe('/dsh-workbench-layout/git/graph')
     expect(JSON.parse(String(fileRequest.body))).toEqual({ workspaceId: 'workspace-1', path: 'src' })
     expect(JSON.parse(String(gitRequest.body))).toEqual({ workspaceId: 'workspace-1' })
     expect(`${String(fileRequest.body)}${String(gitRequest.body)}`).not.toContain('sessionId')

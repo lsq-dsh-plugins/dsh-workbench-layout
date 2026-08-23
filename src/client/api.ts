@@ -6,7 +6,7 @@ import type {
   GitCommitFiles,
   GitCommitResult,
   GitFileDiff,
-  GitHistory,
+  GitGraph,
   GitRemoteOperation,
   GitRemoteResult,
   GitStatus,
@@ -45,8 +45,8 @@ export class WorkbenchApi {
     return this.post('/git/diff', { workspaceId, path, staged })
   }
 
-  async gitHistory(workspaceId: string): Promise<GitHistory> {
-    return this.post('/git/history', { workspaceId })
+  async gitGraph(workspaceId: string): Promise<GitGraph> {
+    return this.post('/git/graph', { workspaceId })
   }
 
   async gitBranches(workspaceId: string): Promise<GitBranches> {

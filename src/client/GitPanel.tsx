@@ -5,13 +5,13 @@ import type {
   GitBranches,
   GitCommit,
   GitFileStatus,
-  GitHistory,
+  GitGraph,
   GitRemoteOperation,
   GitStatus,
 } from '../contracts.ts'
 import type { WorkbenchController } from './controller.ts'
 import { GitChangesView, type GitChangeLayout } from './GitChangesView.tsx'
-import { GitHistoryView, type CommitFilesState } from './GitHistoryView.tsx'
+import { GitGraphView, type CommitFilesState } from './GitGraphView.tsx'
 import { GitRepositoryToolbar } from './GitRepositoryToolbar.tsx'
 import { useWorkbench } from './use-workbench.ts'
 import css from './Workbench.module.css'
@@ -22,9 +22,9 @@ interface GitPanelProps {
   t: TranslateNS<'workbench'>
 }
 
-type GitView = 'changes' | 'history'
+type GitView = 'changes' | 'graph'
 
-/** 组合源码管理状态；具体的更改、历史和仓库工具栏各自保持独立。 */
+/** 组合源码管理状态；具体的更改、提交图和仓库工具栏各自保持独立。 */
 export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
   const workbench = useWorkbench(controller)
   const refreshId = useRef(0)
@@ -34,7 +34,7 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
   const [changeLayout, setChangeLayout] = useState<GitChangeLayout>('list')
   const [status, setStatus] = useState<GitStatus | null>(null)
   const [branches, setBranches] = useState<GitBranches | null>(null)
-  const [history, setHistory] = useState<GitHistory | null>(null)
+  const [graph, setGraph] = useState<GitGraph | null>(null)
   const [expandedCommit, setExpandedCommit] = useState<string | null>(null)
   const [commitFiles, setCommitFiles] = useState<Record<string, CommitFilesState>>({})
   const [loading, setLoading] = useState(false)
@@ -50,12 +50,12 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
     setError(null)
     try {
       const nextStatus = await controller.api.gitStatus(workspaceId)
-      const [nextHistory, nextBranches] = nextStatus.available
-        ? await Promise.all([controller.api.gitHistory(workspaceId), controller.api.gitBranches(workspaceId)])
+      const [nextGraph, nextBranches] = nextStatus.available
+        ? await Promise.all([controller.api.gitGraph(workspaceId), controller.api.gitBranches(workspaceId)])
         : [null, null]
       if (request !== refreshId.current) return
       setStatus(nextStatus)
-      setHistory(nextHistory)
+      setGraph(nextGraph)
       setBranches(nextBranches)
       setCommitFiles({})
       setExpandedCommit(null)
@@ -70,7 +70,7 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
     refreshId.current += 1
     setStatus(null)
     setBranches(null)
-    setHistory(null)
+    setGraph(null)
     setBusy(null)
     setMessage('')
     setError(null)
@@ -222,8 +222,8 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
         <button type="button" role="tab" aria-selected={view === 'changes'} data-active={view === 'changes' || undefined} onClick={() => { setView('changes') }}>
           {t('git.changesTab')}<span>{stagedFiles.length + changedFiles.length}</span>
         </button>
-        <button type="button" role="tab" aria-selected={view === 'history'} data-active={view === 'history' || undefined} onClick={() => { setView('history') }}>
-          {t('git.historyTab')}<span>{history?.commits.length ?? 0}</span>
+        <button type="button" role="tab" aria-selected={view === 'graph'} data-active={view === 'graph' || undefined} onClick={() => { setView('graph') }}>
+          {t('git.graphTab')}<span>{graph?.commits.length ?? 0}</span>
         </button>
       </div>
       {error !== null && <div className={css.error} role="alert">{error}</div>}
@@ -257,9 +257,9 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
           />
         </>
       )}
-      {status?.available === true && view === 'history' && (
-        <GitHistoryView
-          history={history}
+      {status?.available === true && view === 'graph' && (
+        <GitGraphView
+          graph={graph}
           expandedCommit={expandedCommit}
           commitFiles={commitFiles}
           selectedRevision={workbench.diff?.revision}

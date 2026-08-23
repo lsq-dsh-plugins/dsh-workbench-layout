@@ -64,24 +64,28 @@ describe('Git panel', () => {
     expect(view.getAllByTitle('src/nested')).toHaveLength(2)
   })
 
-  it('keeps history rows to subject, author, and refs, then expands files in place', async () => {
+  it('renders a commit graph while keeping subject, author, refs, and in-place file expansion', async () => {
     const { controller, commit } = harness()
     const view = renderPanel(controller)
-    await waitFor(() => { expect(view.getByRole('tab', { name: /历史/u })).toBeTruthy() })
-    fireEvent.click(view.getByRole('tab', { name: /历史/u }))
+    await waitFor(() => { expect(view.getByRole('tab', { name: /提交图/u })).toBeTruthy() })
+    fireEvent.click(view.getByRole('tab', { name: /提交图/u }))
 
     const row = view.getByRole('button', { name: /main.*完善工作台.*Tester/u })
     expect(row.textContent).not.toContain(commit.shortHash)
     expect(row.textContent).not.toContain('2026')
     expect(row.querySelector('[data-icon="chevron"]')).toBeNull()
     expect(row.parentElement?.getAttribute('data-tooltip')).toContain(commit.hash)
+    expect(view.container.querySelector('[data-git-graph]')).not.toBeNull()
+    expect(view.container.querySelectorAll('[data-graph-node]')).toHaveLength(1)
+    expect(view.container.querySelectorAll('[data-graph-edge="outgoing"]')).toHaveLength(1)
+    expect(view.container.querySelectorAll('[data-graph-continuation]')).toHaveLength(1)
 
     fireEvent.click(row)
-    await waitFor(() => { expect(view.getByTitle('src/history.ts')).toBeTruthy() })
+    await waitFor(() => { expect(view.getByTitle('src/graph.ts')).toBeTruthy() })
     expect(row.getAttribute('aria-expanded')).toBe('true')
     expect(controller.api.gitCommitFiles).toHaveBeenCalledWith('workspace-1', commit.hash)
-    fireEvent.click(view.getByTitle('src/history.ts'))
-    expect(controller.openCommitDiff).toHaveBeenCalledWith('workspace-1', commit, 'src/history.ts')
+    fireEvent.click(view.getByTitle('src/graph.ts'))
+    expect(controller.openCommitDiff).toHaveBeenCalledWith('workspace-1', commit, 'src/graph.ts')
   })
 
   it('switches branches and runs explicit remote actions from DSH menus', async () => {
@@ -133,6 +137,7 @@ function harness() {
     subject: '完善工作台',
     author: 'Tester',
     authoredAt: '2026-08-23T10:00:00Z',
+    parents: ['b'.repeat(40)],
     references: [{ name: 'main', kind: 'head' as const }],
   }
   const status = {
@@ -148,7 +153,7 @@ function harness() {
   const controller = {
     api: {
       gitStatus: vi.fn(() => Promise.resolve(status)),
-      gitHistory: vi.fn(() => Promise.resolve({ commits: [commit], truncated: false })),
+      gitGraph: vi.fn(() => Promise.resolve({ commits: [commit], truncated: false })),
       gitBranches: vi.fn(() => Promise.resolve({
         current: 'main',
         detached: false,
@@ -161,7 +166,7 @@ function harness() {
       gitCommitFiles: vi.fn(() => Promise.resolve({
         commit,
         parentRevision: 'b'.repeat(40),
-        files: [{ path: 'src/history.ts', status: 'M' }],
+        files: [{ path: 'src/graph.ts', status: 'M' }],
       })),
       gitSwitchBranch: vi.fn(() => Promise.resolve({ ...status, branch: 'topic' })),
       gitRemoteOperation: vi.fn((operation: string) => Promise.resolve({ operation })),

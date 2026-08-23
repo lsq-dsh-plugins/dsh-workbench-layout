@@ -7,7 +7,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import {
   GitBackend,
   parseGitBranches,
-  parseGitHistory,
+  parseGitGraph,
   parseGitNameStatus,
   parseGitNumstat,
   parsePorcelainStatus,
@@ -21,7 +21,7 @@ afterEach(async () => {
 })
 
 describe('Git output parsers', () => {
-  it('parses status, history, renamed files, and binary statistics', () => {
+  it('parses status, graph commits, renamed files, and binary statistics', () => {
     expect(parsePorcelainStatus(' M src/a.ts\0?? new.md\0R  dst.ts\0src.ts\0')).toEqual([
       { path: 'src/a.ts', index: ' ', worktree: 'M' },
       { path: 'new.md', index: '?', worktree: '?' },
@@ -29,19 +29,20 @@ describe('Git output parsers', () => {
     ])
 
     const hash = 'a'.repeat(40)
+    const parent = 'b'.repeat(40)
     const record = [
-      hash, 'abc1234', 'Tester', '2026-08-23T10:00:00+08:00', 'Refine UI',
+      hash, 'abc1234', parent, 'Tester', '2026-08-23T10:00:00+08:00', 'Refine UI',
       'HEAD -> refs/heads/main, refs/remotes/origin/main, tag: refs/tags/v1',
     ].join('\0')
-    expect(parseGitHistory(`${record}\n`)).toEqual([{
-      hash, shortHash: 'abc1234', author: 'Tester', authoredAt: '2026-08-23T10:00:00+08:00', subject: 'Refine UI',
+    expect(parseGitGraph(`${record}\n`)).toEqual([{
+      hash, shortHash: 'abc1234', parents: [parent], author: 'Tester', authoredAt: '2026-08-23T10:00:00+08:00', subject: 'Refine UI',
       references: [
         { name: 'main', kind: 'head' },
         { name: 'origin/main', kind: 'remote' },
         { name: 'v1', kind: 'tag' },
       ],
     }])
-    expect(() => parseGitHistory('malformed')).toThrow(/提交历史/u)
+    expect(() => parseGitGraph('malformed')).toThrow(/提交图/u)
 
     expect(parseGitNameStatus('R100\0old.ts\0new.ts\0M\0same.ts\0')).toEqual([
       { path: 'new.ts', originalPath: 'old.ts', status: 'R' },
@@ -92,19 +93,20 @@ describe('GitBackend single-file diffs', () => {
     expect(committed.summary).toContain('添加说明')
     expect((await fixture.backend.status('workspace-1')).files).toEqual([])
 
-    const history = await fixture.backend.history('workspace-1')
-    const revision = history.commits[0]?.hash
-    expect(history).toMatchObject({ truncated: false, commits: [{ subject: '添加说明', author: 'Workbench Test' }] })
+    const graph = await fixture.backend.graph('workspace-1')
+    const revision = graph.commits[0]?.hash
+    expect(graph).toMatchObject({ truncated: false, commits: [{ parents: [], subject: '添加说明', author: 'Workbench Test' }] })
+    expect(fixture.logger.info).toHaveBeenCalledWith('workbench-layout: loaded Git graph with 1 visible commits')
     const files = await fixture.backend.commitFiles('workspace-1', revision)
     expect(files).toMatchObject({ files: [{ path: 'note.txt', status: 'A' }] })
-    const historical = await fixture.backend.commitFileDiff('workspace-1', revision, 'note.txt')
-    expect(historical).toMatchObject({
+    const graphDiff = await fixture.backend.commitFileDiff('workspace-1', revision, 'note.txt')
+    expect(graphDiff).toMatchObject({
       kind: 'commit', path: 'note.txt', status: 'A', original: '', modified: 'one\n', binary: false,
     })
     expect(fixture.logger.info).toHaveBeenCalledWith('workbench-layout: Git commit created from explicit user action')
   })
 
-  it('returns index/worktree sides and handles historical rename plus staged deletion', async () => {
+  it('returns index/worktree sides and handles a Graph rename plus staged deletion', async () => {
     const fixture = await createRepository()
     await writeFile(join(fixture.root, 'alpha.txt'), 'before\n')
     await writeFile(join(fixture.root, 'old-name.txt'), 'legacy\n')
@@ -126,7 +128,7 @@ describe('GitBackend single-file diffs', () => {
     await rename(join(fixture.root, 'old-name.txt'), join(fixture.root, 'new-name.txt'))
     git(fixture.root, ['add', '-A'])
     await fixture.backend.commit('workspace-1', 'rename file')
-    const renameCommit = (await fixture.backend.history('workspace-1')).commits[0]
+    const renameCommit = (await fixture.backend.graph('workspace-1')).commits[0]
     const renameFiles = await fixture.backend.commitFiles('workspace-1', renameCommit?.hash)
     expect(renameFiles.files).toEqual([{ path: 'new-name.txt', originalPath: 'old-name.txt', status: 'R' }])
     const renamed = await fixture.backend.commitFileDiff('workspace-1', renameCommit?.hash, 'new-name.txt')
@@ -138,6 +140,38 @@ describe('GitBackend single-file diffs', () => {
     git(fixture.root, ['add', '-A'])
     const deleted = await fixture.backend.diff('workspace-1', 'new-name.txt', true)
     expect(deleted).toMatchObject({ status: 'D', original: 'legacy\n', modified: '', deletions: 1 })
+  })
+
+  it('returns all branch tips and both parents of a merge commit for the graph', async () => {
+    const fixture = await createRepository()
+    await writeFile(join(fixture.root, 'base.txt'), 'base\n')
+    git(fixture.root, ['add', '.'])
+    git(fixture.root, ['commit', '--quiet', '-m', 'baseline'])
+    const baseline = gitOutput(fixture.root, ['rev-parse', 'HEAD'])
+
+    git(fixture.root, ['switch', '--quiet', '-c', 'topic'])
+    await writeFile(join(fixture.root, 'topic.txt'), 'topic\n')
+    git(fixture.root, ['add', '.'])
+    git(fixture.root, ['commit', '--quiet', '-m', 'topic work'])
+    const topic = gitOutput(fixture.root, ['rev-parse', 'HEAD'])
+
+    git(fixture.root, ['switch', '--quiet', 'main'])
+    await writeFile(join(fixture.root, 'main.txt'), 'main\n')
+    git(fixture.root, ['add', '.'])
+    git(fixture.root, ['commit', '--quiet', '-m', 'main work'])
+    const main = gitOutput(fixture.root, ['rev-parse', 'HEAD'])
+    git(fixture.root, ['merge', '--quiet', '--no-ff', '-m', 'merge topic', 'topic'])
+
+    git(fixture.root, ['switch', '--quiet', '-c', 'unmerged', baseline])
+    await writeFile(join(fixture.root, 'unmerged.txt'), 'unmerged\n')
+    git(fixture.root, ['add', '.'])
+    git(fixture.root, ['commit', '--quiet', '-m', 'unmerged work'])
+    git(fixture.root, ['switch', '--quiet', 'main'])
+
+    const graph = await fixture.backend.graph('workspace-1')
+    const merge = graph.commits.find(commit => commit.subject === 'merge topic')
+    expect(merge?.parents).toEqual([main, topic])
+    expect(graph.commits.map(commit => commit.subject)).toContain('unmerged work')
   })
 
   it('marks binary files without returning their bytes', async () => {
@@ -264,4 +298,8 @@ function configureIdentity(root: string): void {
 
 function git(root: string, args: string[]): void {
   execFileSync('git', args, { cwd: root })
+}
+
+function gitOutput(root: string, args: string[]): string {
+  return execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim()
 }

@@ -478,10 +478,10 @@
   color: var(--dsw-alias-brand-text);
 }
 
-.gitHistory {
+.gitGraph {
   flex: 1;
   min-height: 0;
-  overflow-x: hidden;
+  overflow-x: auto;
   overflow-y: auto;
   padding: 4px 8px 16px 4px;
   scrollbar-gutter: stable;
@@ -489,10 +489,12 @@
 
 .commitEntry {
   position: relative;
+  min-width: calc(var(--git-graph-width) + 190px);
   border-radius: 8px;
 }
 
 .commitRow {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -509,14 +511,52 @@
 }
 
 .commitRow:hover,
-.commitEntry[data-expanded] > .commitRow,
-.historyFileRow:hover,
-.historyFileRow[data-selected] {
+.commitEntry[data-expanded] .commitRow,
+.graphFileRow:hover,
+.graphFileRow[data-selected] {
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
-.historyFileRow[data-selected] {
+.graphFileRow[data-selected] {
   color: var(--dsw-alias-brand-text);
+}
+
+.gitGraphLayer {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.gitGraphTopology {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+}
+
+.gitGraphTopology path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5px;
+}
+
+.gitGraphContinuation {
+  position: absolute;
+  top: 31px;
+  bottom: 0;
+  width: 1.5px;
+  border-radius: 1px;
+  transform: translateX(-0.75px);
+}
+
+.gitGraphSpacer {
+  flex: none;
+  width: var(--git-graph-width);
+  height: 31px;
 }
 
 .commitSubject {
@@ -581,12 +621,12 @@
 }
 
 .commitFiles {
-  margin: 1px 0 5px 9px;
+  margin: 1px 0 5px calc(var(--git-graph-width) + 4px);
   border-left: 1px solid var(--dsw-alias-border-l1);
   padding: 2px 0 2px 5px;
 }
 
-.historyFileRow {
+.graphFileRow {
   display: flex;
   align-items: center;
   gap: 7px;

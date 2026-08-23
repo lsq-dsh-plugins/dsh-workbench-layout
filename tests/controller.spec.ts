@@ -187,9 +187,9 @@ describe('WorkbenchController', () => {
     expect(controller.store.getSnapshot().tabs.find(tab => tab.path === 'first.ts')).toMatchObject({ dirty: false })
   })
 
-  it('opens a historical commit Diff without discarding file tabs', async () => {
+  it('opens a Graph commit Diff without discarding file tabs', async () => {
     const commit = {
-      hash: 'a'.repeat(40), shortHash: 'aaaaaaa', subject: '历史提交', author: 'Tester', authoredAt: '2026-08-23T10:00:00Z',
+      hash: 'a'.repeat(40), shortHash: 'aaaaaaa', parents: ['b'.repeat(40)], subject: '图中提交', author: 'Tester', authoredAt: '2026-08-23T10:00:00Z',
       references: [],
     }
     const api = {
