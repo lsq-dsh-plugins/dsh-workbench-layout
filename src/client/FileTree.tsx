@@ -19,6 +19,7 @@ import css from './Workbench.module.css'
 interface FileTreeProps {
   controller: WorkbenchController
   workspaceId: string | undefined
+  workspacePath: string | undefined
   t: TranslateNS<'workbench'>
 }
 
@@ -33,7 +34,7 @@ interface CreateDraft {
 }
 
 /** Lazy directory tree; each expansion performs one bounded Host listing. */
-export function FileTree({ controller, workspaceId, t }: FileTreeProps) {
+export function FileTree({ controller, workspaceId, workspacePath, t }: FileTreeProps) {
   const workbench = useWorkbench(controller)
   const activeTab = workbench.tabs.find(tab => tab.id === workbench.activeTabId)
   const activeWorkspace = useRef(workspaceId)
@@ -160,7 +161,12 @@ export function FileTree({ controller, workspaceId, t }: FileTreeProps) {
   return (
     <div className={css.panelBody}>
       <div className={css.panelHeader}>
-        <span>{t('files.title')}</span>
+        <div className={css.fileHeaderTitle}>
+          <span className={css.fileHeaderLabel}>{t('files.title')}</span>
+          {workspacePath !== undefined && (
+            <span className={css.fileHeaderPath} title={workspacePath}>{workspacePath}</span>
+          )}
+        </div>
         <div className={css.fileHeaderActions}>
           <Tooltip label={t('files.newFile')} delayMs={500}>
             <button type="button" className={css.iconButton} aria-label={t('files.newFile')} onClick={() => { beginCreate('file') }}>

@@ -7,7 +7,7 @@ import { GitPanel } from './GitPanel.tsx'
 import { TerminalPanel } from './TerminalPanel.tsx'
 import { useWorkbench } from './use-workbench.ts'
 import { WorkbenchRail } from './WorkbenchRail.tsx'
-import { resolveWorkbenchWorkspaceId } from './workspace-binding.ts'
+import { resolveWorkbenchWorkspace } from './workspace-binding.ts'
 import css from './Workbench.module.css'
 
 export type WorkbenchSidebarProps = PropsRuntime<'sidebar.workspaces'> & PropsLocale<'workbench'> & {
@@ -18,11 +18,12 @@ export type WorkbenchSidebarProps = PropsRuntime<'sidebar.workspaces'> & PropsLo
 export function WorkbenchSidebar({ wide, expandSidebar, useSessions, useWorkspaces, controller, t }: WorkbenchSidebarProps) {
   const state = useWorkbench(controller)
   const sessionId = useSessions(snapshot => snapshot.current)
-  const workspaceId = useWorkspaces(snapshot => resolveWorkbenchWorkspaceId(
+  const workspace = useWorkspaces(snapshot => resolveWorkbenchWorkspace(
     snapshot.items,
     sessionId,
     snapshot.recentWorkspaceId,
   ))
+  const workspaceId = workspace?.workspaceId
   useEffect(() => { controller.setWorkspace(workspaceId) }, [controller, workspaceId])
   if (!wide) {
     return (
@@ -40,7 +41,7 @@ export function WorkbenchSidebar({ wide, expandSidebar, useSessions, useWorkspac
         ? <GitPanel controller={controller} workspaceId={workspaceId} t={t} />
         : state.sidebarMode === 'terminal'
           ? <TerminalPanel controller={controller} workspaceId={workspaceId} t={t} />
-          : <FileTree controller={controller} workspaceId={workspaceId} t={t} />}
+          : <FileTree controller={controller} workspaceId={workspaceId} workspacePath={workspace?.path} t={t} />}
     </div>
   )
 }

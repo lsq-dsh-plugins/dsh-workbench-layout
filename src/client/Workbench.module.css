@@ -373,6 +373,27 @@
   font: var(--dsw-font-xs-strong-13);
 }
 
+.fileHeaderTitle {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.fileHeaderLabel {
+  flex: none;
+}
+
+.fileHeaderPath {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--dsw-alias-label-tertiary);
+  font: var(--dsw-font-xxs-12);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .gitBranchButton {
   display: inline-flex;
   flex: 1;

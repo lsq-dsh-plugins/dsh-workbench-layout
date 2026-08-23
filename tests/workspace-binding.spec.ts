@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveWorkbenchWorkspaceId } from '../src/client/workspace-binding.ts'
+import { resolveWorkbenchWorkspace, resolveWorkbenchWorkspaceId } from '../src/client/workspace-binding.ts'
 
 describe('Workspace membership binding', () => {
   const workspaces = [
@@ -14,6 +14,15 @@ describe('Workspace membership binding', () => {
 
   it('uses the official recent Workspace when there is no current Session', () => {
     expect(resolveWorkbenchWorkspaceId(workspaces, undefined, 'workspace-b')).toBe('workspace-b')
+  })
+
+  it('returns the complete official Workspace projection for display metadata', () => {
+    const projections = [
+      { workspaceId: 'workspace-a', path: '/workspace/alpha', title: 'alpha', sessionIds: ['session-a1'] },
+      { workspaceId: 'workspace-b', path: '/workspace/beta', title: 'beta', sessionIds: [] },
+    ]
+    expect(resolveWorkbenchWorkspace(projections, 'session-a1', 'workspace-b')).toBe(projections[0])
+    expect(resolveWorkbenchWorkspace(projections, undefined, 'workspace-b')?.path).toBe('/workspace/beta')
   })
 
   it('keeps a Workspace with no Session usable before its first message', () => {

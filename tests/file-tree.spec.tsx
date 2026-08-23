@@ -53,11 +53,13 @@ describe('文件目录', () => {
       <FileTree
         controller={controller as never}
         workspaceId="workspace-1"
+        workspacePath="/workspace/project"
         t={key => zh[key]}
       />,
     )
 
     await waitFor(() => { expect(view.getByText('src')).toBeTruthy() })
+    expect(view.getByText('/workspace/project').getAttribute('title')).toBe('/workspace/project')
     const fileAddIcon = view.getByRole('button', { name: '新建文件' }).querySelector('[data-icon="file-add"]')
     const folderAddIcon = view.getByRole('button', { name: '新建文件夹' }).querySelector('[data-icon="folder-add"]')
     expect(fileAddIcon).not.toBeNull()
@@ -100,7 +102,7 @@ describe('文件目录', () => {
       openFile: vi.fn(),
     }
     const view = render(
-      <FileTree controller={controller as never} workspaceId="workspace-1" t={key => zh[key]} />,
+      <FileTree controller={controller as never} workspaceId="workspace-1" workspacePath="/workspace/project" t={key => zh[key]} />,
     )
 
     expect(await view.findByRole('textbox', { name: '文件名' })).toBeTruthy()
@@ -127,7 +129,7 @@ describe('文件目录', () => {
       openFile: vi.fn(),
     }
     const view = render(
-      <FileTree controller={controller as never} workspaceId="workspace-1" t={key => zh[key]} />,
+      <FileTree controller={controller as never} workspaceId="workspace-1" workspacePath="/workspace/project" t={key => zh[key]} />,
     )
 
     const fileRow = await view.findByRole('treeitem', { name: 'README.md' })
