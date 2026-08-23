@@ -19,7 +19,7 @@ An independent DeepSeek Harness Web plugin that keeps the official AppFrame and 
 - Render read-only diffs with CodeMirror MergeView: side-by-side by default, with line numbers, red/green change blocks, collapsed unchanged regions, and change counts. Inline mode is selectable and becomes automatic in a narrow editor column.
 - Stage, unstage, and commit through explicit actions; a successful commit refreshes history immediately.
 - Keep the original DSH conversation, composer, task status, and interaction flows in the right column.
-- Reuse DSH components, icons, typography, tokens, spacing, borders, and light/dark themes wherever possible.
+- Reuse DSH components, icons, typography, tokens, spacing, borders, and light/dark themes wherever possible. The Git module entry uses a three-node source-control glyph while concrete branch actions retain DSH's official Branch icon, keeping the two meanings distinct.
 
 ## Install
 
@@ -71,6 +71,7 @@ npm run test:bundle
 - `src/git-backend.ts`: Git status, branches, remote synchronization, commit file lists, per-file before/after content, index, and commit operations.
 - `src/client/controller.ts`: per-Workspace multi-file tabs, asynchronous reads and saves, diffs, and view state.
 - `src/client/EditorTabs.tsx`: DSH-styled scrollable file tabs, dirty state, and close affordances.
+- `src/client/SourceControlIcon.tsx`: source-control entry glyph following DSH sizing and color conventions.
 - `src/client/workspace-binding.ts`: official Session membership resolution with the official recent-Workspace fallback for no-Session surfaces.
 - `src/client/workspace-layout.ts`: Workspace binding to AppFrame's native details-track state.
 - `src/client/fallback-details-layout.ts`: temporary empty-Session Hero track with AppFrame-matching geometry.

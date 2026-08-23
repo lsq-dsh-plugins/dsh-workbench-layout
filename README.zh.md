@@ -19,7 +19,7 @@
 - 中栏使用 CodeMirror MergeView 渲染只读 Diff，默认左右对照，包含行号、红绿变更块、未修改区域折叠和增删统计；可手动切换行内模式，窄列下会自动采用行内模式。
 - 支持暂存、取消暂存以及显式提交；提交后历史列表会立即刷新。
 - 右栏继续使用 DSH 原生聊天、输入框、任务状态与交互流程。
-- 布局、文字、边框、按钮、图标、Markdown 和明暗主题尽量复用 DSH 官方组件与设计变量。
+- 布局、文字、边框、按钮、图标、Markdown 和明暗主题尽量复用 DSH 官方组件与设计变量；Git 模块入口使用三节点源码管理图形，具体分支操作仍使用 DSH 官方 Branch 图标，避免混淆两种语义。
 
 ## 安装
 
@@ -71,6 +71,7 @@ npm run test:bundle
 - `src/git-backend.ts`：Git 状态、分支、远程同步、提交文件清单、单文件前后版本、暂存和提交。
 - `src/client/controller.ts`：按工作区隔离的多文件标签、异步读写、Diff 和视图状态。
 - `src/client/EditorTabs.tsx`：DSH 风格的可滚动文件标签、脏状态和关闭入口。
+- `src/client/SourceControlIcon.tsx`：符合 DSH 尺寸与颜色约定的源码管理入口图标。
 - `src/client/workspace-binding.ts`：优先按 DSH 官方成员关系解析会话所属工作区，并在无会话状态下回退到官方最近工作区。
 - `src/client/workspace-layout.ts`：工作区与 AppFrame 原生详情列状态绑定。
 - `src/client/fallback-details-layout.ts`：空会话 Hero 下与官方几何约束一致的临时详情轨道。
