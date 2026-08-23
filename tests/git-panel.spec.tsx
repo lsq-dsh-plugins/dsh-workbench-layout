@@ -17,13 +17,13 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Menu: ({ anchor, open, items, onSelect }: {
     anchor: React.ReactNode
     open: boolean
-    items: Array<{ id: string; label?: React.ReactNode; type?: string; disabled?: boolean }>
+    items: Array<{ id: string; label?: React.ReactNode; icon?: React.ReactNode; type?: string; disabled?: boolean }>
     onSelect: (id: string) => void
   }) => (
     <span>
       {anchor}
       {open && <div role="menu">{items.filter(item => item.type === undefined).map(item => (
-        <button type="button" key={item.id} disabled={item.disabled} onClick={() => { onSelect(item.id) }}>{item.label}</button>
+        <button type="button" key={item.id} disabled={item.disabled} onClick={() => { onSelect(item.id) }}>{item.icon}{item.label}</button>
       ))}</div>}
     </span>
   ),
@@ -89,8 +89,12 @@ describe('Git panel', () => {
     const view = renderPanel(controller)
     await waitFor(() => { expect(view.getByRole('button', { name: '切换分支' })).toBeTruthy() })
 
-    fireEvent.click(view.getByRole('button', { name: '切换分支' }))
-    fireEvent.click(view.getByRole('button', { name: 'topic' }))
+    const branchButton = view.getByRole('button', { name: '切换分支' })
+    expect(branchButton.querySelectorAll('circle')).toHaveLength(3)
+    fireEvent.click(branchButton)
+    const topicButton = view.getByRole('button', { name: 'topic' })
+    expect(topicButton.querySelectorAll('circle')).toHaveLength(3)
+    fireEvent.click(topicButton)
     await waitFor(() => { expect(controller.api.gitSwitchBranch).toHaveBeenCalledWith('workspace-1', 'refs/heads/topic') })
     expect(controller.resetWorkspaceView).toHaveBeenCalled()
 

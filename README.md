@@ -8,7 +8,7 @@ An independent DeepSeek Harness Web plugin that keeps the official AppFrame and 
 
 - Switch the left column among Sessions, Files, and Git. Sessions releases the region back to the native DSH workspace browser.
 - Expand directories lazily instead of reading the full tree at once.
-- Edit existing UTF-8 text through compact multi-file tabs and CodeMirror. Every tab retains its own draft, dirty state, Markdown mode, and save error while file switches preserve edits. The middle column has no persistent Save button: `Ctrl/Cmd + S` saves the active tab with version-conflict protection and an atomic write.
+- Edit existing UTF-8 text through a compact 38px header, multi-file tabs, and CodeMirror. When tabs overflow, the mouse wheel over the strip scrolls them horizontally and releases normal page scrolling at either boundary. Every tab retains its own draft, dirty state, Markdown mode, and save error while file switches preserve edits. The middle column has no persistent Save button: `Ctrl/Cmd + S` saves the active tab with version-conflict protection and an atomic write.
 - Bind files, editor selection, drafts, diffs, and Git state to DSH's official Workspace id. Switching conversations inside one Workspace preserves the workbench; changing Workspace switches the entire workbench state. With no current Session, before a Session has any messages, or while a Session is not yet accounted to a Workspace, the workbench uses DSH's official recent Workspace so files and Git remain available.
 - Open Markdown in the official DSH rendered view by default, with Preview and Source modes.
 - Prefer DSH AppFrame's native track sizing and drag handling between the editor and conversation. While AppFrame intentionally hides its details track for an empty-Session Hero, supply the same 300–520px range, 360px default, 640px center concession, and undecorated drag hit area; hand control back to AppFrame after the first message.
@@ -19,7 +19,7 @@ An independent DeepSeek Harness Web plugin that keeps the official AppFrame and 
 - Render read-only diffs with CodeMirror MergeView: side-by-side by default, with line numbers, red/green change blocks, collapsed unchanged regions, and change counts. Inline mode is selectable and becomes automatic in a narrow editor column.
 - Stage, unstage, and commit through explicit actions; a successful commit refreshes history immediately.
 - Keep the original DSH conversation, composer, task status, and interaction flows in the right column.
-- Reuse DSH components, icons, typography, tokens, spacing, borders, and light/dark themes wherever possible. The Git module entry uses a three-node source-control glyph while concrete branch actions retain DSH's official Branch icon, keeping the two meanings distinct.
+- Reuse DSH components, icons, typography, tokens, spacing, borders, and light/dark themes wherever possible. The Git module entry and branch picker consistently use the three-node source-control glyph.
 
 ## Install
 
@@ -70,7 +70,7 @@ npm run test:bundle
 - `src/workspace-backend.ts`: bounded directory, read, and atomic-save operations.
 - `src/git-backend.ts`: Git status, branches, remote synchronization, commit file lists, per-file before/after content, index, and commit operations.
 - `src/client/controller.ts`: per-Workspace multi-file tabs, asynchronous reads and saves, diffs, and view state.
-- `src/client/EditorTabs.tsx`: DSH-styled scrollable file tabs, dirty state, and close affordances.
+- `src/client/EditorTabs.tsx`: DSH-styled file tabs with wheel-to-horizontal scrolling, boundary release, dirty state, and close affordances.
 - `src/client/SourceControlIcon.tsx`: source-control entry glyph following DSH sizing and color conventions.
 - `src/client/workspace-binding.ts`: official Session membership resolution with the official recent-Workspace fallback for no-Session surfaces.
 - `src/client/workspace-layout.ts`: Workspace binding to AppFrame's native details-track state.

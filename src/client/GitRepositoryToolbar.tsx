@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import {
-  IconBranchOutline16,
   IconChevronDownOutline14,
   IconDownloadOutline16,
   IconEllipsisOutline16,
@@ -17,6 +16,7 @@ import {
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { GitBranches, GitRemoteOperation, GitStatus } from '../contracts.ts'
 import type { GitChangeLayout } from './GitChangesView.tsx'
+import { IconSourceControlOutline16 } from './SourceControlIcon.tsx'
 import css from './Workbench.module.css'
 
 interface GitRepositoryToolbarProps {
@@ -65,10 +65,10 @@ function BranchMenu(props: GitRepositoryToolbarProps) {
   const remote = props.branches?.branches.filter(branch => branch.kind === 'remote') ?? []
   const items: MenuEntry[] = [
     { type: 'label', id: 'local-label', text: props.t('git.localBranches') },
-    ...local.map(branch => ({ id: branch.ref, label: branch.name, icon: <IconBranchOutline16 size={14} /> })),
+    ...local.map(branch => ({ id: branch.ref, label: branch.name, icon: <IconSourceControlOutline16 size={14} /> })),
     { type: 'separator', id: 'branch-separator' },
     { type: 'label', id: 'remote-label', text: props.t('git.remoteBranches') },
-    ...remote.map(branch => ({ id: branch.ref, label: branch.name, icon: <IconBranchOutline16 size={14} /> })),
+    ...remote.map(branch => ({ id: branch.ref, label: branch.name, icon: <IconSourceControlOutline16 size={14} /> })),
   ]
   if (local.length === 0) items.splice(1, 0, { id: 'no-local', label: props.t('git.noLocalBranches'), disabled: true })
   if (remote.length === 0) items.push({ id: 'no-remote', label: props.t('git.noRemoteBranches'), disabled: true })
@@ -92,7 +92,7 @@ function BranchMenu(props: GitRepositoryToolbarProps) {
           disabled={props.branches === null || props.busy !== null}
           onClick={() => { setOpen(value => !value) }}
         >
-          <IconBranchOutline16 size={16} />
+          <IconSourceControlOutline16 size={16} />
           <span>{props.status?.branch ?? (props.status?.detached === true ? props.t('git.detached') : props.t('git.title'))}</span>
           <IconChevronDownOutline14 size={12} />
         </button>
