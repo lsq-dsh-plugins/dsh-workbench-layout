@@ -1,0 +1,17 @@
+.composite {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.addGlyph {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  box-sizing: content-box;
+  padding: 1px;
+  border-radius: 50%;
+  background: var(--dsw-specific-sidebar-fill);
+}

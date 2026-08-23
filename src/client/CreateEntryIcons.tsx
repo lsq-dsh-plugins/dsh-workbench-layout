@@ -1,7 +1,12 @@
-import type { IconProps } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  IconFolderClose16,
+  IconPlusOutline16,
+  type IconProps,
+} from '@deepseek-ai/dsh-client-ui-primitives'
+import css from './CreateEntryIcons.module.css'
 
-/** 紧凑的新建文件图形：折角文档与无外圈加号共享 DSH 的 16px 笔画节奏。 */
-export function IconFileAddOutline16({ size = 16, className }: IconProps) {
+/** DSH 暂无通用文件图标；这里补齐与其 16px 轮廓体系一致的圆角折角文档。 */
+export function IconFileOutline16({ size = 16, className }: IconProps) {
   return (
     <svg
       width={size}
@@ -11,41 +16,52 @@ export function IconFileAddOutline16({ size = 16, className }: IconProps) {
       fill="none"
       aria-hidden="true"
       focusable="false"
-      data-icon="file-add"
+      data-icon="file"
     >
       <path
-        d="M8.25 1.5H3.25C2.83579 1.5 2.5 1.83579 2.5 2.25V13.75C2.5 14.1642 2.83579 14.5 3.25 14.5H7.25M8.25 1.5L11.5 4.75M8.25 1.5V4.75H11.5V7.25"
+        d="M8.15 1.5H4C3.17157 1.5 2.5 2.17157 2.5 3V13C2.5 13.8284 3.17157 14.5 4 14.5H12C12.8284 14.5 13.5 13.8284 13.5 13V6.85C13.5 6.45218 13.342 6.07064 13.0607 5.78934L9.21066 1.93934C8.92936 1.65804 8.54782 1.5 8.15 1.5Z"
         stroke="currentColor"
         strokeWidth="1.3"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <path d="M11.5 9V14M9 11.5H14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path
+        d="M8.5 1.75V5C8.5 5.55228 8.94772 6 9.5 6H12.75"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   )
 }
 
-/** 与新建文件成对的文件夹图形；加号尺寸、位置与笔画完全一致。 */
+/** 圆角折角文件本体叠加 DSH 官方加号。 */
+export function IconFileAddOutline16({ size = 16, className }: IconProps) {
+  return (
+    <span
+      className={[css.composite, className].filter(Boolean).join(' ')}
+      style={{ width: size, height: size }}
+      aria-hidden="true"
+      data-icon="file-add"
+    >
+      <IconFileOutline16 size={size} />
+      <IconPlusOutline16 className={css.addGlyph} size={Math.max(8, Math.round(size / 2))} />
+    </span>
+  )
+}
+
+/** DSH 官方文件夹本体叠加官方加号。 */
 export function IconFolderAddOutline16({ size = 16, className }: IconProps) {
   return (
-    <svg
-      width={size}
-      height={size}
-      className={className}
-      viewBox="0 0 16 16"
-      fill="none"
+    <span
+      className={[css.composite, className].filter(Boolean).join(' ')}
+      style={{ width: size, height: size }}
       aria-hidden="true"
-      focusable="false"
       data-icon="folder-add"
     >
-      <path
-        d="M1.5 5V3.75C1.5 3.33579 1.83579 3 2.25 3H5.5L6.75 4.5H13.75C14.1642 4.5 14.5 4.83579 14.5 5.25V7.25M1.5 5V13.25C1.5 13.6642 1.83579 14 2.25 14H7.25"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path d="M11.5 9V14M9 11.5H14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
+      <IconFolderClose16 size={size} />
+      <IconPlusOutline16 className={css.addGlyph} size={Math.max(8, Math.round(size / 2))} />
+    </span>
   )
 }

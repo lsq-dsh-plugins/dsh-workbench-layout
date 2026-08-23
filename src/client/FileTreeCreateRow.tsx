@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { IconCodeOutline16, IconFolderClose16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconFolderClose16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconFileOutline16 } from './CreateEntryIcons.tsx'
 import css from './Workbench.module.css'
 
 export type FileTreeCreateKind = 'file' | 'directory'
@@ -35,7 +36,7 @@ export function FileTreeCreateRow(props: FileTreeCreateRowProps) {
       onSubmit={(event) => { event.preventDefault(); void submit() }}
     >
       <span className={css.chevron} />
-      {props.kind === 'directory' ? <IconFolderClose16 size={16} /> : <IconCodeOutline16 size={15} />}
+      {props.kind === 'directory' ? <IconFolderClose16 size={16} /> : <IconFileOutline16 size={15} />}
       <input
         autoFocus
         value={name}

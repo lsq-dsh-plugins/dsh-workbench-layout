@@ -9,6 +9,7 @@ const workbench = vi.hoisted(() => ({ current: {} as Record<string, unknown> }))
 
 vi.mock('../src/client/use-workbench.ts', () => ({ useWorkbench: () => workbench.current }))
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+  IconFolderClose16: () => <span data-icon="official-folder" />,
   IconListPenOutline16: () => <span data-icon="changes" />,
   IconPlusOutline16: ({ className }: { className?: string }) => <span data-icon="plus" className={className} />,
   IconRefreshOutline14: () => <span data-icon="refresh" />,

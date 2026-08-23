@@ -138,12 +138,13 @@
 }
 
 .modeButton[data-active] {
-  background: var(--dsw-alias-button-elevated-fill);
-  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-interactive-bg-active, var(--dsw-alias-interactive-bg-hover));
+  color: var(--dsw-alias-button-info-fill);
 }
 
 .modeSwitch[data-wide] .modeButton[data-active] {
   border-color: var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-button-elevated-fill);
   color: var(--dsw-alias-brand-text);
 }
 
@@ -195,7 +196,8 @@
 }
 
 .railButton[data-active] {
-  background: var(--dsw-alias-button-elevated-fill);
+  background: var(--dsw-alias-interactive-bg-active, var(--dsw-alias-interactive-bg-hover));
+  color: var(--dsw-alias-button-info-fill);
 }
 
 .railButton:disabled {

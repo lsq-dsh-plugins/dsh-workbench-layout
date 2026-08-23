@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import {
   IconChevronDownOutline14,
   IconChevronRightOutline14,
-  IconCodeOutline16,
   IconFolderClose16,
   IconFolderOpen16,
   IconRefreshOutline14,
@@ -12,7 +11,7 @@ import type { DirectoryListing, WorkspaceEntry } from '../contracts.ts'
 import type { WorkbenchController } from './controller.ts'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import { childWorkspacePath } from '../path-policy.ts'
-import { IconFileAddOutline16, IconFolderAddOutline16 } from './CreateEntryIcons.tsx'
+import { IconFileAddOutline16, IconFileOutline16, IconFolderAddOutline16 } from './CreateEntryIcons.tsx'
 import { FileTreeCreateRow, type FileTreeCreateKind } from './FileTreeCreateRow.tsx'
 import { useWorkbench } from './use-workbench.ts'
 import css from './Workbench.module.css'
@@ -252,7 +251,7 @@ function TreeLevel(props: {
             </span>
             {directory
               ? open ? <IconFolderOpen16 size={16} /> : <IconFolderClose16 size={16} />
-              : <IconCodeOutline16 size={15} />}
+              : <IconFileOutline16 size={15} />}
             <span className={css.rowName}>{entry.name}</span>
           </button>
           {open && props.loading.has(entry.path) && <div className={css.treeLoading} style={{ paddingLeft: 28 + props.depth * 16 }}>…</div>}

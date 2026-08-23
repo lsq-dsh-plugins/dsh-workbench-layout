@@ -112,6 +112,8 @@ describe('工作台模式切换', () => {
     expect(modeButtonRule).toContain('width: 36px')
     expect(modeButtonRule).toContain('height: 36px')
     expect(modeButtonRule).toContain('border-radius: 50%')
+    expect(stylesheet).toMatch(/\.modeButton\[data-active\]\s*\{[^}]*interactive-bg-active[^}]*button-info-fill/u)
+    expect(stylesheet).toMatch(/\.modeSwitch\[data-wide\] \.modeButton\[data-active\]\s*\{[^}]*button-elevated-fill[^}]*brand-text/u)
     expect(stylesheet).toContain(".sidebarTopHost:not([data-mode='sessions']) + [data-dsh-workbench-new-session]")
   })
 })

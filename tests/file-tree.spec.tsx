@@ -19,9 +19,9 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   IconChevronDownOutline14: () => <span />,
   IconChevronRightOutline14: () => <span />,
-  IconCodeOutline16: () => <span />,
-  IconFolderClose16: () => <span />,
+  IconFolderClose16: () => <span data-icon="official-folder" />,
   IconFolderOpen16: () => <span />,
+  IconPlusOutline16: () => <span data-icon="official-plus" />,
   IconRefreshOutline14: () => <span />,
 }))
 
@@ -62,8 +62,10 @@ describe('文件目录', () => {
     const folderAddIcon = view.getByRole('button', { name: '新建文件夹' }).querySelector('[data-icon="folder-add"]')
     expect(fileAddIcon).not.toBeNull()
     expect(folderAddIcon).not.toBeNull()
-    expect(fileAddIcon?.querySelector('circle')).toBeNull()
-    expect(folderAddIcon?.querySelector('circle')).toBeNull()
+    expect(fileAddIcon?.querySelector('[data-icon="file"]')).not.toBeNull()
+    expect(fileAddIcon?.querySelector('[data-icon="official-plus"]')).not.toBeNull()
+    expect(folderAddIcon?.querySelector('[data-icon="official-folder"]')).not.toBeNull()
+    expect(folderAddIcon?.querySelector('[data-icon="official-plus"]')).not.toBeNull()
     fireEvent.click(view.getByText('src'))
     fireEvent.click(view.getByRole('button', { name: '新建文件' }))
     const fileInput = await view.findByRole('textbox', { name: '文件名' })
