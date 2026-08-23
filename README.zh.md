@@ -11,7 +11,7 @@
 - 中栏使用 CodeMirror 编辑 UTF-8 文本，支持未保存状态、保存/还原、按工作区保留草稿、版本冲突保护、原子保存和 `Ctrl/Cmd + S`。
 - 文件、编辑器选择、草稿、Diff 与 Git 状态绑定到 DSH 官方工作区 id；在同一工作区的不同会话之间切换会保留工作台，只有切换工作区才会切换整套状态。没有当前会话、会话尚未产生消息或会话暂未归属工作区时，工作台使用 DSH 官方最近工作区，因此仍可浏览文件与 Git。
 - Markdown 文件首次打开默认显示 DSH 官方 Markdown 渲染结果，可在“预览 / 源码”之间切换。
-- 中右栏直接使用 DSH AppFrame 原生列宽和拖拽处理；分隔线与左中栏保持相同的无装饰热区，宽度遵循官方 300–520px 约束与 360px 默认值。
+- 中右栏优先使用 DSH AppFrame 原生列宽和拖拽处理；官方 AppFrame 在空会话 Hero 中主动隐藏详情轨道时，插件按同一套 300–520px 约束、360px 默认值、640px 中栏让步规则和无装饰拖拽热区补足轨道，首条消息产生后立即交还官方处理。
 - Git 左栏按 VS Code 的源码管理习惯分成“更改 / 历史”标签；更改页区分“已暂存”和“工作区”，并可在扁平列表与可折叠目录树之间切换。
 - 历史提交默认保持单行，只显示分支/标签标志、提交说明和作者；悬浮显示完整哈希与时间，点击整行后在原位置展开该提交的文件。
 - 点击工作区、暂存区或历史中的文件时，中栏只打开该文件的差异，不会把整次提交的所有文件拼在一起。
@@ -72,6 +72,7 @@ npm run test:bundle
 - `src/client/controller.ts`：跨栏文件、Diff 和视图状态。
 - `src/client/workspace-binding.ts`：优先按 DSH 官方成员关系解析会话所属工作区，并在无会话状态下回退到官方最近工作区。
 - `src/client/workspace-layout.ts`：工作区与 AppFrame 原生详情列状态绑定。
+- `src/client/fallback-details-layout.ts`：空会话 Hero 下与官方几何约束一致的临时详情轨道。
 - `src/client/FileTree.tsx`、`GitPanel.tsx`：左栏文件树和源码管理状态编排。
 - `src/client/GitChangesView.tsx`、`git-tree.ts`：更改分组、列表/目录树和文件操作。
 - `src/client/GitHistoryView.tsx`、`GitRepositoryToolbar.tsx`：紧凑历史、提交详情、分支和远程操作菜单。
