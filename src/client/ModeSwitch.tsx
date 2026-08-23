@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   IconFolderOpenOutline16,
@@ -33,7 +33,7 @@ export function ModeSwitch({ wide, controller, logger, t }: ModeSwitchProps) {
     { mode: 'git' as const, label: t('mode.git'), icon: <IconSourceControlOutline16 size={iconSize} /> },
     { mode: 'terminal' as const, label: t('mode.terminal'), icon: <IconTerminalOutline16 size={iconSize} /> },
   ]
-  useEffect(() => {
+  useLayoutEffect(() => {
     const mount = createSidebarTopMount(css.sidebarTopHost!, setTarget, logger)
     const footer = createSidebarFooterLayout(wide, logger)
     footerLayout.current = footer
@@ -43,7 +43,7 @@ export function ModeSwitch({ wide, controller, logger, t }: ModeSwitchProps) {
       mount.dispose()
     }
   }, [logger]) // wide updates through the stable footer layout below.
-  useEffect(() => {
+  useLayoutEffect(() => {
     target?.toggleAttribute('data-wide', wide)
     if (target !== null) target.dataset.mode = state.sidebarMode
     footerLayout.current?.setWide(wide)

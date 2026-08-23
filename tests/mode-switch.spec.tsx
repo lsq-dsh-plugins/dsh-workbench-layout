@@ -104,8 +104,12 @@ describe('工作台模式切换', () => {
 
   it('让收起态按钮遵循官方 36px 圆形与 12px 纵向节奏', () => {
     const stylesheet = readFileSync(resolve(process.cwd(), 'src/client/Workbench.module.css'), 'utf8')
+    const source = readFileSync(resolve(process.cwd(), 'src/client/ModeSwitch.tsx'), 'utf8')
     const modeSwitchRule = stylesheet.match(/\.modeSwitch\s*\{[^}]+\}/u)?.[0]
     const modeButtonRule = stylesheet.match(/\.modeButton\s*\{[^}]+\}/u)?.[0]
+    const nativeNewSessionRule = stylesheet.match(
+      /\.sidebarTopHost:not\(\[data-wide\]\) \+ \[data-dsh-workbench-new-session\]\s*\{[^}]+\}/u,
+    )?.[0]
 
     expect(modeSwitchRule).toContain('gap: 12px')
     expect(modeSwitchRule).toContain('width: 36px')
@@ -114,6 +118,12 @@ describe('工作台模式切换', () => {
     expect(modeButtonRule).toContain('border-radius: 50%')
     expect(stylesheet).toMatch(/\.modeButton\[data-active\]\s*\{[^}]*interactive-bg-active[^}]*button-info-fill/u)
     expect(stylesheet).toMatch(/\.modeSwitch\[data-wide\] \.modeButton\[data-active\]\s*\{[^}]*button-elevated-fill[^}]*brand-text/u)
+    expect(nativeNewSessionRule).toContain('width: 36px')
+    expect(nativeNewSessionRule).toContain('height: 36px')
+    expect(nativeNewSessionRule).toContain('border-radius: 50%')
+    expect(nativeNewSessionRule).toContain('background: transparent')
+    expect(source).toContain('useLayoutEffect(() =>')
+    expect(source).not.toContain('useEffect(() =>')
     expect(stylesheet).toContain(".sidebarTopHost:not([data-mode='sessions']) + [data-dsh-workbench-new-session]")
   })
 })

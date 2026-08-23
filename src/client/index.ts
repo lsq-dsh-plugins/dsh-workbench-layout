@@ -63,5 +63,5 @@ export function apply(ctx: ClientContext): void {
   }, WorkbenchEditor))
 
   installWorkbenchLayout(ctx, controller.store)
-  ctx.logger.info('workbench-layout: essential collapsed actions and root-aware file navigation registered')
+  ctx.logger.info('workbench-layout: pre-paint sidebar modes and circular native session action registered')
 }

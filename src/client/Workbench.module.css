@@ -9,6 +9,23 @@
   margin-bottom: 12px;
 }
 
+/* The native New Session action keeps its official behavior, but joins the
+   same circular rail geometry as every plugin action while the sidebar is collapsed. */
+.sidebarTopHost:not([data-wide]) + [data-dsh-workbench-new-session] {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  margin: 0 0 12px;
+  border-color: transparent;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+}
+
+.sidebarTopHost:not([data-wide]) + [data-dsh-workbench-new-session]:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
 .sidebarTopHost[data-wide] + [data-dsh-workbench-new-session],
 .sidebarTopHost:not([data-mode='sessions']) + [data-dsh-workbench-new-session] {
   display: none !important;
