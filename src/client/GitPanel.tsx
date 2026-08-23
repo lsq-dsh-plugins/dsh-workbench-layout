@@ -11,6 +11,7 @@ import type {
 } from '../contracts.ts'
 import type { WorkbenchController } from './controller.ts'
 import { GitChangesView } from './GitChangesView.tsx'
+import { GitBranchDialog, type GitBranchDialogMode } from './GitBranchDialog.tsx'
 import { GitGraphView, type CommitFilesState } from './GitGraphView.tsx'
 import { GitRepositoryToolbar } from './GitRepositoryToolbar.tsx'
 import { useWorkbench } from './use-workbench.ts'
@@ -43,6 +44,8 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
   const [message, setMessage] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<string | null>(null)
+  const [branchDialog, setBranchDialog] = useState<GitBranchDialogMode | null>(null)
+  const [branchDialogError, setBranchDialogError] = useState<string | null>(null)
 
   const refresh = useCallback(async (): Promise<void> => {
     if (workspaceId === undefined) return
@@ -78,6 +81,8 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
     setResult(null)
     setExpandedCommit(null)
     setCommitFiles({})
+    setBranchDialog(null)
+    setBranchDialogError(null)
     void refresh()
   }, [refresh])
 
@@ -180,6 +185,39 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
     }
   }
 
+  const manageBranch = async (nameOrRef: string, source?: string): Promise<void> => {
+    if (workspaceId === undefined || branchDialog === null) return
+    const targetWorkspace = workspaceId
+    const operation = branchDialog
+    const switchesWorktree = operation === 'create' || operation === 'create-from'
+    if (switchesWorktree && workbench.tabs.some(tab => tab.kind === 'file' && tab.dirty)) {
+      setBranchDialogError(t('git.unsavedOperation'))
+      return
+    }
+    setBusy(`branch-${operation}`)
+    setBranchDialogError(null)
+    setError(null)
+    setResult(null)
+    try {
+      if (operation === 'create' || operation === 'create-from') {
+        await controller.api.gitCreateBranch(targetWorkspace, nameOrRef, source)
+        controller.resetWorkspaceView(targetWorkspace)
+      } else if (operation === 'rename') {
+        await controller.api.gitRenameBranch(targetWorkspace, nameOrRef)
+      } else {
+        await controller.api.gitDeleteBranch(targetWorkspace, nameOrRef)
+      }
+      if (activeWorkspace.current !== targetWorkspace) return
+      setBranchDialog(null)
+      setResult(t(`git.branchDialog.${operation}.done`))
+      await refresh()
+    } catch (reason: unknown) {
+      if (activeWorkspace.current === targetWorkspace) setBranchDialogError(messageOf(reason))
+    } finally {
+      if (activeWorkspace.current === targetWorkspace) setBusy(null)
+    }
+  }
+
   const remoteOperation = async (operation: GitRemoteOperation): Promise<void> => {
     if (workspaceId === undefined) return
     const targetWorkspace = workspaceId
@@ -222,6 +260,7 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
           controller.setGitFileLayout(view, layout)
         }}
         onSwitchBranch={ref => { void switchBranch(ref) }}
+        onOpenBranchDialog={mode => { setBranchDialogError(null); setBranchDialog(mode) }}
         onRemoteOperation={operation => { void remoteOperation(operation) }}
         onRefresh={() => {
           controller.closeDiffTabs(workspaceId)
@@ -273,6 +312,16 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
           t={t}
         />
       )}
+      <GitBranchDialog
+        mode={branchDialog}
+        status={status}
+        branches={branches}
+        busy={busy?.startsWith('branch-') === true}
+        error={branchDialogError}
+        onClose={() => { if (busy === null) setBranchDialog(null) }}
+        onSubmit={(nameOrRef, source) => { void manageBranch(nameOrRef, source) }}
+        t={t}
+      />
     </div>
   )
 }

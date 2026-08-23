@@ -114,6 +114,12 @@ async function dispatch(
       return git.branches(body.workspaceId)
     case `${WORKBENCH_API_PREFIX}/git/branch/switch`:
       return git.switchBranch(body.workspaceId, body.ref)
+    case `${WORKBENCH_API_PREFIX}/git/branch/create`:
+      return git.createBranch(body.workspaceId, body.name, body.source)
+    case `${WORKBENCH_API_PREFIX}/git/branch/rename`:
+      return git.renameBranch(body.workspaceId, body.name)
+    case `${WORKBENCH_API_PREFIX}/git/branch/delete`:
+      return git.deleteBranch(body.workspaceId, body.ref)
     case `${WORKBENCH_API_PREFIX}/git/remote`:
       return git.remoteOperation(body.workspaceId, body.operation)
     case `${WORKBENCH_API_PREFIX}/git/commit/files`:

@@ -226,6 +226,41 @@ describe('GitBackend single-file diffs', () => {
     await expect(fixture.backend.switchBranch('workspace-1', remoteBranch?.ref)).resolves.toMatchObject({ branch: 'main' })
   })
 
+  it('creates, renames, and safely deletes local branches from validated sources', async () => {
+    const fixture = await createRepository()
+    await writeFile(join(fixture.root, 'base.txt'), 'base\n')
+    git(fixture.root, ['add', '.'])
+    git(fixture.root, ['commit', '--quiet', '-m', 'baseline'])
+    git(fixture.root, ['branch', 'source'])
+
+    await expect(fixture.backend.createBranch('workspace-1', 'feature')).resolves.toMatchObject({ branch: 'feature' })
+    await expect(fixture.backend.renameBranch('workspace-1', 'feature-renamed')).resolves.toMatchObject({ branch: 'feature-renamed' })
+    await expect(fixture.backend.switchBranch('workspace-1', 'refs/heads/main')).resolves.toMatchObject({ branch: 'main' })
+    await expect(fixture.backend.createBranch('workspace-1', 'from-source', 'refs/heads/source')).resolves.toMatchObject({
+      branch: 'from-source',
+    })
+    expect(gitOutput(fixture.root, ['rev-parse', 'HEAD'])).toBe(gitOutput(fixture.root, ['rev-parse', 'source']))
+    await expect(fixture.backend.switchBranch('workspace-1', 'refs/heads/main')).resolves.toMatchObject({ branch: 'main' })
+    await expect(fixture.backend.deleteBranch('workspace-1', 'refs/heads/feature-renamed')).resolves.toMatchObject({ branch: 'main' })
+    expect(gitOutput(fixture.root, ['branch', '--list', 'feature-renamed'])).toBe('')
+    expect(fixture.logger.info).toHaveBeenCalledWith(expect.stringContaining('safely deleted Git branch'))
+  })
+
+  it('rejects invalid branch names, unknown sources, and deletion of the current branch', async () => {
+    const fixture = await createRepository()
+    await writeFile(join(fixture.root, 'base.txt'), 'base\n')
+    git(fixture.root, ['add', '.'])
+    git(fixture.root, ['commit', '--quiet', '-m', 'baseline'])
+
+    await expect(fixture.backend.createBranch('workspace-1', 'bad name')).rejects.toMatchObject({ code: 'GIT_BRANCH_NAME_INVALID' })
+    await expect(fixture.backend.createBranch('workspace-1', 'feature', 'refs/heads/missing')).rejects.toMatchObject({
+      code: 'GIT_BRANCH_SOURCE_NOT_FOUND',
+    })
+    await expect(fixture.backend.deleteBranch('workspace-1', 'refs/heads/main')).rejects.toMatchObject({
+      code: 'GIT_BRANCH_CURRENT_DELETE',
+    })
+  })
+
   it('fetches, pulls, pushes, and syncs against an isolated local remote', async () => {
     const fixture = await createRepository()
     await writeFile(join(fixture.root, 'shared.txt'), 'base\n')

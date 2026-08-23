@@ -6,9 +6,12 @@ import {
   IconFolderOpenOutline16,
   IconListPenOutline16,
   IconLoadingOutline16,
+  IconEditOutline16,
   IconPersonalizationOutline16,
+  IconPlusOutline16,
   IconRefreshOutline16,
   IconSendOutline16,
+  IconTrashOutline16,
   Menu,
   Tooltip,
   type MenuEntry,
@@ -19,6 +22,7 @@ import { IconCommitGraphOutline16 } from './CommitGraphIcon.tsx'
 import type { GitView } from './controller.ts'
 import type { GitFileLayout } from './git-tree.ts'
 import { IconSourceControlOutline16 } from './SourceControlIcon.tsx'
+import type { GitBranchDialogMode } from './GitBranchDialog.tsx'
 import css from './Workbench.module.css'
 
 interface GitRepositoryToolbarProps {
@@ -30,6 +34,7 @@ interface GitRepositoryToolbarProps {
   onToggleView: () => void
   onFileLayoutChange: (layout: GitFileLayout) => void
   onSwitchBranch: (ref: string) => void
+  onOpenBranchDialog: (mode: GitBranchDialogMode) => void
   onRemoteOperation: (operation: GitRemoteOperation) => void
   onRefresh: () => void
   t: TranslateNS<'workbench'>
@@ -68,6 +73,9 @@ function BranchMenu(props: GitRepositoryToolbarProps) {
   const local = props.branches?.branches.filter(branch => branch.kind === 'local') ?? []
   const remote = props.branches?.branches.filter(branch => branch.kind === 'remote') ?? []
   const items: MenuEntry[] = [
+    { id: 'create', label: props.t('git.createBranch'), icon: <IconPlusOutline16 size={14} /> },
+    { id: 'create-from', label: props.t('git.createBranchFrom'), icon: <IconPlusOutline16 size={14} /> },
+    { type: 'separator', id: 'branch-action-separator' },
     { type: 'label', id: 'local-label', text: props.t('git.localBranches') },
     ...local.map(branch => ({ id: branch.ref, label: branch.name, icon: <IconSourceControlOutline16 size={14} /> })),
     { type: 'separator', id: 'branch-separator' },
@@ -84,7 +92,11 @@ function BranchMenu(props: GitRepositoryToolbarProps) {
       onClose={() => { setOpen(false) }}
       items={items}
       selectedId={currentRef}
-      onSelect={(ref) => { setOpen(false); props.onSwitchBranch(ref) }}
+      onSelect={(ref) => {
+        setOpen(false)
+        if (ref === 'create' || ref === 'create-from') props.onOpenBranchDialog(ref)
+        else props.onSwitchBranch(ref)
+      }}
       dense
       portal
       anchor={(
@@ -166,11 +178,16 @@ function ActionsMenu(props: GitRepositoryToolbarProps) {
         { id: 'push', label: props.status?.upstream === undefined ? props.t('git.publishBranch') : props.t('git.push'), icon: <IconSendOutline16 size={14} />, disabled: !hasRemote },
         { id: 'sync', label: props.t('git.sync'), icon: <IconRefreshOutline16 size={14} />, disabled: !hasUpstream },
         { type: 'separator', id: 'remote-separator' },
+        { id: 'rename-branch', label: props.t('git.renameBranch'), icon: <IconEditOutline16 size={14} />, disabled: props.status?.branch === undefined },
+        { id: 'delete-branch', label: props.t('git.deleteBranch'), icon: <IconTrashOutline16 size={14} />, disabled: (props.branches?.branches.filter(branch => branch.kind === 'local' && !branch.current).length ?? 0) === 0 },
+        { type: 'separator', id: 'branch-management-separator' },
         { id: 'refresh', label: props.t('git.refresh'), icon: <IconRefreshOutline16 size={14} /> },
       ]}
       onSelect={(id) => {
         setOpen(false)
         if (id === 'refresh') props.onRefresh()
+        else if (id === 'rename-branch') props.onOpenBranchDialog('rename')
+        else if (id === 'delete-branch') props.onOpenBranchDialog('delete')
         else if (id === 'fetch' || id === 'pull' || id === 'push' || id === 'sync') props.onRemoteOperation(id)
       }}
       align="end"

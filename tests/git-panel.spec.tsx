@@ -49,6 +49,10 @@ vi.mock('../src/client/use-workbench.ts', async () => {
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Button: ({ children, variant: _variant, size: _size, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) => <button {...props}>{children}</button>,
+  Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+  Modal: ({ open, title, children, footer }: { open: boolean; title: string; children?: React.ReactNode; footer?: React.ReactNode }) => (
+    open ? <div role="dialog" aria-label={title}>{children}{footer}</div> : null
+  ),
   Tooltip: ({ children, label }: { children: React.ReactNode; label: string | (() => string) }) => (
     <span data-tooltip={typeof label === 'function' ? label() : label}>{children}</span>
   ),
@@ -71,6 +75,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconCloseOutline16: () => <span />,
   IconCodeOutline16: () => <span />,
   IconDownloadOutline16: () => <span />,
+  IconEditOutline16: () => <span />,
   IconEllipsisOutline16: () => <span />,
   IconFolderClose16: () => <span />,
   IconFolderOpen16: () => <span />,
@@ -81,6 +86,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconPlusOutline16: () => <span />,
   IconRefreshOutline16: () => <span />,
   IconSendOutline16: () => <span />,
+  IconTrashOutline16: () => <span />,
 }))
 
 beforeEach(() => { workbenchStore.reset() })
@@ -187,6 +193,36 @@ describe('Git panel', () => {
     expect(controller.closeDiffTabs).toHaveBeenCalledWith('workspace-1')
   })
 
+  it('creates from a selected source, renames the current branch, and safely deletes another branch', async () => {
+    const { controller } = harness()
+    const view = renderPanel(controller)
+    await waitFor(() => { expect(view.getByRole('button', { name: '切换分支' })).toBeTruthy() })
+
+    fireEvent.click(view.getByRole('button', { name: '切换分支' }))
+    fireEvent.click(view.getByRole('button', { name: '从指定来源新建分支…' }))
+    const createDialog = view.getByRole('dialog', { name: '从指定来源新建分支' })
+    fireEvent.change(createDialog.querySelector('input')!, { target: { value: 'feature/graph' } })
+    fireEvent.change(createDialog.querySelector('select')!, { target: { value: 'refs/heads/topic' } })
+    fireEvent.click(view.getByRole('button', { name: '创建分支' }))
+    await waitFor(() => {
+      expect(controller.api.gitCreateBranch).toHaveBeenCalledWith('workspace-1', 'feature/graph', 'refs/heads/topic')
+    })
+    expect(controller.resetWorkspaceView).toHaveBeenCalledWith('workspace-1')
+
+    fireEvent.click(view.getByRole('button', { name: '更多 Git 操作' }))
+    fireEvent.click(view.getByRole('button', { name: '重命名当前分支…' }))
+    const renameDialog = view.getByRole('dialog', { name: '重命名当前分支' })
+    fireEvent.change(renameDialog.querySelector('input')!, { target: { value: 'main-renamed' } })
+    fireEvent.click(view.getByRole('button', { name: '重命名' }))
+    await waitFor(() => { expect(controller.api.gitRenameBranch).toHaveBeenCalledWith('workspace-1', 'main-renamed') })
+
+    fireEvent.click(view.getByRole('button', { name: '更多 Git 操作' }))
+    fireEvent.click(view.getByRole('button', { name: '删除本地分支…' }))
+    expect(view.getByRole('dialog', { name: '删除本地分支' }).querySelector<HTMLSelectElement>('select')?.value).toBe('refs/heads/topic')
+    fireEvent.click(view.getByRole('button', { name: '删除分支' }))
+    await waitFor(() => { expect(controller.api.gitDeleteBranch).toHaveBeenCalledWith('workspace-1', 'refs/heads/topic') })
+  })
+
   it('blocks workspace-changing Git operations while the editor has an unsaved draft', async () => {
     workbenchStore.update({ tabs: [
       { id: 'file:a.ts', kind: 'file', dirty: false },
@@ -257,6 +293,9 @@ function harness() {
         ],
       })),
       gitSwitchBranch: vi.fn(() => Promise.resolve({ ...status, branch: 'topic' })),
+      gitCreateBranch: vi.fn(() => Promise.resolve({ ...status, branch: 'feature/graph' })),
+      gitRenameBranch: vi.fn(() => Promise.resolve({ ...status, branch: 'main-renamed' })),
+      gitDeleteBranch: vi.fn(() => Promise.resolve(status)),
       gitRemoteOperation: vi.fn((operation: string) => Promise.resolve({ operation })),
     },
     openDiff: vi.fn(() => Promise.resolve()),

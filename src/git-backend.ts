@@ -383,6 +383,55 @@ export class GitBackend {
     return this.status(workspaceId)
   }
 
+  async createBranch(workspaceId: unknown, nameValue: unknown, sourceValue?: unknown): Promise<GitStatus> {
+    const cwd = await this.repositoryRoot(workspaceId)
+    const name = await this.requireBranchName(cwd, nameValue)
+    let source: string | undefined
+    if (sourceValue !== undefined) {
+      if (typeof sourceValue !== 'string' || sourceValue === '') {
+        throw new WorkbenchHttpError(400, 'GIT_BRANCH_SOURCE_REQUIRED', '请选择新分支的来源。')
+      }
+      const available = await this.branches(workspaceId)
+      const branch = available.branches.find(candidate => candidate.ref === sourceValue)
+      if (branch !== undefined) source = branch.ref
+      else if (REVISION_PATTERN.test(sourceValue)) {
+        const revision = await this.run(cwd, ['rev-parse', '--verify', `${sourceValue}^{commit}`], [0, 1, 128])
+        if (revision.exitCode === 0) source = sourceValue
+      }
+      if (source === undefined) throw new WorkbenchHttpError(404, 'GIT_BRANCH_SOURCE_NOT_FOUND', '找不到新分支的来源。')
+    }
+    await this.run(cwd, source === undefined ? ['switch', '-c', name] : ['switch', '-c', name, source])
+    this.ctx.logger.info(`workbench-layout: created and switched to Git branch ${JSON.stringify(name)}`)
+    return this.status(workspaceId)
+  }
+
+  async renameBranch(workspaceId: unknown, nameValue: unknown): Promise<GitStatus> {
+    const cwd = await this.repositoryRoot(workspaceId)
+    const status = await this.status(workspaceId)
+    if (status.branch === undefined) {
+      throw new WorkbenchHttpError(409, 'GIT_BRANCH_CURRENT_UNAVAILABLE', '游离 HEAD 状态下不能重命名当前分支。')
+    }
+    if (typeof nameValue === 'string' && nameValue.trim() === status.branch) return status
+    const name = await this.requireBranchName(cwd, nameValue)
+    await this.run(cwd, ['branch', '-m', '--', name])
+    this.ctx.logger.info(`workbench-layout: renamed current Git branch to ${JSON.stringify(name)}`)
+    return this.status(workspaceId)
+  }
+
+  async deleteBranch(workspaceId: unknown, refValue: unknown): Promise<GitStatus> {
+    if (typeof refValue !== 'string' || refValue === '') {
+      throw new WorkbenchHttpError(400, 'GIT_BRANCH_REQUIRED', '请选择要删除的本地分支。')
+    }
+    const cwd = await this.repositoryRoot(workspaceId)
+    const available = await this.branches(workspaceId)
+    const target = available.branches.find(branch => branch.ref === refValue && branch.kind === 'local')
+    if (target === undefined) throw new WorkbenchHttpError(404, 'GIT_BRANCH_NOT_FOUND', '找不到要删除的本地分支。')
+    if (target.current) throw new WorkbenchHttpError(409, 'GIT_BRANCH_CURRENT_DELETE', '不能删除当前分支。')
+    await this.run(cwd, ['branch', '-d', '--', target.name])
+    this.ctx.logger.info(`workbench-layout: safely deleted Git branch ${JSON.stringify(target.name)}`)
+    return this.status(workspaceId)
+  }
+
   async remoteOperation(workspaceId: unknown, operationValue: unknown): Promise<GitRemoteResult> {
     if (typeof operationValue !== 'string' || !REMOTE_OPERATIONS.has(operationValue as GitRemoteOperation)) {
       throw new WorkbenchHttpError(400, 'GIT_REMOTE_OPERATION_INVALID', '不支持该远程 Git 操作。')
@@ -604,6 +653,18 @@ export class GitBackend {
   private async hasHead(cwd: string): Promise<boolean> {
     const result = await this.run(cwd, ['rev-parse', '--verify', 'HEAD'], [0, 1, 128])
     return result.exitCode === 0 && result.stdout.trim() !== ''
+  }
+
+  private async requireBranchName(cwd: string, value: unknown): Promise<string> {
+    if (typeof value !== 'string' || value.trim() === '' || value.length > 255) {
+      throw new WorkbenchHttpError(400, 'GIT_BRANCH_NAME_INVALID', '请输入有效的分支名称。')
+    }
+    const name = value.trim()
+    const valid = await this.run(cwd, ['check-ref-format', '--branch', name], [0, 1, 128])
+    if (valid.exitCode !== 0) throw new WorkbenchHttpError(400, 'GIT_BRANCH_NAME_INVALID', '分支名称不符合 Git 规则。')
+    const exists = await this.run(cwd, ['show-ref', '--verify', '--quiet', `refs/heads/${name}`], [0, 1, 128])
+    if (exists.exitCode === 0) throw new WorkbenchHttpError(409, 'GIT_BRANCH_EXISTS', '同名本地分支已经存在。')
+    return name
   }
 
   private async run(

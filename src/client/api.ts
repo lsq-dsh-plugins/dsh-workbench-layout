@@ -66,6 +66,18 @@ export class WorkbenchApi {
     return this.post('/git/branch/switch', { workspaceId, ref })
   }
 
+  async gitCreateBranch(workspaceId: string, name: string, source?: string): Promise<GitStatus> {
+    return this.post('/git/branch/create', { workspaceId, name, source })
+  }
+
+  async gitRenameBranch(workspaceId: string, name: string): Promise<GitStatus> {
+    return this.post('/git/branch/rename', { workspaceId, name })
+  }
+
+  async gitDeleteBranch(workspaceId: string, ref: string): Promise<GitStatus> {
+    return this.post('/git/branch/delete', { workspaceId, ref })
+  }
+
   async gitRemoteOperation(workspaceId: string, operation: GitRemoteOperation): Promise<GitRemoteResult> {
     return this.post('/git/remote', { workspaceId, operation })
   }
