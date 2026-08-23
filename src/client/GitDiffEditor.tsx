@@ -38,6 +38,7 @@ export function GitDiffEditor(props: GitDiffEditorProps) {
   const labels = diffLabels(props.diff, props.t)
   const renamed = props.diff.originalPath !== undefined && props.diff.originalPath !== props.diff.path
   const noChanges = !props.diff.binary && props.diff.original === props.diff.modified
+  const showPaneLabels = props.diff.kind === 'worktree' || props.diff.kind === 'staged'
   return (
     <section ref={root} className={css.diffDocument} data-diff-effective-mode={effectiveMode}>
       <div className={css.diffMetadata}>
@@ -75,11 +76,13 @@ export function GitDiffEditor(props: GitDiffEditorProps) {
           ? <DiffNotice text={props.t('editor.diffEmpty')} />
           : (
             <div className={css.diffEditorBody}>
-              <div className={css.diffPaneLabels} data-mode={effectiveMode}>
-                {effectiveMode === 'split'
-                  ? <><span>{labels.original}</span><span>{labels.modified}</span></>
-                  : <span>{labels.original} ↔ {labels.modified}</span>}
-              </div>
+              {showPaneLabels && (
+                <div className={css.diffPaneLabels} data-diff-pane-labels="" data-mode={effectiveMode}>
+                  {effectiveMode === 'split'
+                    ? <><span>{labels.original}</span><span>{labels.modified}</span></>
+                    : <span>{labels.original} ↔ {labels.modified}</span>}
+                </div>
+              )}
               <div className={css.diffSurfaceHost}>
                 <DiffSurface
                   key={`${props.diff.kind}:${props.diff.revision ?? ''}:${props.diff.path}:${effectiveMode}`}

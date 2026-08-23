@@ -87,6 +87,37 @@ describe('Git Diff editor', () => {
     expect(view.getByText('这是二进制文件，无法显示文本差异。')).toBeTruthy()
     expect(view.container.querySelector('[data-diff-surface]')).toBeNull()
   })
+
+  it('keeps commit metadata in the main toolbar without a separate hash row', () => {
+    const revision = 'a'.repeat(40)
+    const parentRevision = 'b'.repeat(40)
+    const view = render(
+      <GitDiffEditor
+        diff={{
+          ...sampleDiff(),
+          kind: 'commit',
+          revision,
+          parentRevision,
+          commit: {
+            hash: revision,
+            shortHash: 'aaaaaaa',
+            parents: [parentRevision],
+            subject: '更新文件',
+            author: 'Tester',
+            authoredAt: '2026-08-24T00:00:00Z',
+            references: [],
+          },
+        }}
+        viewMode="split"
+        onViewModeChange={vi.fn()}
+        t={(key: keyof typeof zh) => zh[key]}
+      />,
+    )
+
+    expect(view.getByText(/aaaaaaa · Tester/)).toBeTruthy()
+    expect(view.container.querySelector('[data-diff-pane-labels]')).toBeNull()
+    expect(view.queryByText('bbbbbbb')).toBeNull()
+  })
 })
 
 function sampleDiff(): GitFileDiff {
