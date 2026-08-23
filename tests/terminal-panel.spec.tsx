@@ -20,6 +20,7 @@ describe('终端左栏', () => {
   it('管理当前工作区的多个终端并显示运行状态', () => {
     current.state = {
       sidebarMode: 'terminal', editorExpanded: true, workspaceId: 'workspace-1', activeTabId: 'terminal:1', diffViewMode: 'split',
+      gitView: 'changes', gitChangeLayout: 'list', gitGraphFileLayout: 'list',
       tabs: [
         { id: 'terminal:1', kind: 'terminal', sequence: 1, generation: 0, status: 'running', shell: 'zsh', error: null },
         { id: 'terminal:2', kind: 'terminal', sequence: 2, generation: 0, status: 'exited', exitCode: 0, error: null },
@@ -49,6 +50,7 @@ describe('终端左栏', () => {
   it('首次进入空终端视图时创建一个终端，但关闭最后一个后不循环重建', () => {
     current.state = {
       sidebarMode: 'terminal', editorExpanded: true, workspaceId: 'workspace-1', diffViewMode: 'split', tabs: [],
+      gitView: 'changes', gitChangeLayout: 'list', gitGraphFileLayout: 'list',
     }
     const controller = { openTerminal: vi.fn(), selectTab: vi.fn(), closeTab: vi.fn() }
     const view = render(

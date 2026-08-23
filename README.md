@@ -74,7 +74,7 @@ npm run test:bundle
 - `src/index.ts`: Host route registration and request dispatch.
 - `src/workspace-backend.ts`: bounded directory, read, atomic-save, and file/folder creation operations.
 - `src/git-backend.ts`: Git status, all-branch commit topology, remote synchronization, commit file lists, per-file before/after content, index, and commit operations.
-- `src/client/controller.ts`: per-Workspace unified file/Diff tabs, global middle-editor visibility, concurrent asynchronous loading, drafts, and view state.
+- `src/client/controller.ts`: per-Workspace unified file/Diff tabs and Git presentation, global middle-editor visibility, one-shot collapsed-rail commands, concurrent asynchronous loading, and drafts.
 - `src/client/EditorTabs.tsx`: DSH-styled file and Diff tabs with wheel-to-horizontal scrolling, boundary release, dirty state, and close affordances.
 - `src/client/SourceControlIcon.tsx`: source-control entry glyph following DSH sizing and color conventions.
 - `src/client/CreateEntryIcons.tsx`, `CommitGraphIcon.tsx`: DSH-sized outlined new-entry and commit-graph glyphs.

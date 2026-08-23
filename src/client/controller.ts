@@ -3,10 +3,24 @@
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type { GitCommit, GitFileDiff, WorkspaceFile } from '../contracts.ts'
 import { WorkbenchApi } from './api.ts'
+import type { GitFileLayout } from './git-tree.ts'
 
 export type SidebarMode = 'sessions' | 'files' | 'git' | 'terminal'
 export type DiffViewMode = 'split' | 'inline'
+export type GitView = 'changes' | 'graph'
 export type TerminalStatus = 'connecting' | 'running' | 'exited' | 'error'
+export type WorkbenchSidebarAction =
+  | 'files.newFile'
+  | 'files.newDirectory'
+  | 'files.refresh'
+  | 'git.refresh'
+  | 'git.sync'
+
+export interface WorkbenchSidebarActionRequest {
+  id: number
+  action: WorkbenchSidebarAction
+  workspaceId: string
+}
 
 export interface WorkbenchFileTab {
   id: string
@@ -53,6 +67,10 @@ export interface WorkbenchState {
   tabs: WorkbenchTab[]
   activeTabId?: string
   diffViewMode: DiffViewMode
+  gitView: GitView
+  gitChangeLayout: GitFileLayout
+  gitGraphFileLayout: GitFileLayout
+  sidebarAction?: WorkbenchSidebarActionRequest
 }
 
 const INITIAL_STATE: WorkbenchState = {
@@ -60,6 +78,9 @@ const INITIAL_STATE: WorkbenchState = {
   editorExpanded: true,
   tabs: [],
   diffViewMode: 'split',
+  gitView: 'changes',
+  gitChangeLayout: 'list',
+  gitGraphFileLayout: 'list',
 }
 
 export interface WorkbenchLogger {
@@ -78,6 +99,7 @@ export class WorkbenchController {
   readonly api: WorkbenchApi
 
   private requestId = 0
+  private sidebarActionId = 0
   private readonly fileRequests = new Map<string, number>()
   private readonly diffRequests = new Map<string, number>()
   private terminalId = 0
@@ -111,10 +133,45 @@ export class WorkbenchController {
     }
   }
 
+  setGitView(view: GitView): void {
+    if (this.store.getSnapshot().gitView === view) return
+    this.store.update((state) => { state.gitView = view })
+    this.logger.info(`workbench-layout: Git main view changed to ${view}`)
+  }
+
+  toggleGitView(): void {
+    this.setGitView(this.store.getSnapshot().gitView === 'changes' ? 'graph' : 'changes')
+  }
+
+  setGitFileLayout(view: GitView, layout: GitFileLayout): void {
+    const key = view === 'changes' ? 'gitChangeLayout' : 'gitGraphFileLayout'
+    if (this.store.getSnapshot()[key] === layout) return
+    this.store.update((state) => { state[key] = layout })
+    this.logger.info(`workbench-layout: Git ${view} file layout changed to ${layout}`)
+  }
+
+  requestSidebarAction(
+    action: WorkbenchSidebarAction,
+    workspaceId = this.store.getSnapshot().workspaceId,
+  ): number | undefined {
+    if (workspaceId === undefined) return undefined
+    const id = ++this.sidebarActionId
+    this.store.update((state) => { state.sidebarAction = { id, action, workspaceId } })
+    this.logger.info(`workbench-layout: queued collapsed sidebar action ${action} for ${JSON.stringify(workspaceId)}`)
+    return id
+  }
+
+  consumeSidebarAction(id: number): void {
+    const request = this.store.getSnapshot().sidebarAction
+    if (request?.id !== id) return
+    this.store.update((state) => { delete state.sidebarAction })
+    this.logger.info(`workbench-layout: consumed collapsed sidebar action ${request.action}`)
+  }
+
   setWorkspace(workspaceId: string | undefined): void {
     const state = this.store.getSnapshot()
     if (state.workspaceId === workspaceId) return
-    if (state.workspaceId !== undefined) this.workspaceStates.set(state.workspaceId, stripTerminalTabs(state))
+    if (state.workspaceId !== undefined) this.workspaceStates.set(state.workspaceId, stripWorkspaceEphemera(state))
     if (workspaceId === undefined) {
       this.store.set({
         ...INITIAL_STATE,
@@ -548,6 +605,13 @@ function stripTerminalTabs(state: WorkbenchState): WorkbenchState {
     else cloned.activeTabId = next.id
   }
   return cloned
+}
+
+/** Rail requests and terminal processes are page-live and never enter a Workspace snapshot. */
+function stripWorkspaceEphemera(state: WorkbenchState): WorkbenchState {
+  const stripped = stripTerminalTabs(state)
+  delete stripped.sidebarAction
+  return stripped
 }
 
 function fileTabId(path: string): string {

@@ -264,6 +264,31 @@ describe('WorkbenchController', () => {
     expect(logger.info).toHaveBeenCalledWith('workbench-layout: Diff view mode changed to inline')
   })
 
+  it('binds Git presentation to each Workspace and exposes one-shot rail actions', () => {
+    const logger = { info: vi.fn(), warn: vi.fn() }
+    const controller = new WorkbenchController({} as never, logger)
+    controller.setWorkspace('workspace-1')
+    controller.setGitView('graph')
+    controller.setGitFileLayout('graph', 'tree')
+    const requestId = controller.requestSidebarAction('files.newFile')
+
+    expect(controller.store.getSnapshot()).toMatchObject({
+      gitView: 'graph',
+      gitGraphFileLayout: 'tree',
+      sidebarAction: { id: requestId, action: 'files.newFile', workspaceId: 'workspace-1' },
+    })
+    controller.consumeSidebarAction(requestId!)
+    expect(controller.store.getSnapshot().sidebarAction).toBeUndefined()
+
+    controller.setWorkspace('workspace-2')
+    expect(controller.store.getSnapshot()).toMatchObject({ gitView: 'changes', gitGraphFileLayout: 'list' })
+    controller.setWorkspace('workspace-1')
+    expect(controller.store.getSnapshot()).toMatchObject({ gitView: 'graph', gitGraphFileLayout: 'tree' })
+    expect(controller.store.getSnapshot().sidebarAction).toBeUndefined()
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('queued collapsed sidebar action files.newFile'))
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('consumed collapsed sidebar action files.newFile'))
+  })
+
   it('clears every file tab and Diff after Git changes the Workspace', async () => {
     const logger = { info: vi.fn(), warn: vi.fn() }
     const api = { readFile: vi.fn(() => Promise.resolve(file('src/a.ts', 'before', '1'))) }

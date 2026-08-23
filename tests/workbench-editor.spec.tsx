@@ -134,6 +134,9 @@ function state(): WorkbenchState {
     ],
     activeTabId: 'file:README.md',
     diffViewMode: 'split',
+    gitView: 'changes',
+    gitChangeLayout: 'list',
+    gitGraphFileLayout: 'list',
   }
 }
 

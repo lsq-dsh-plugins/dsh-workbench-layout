@@ -74,7 +74,7 @@ npm run test:bundle
 - `src/index.ts`：宿主路由注册和请求分发。
 - `src/workspace-backend.ts`：受控的目录、读取、原子保存以及文件/文件夹创建。
 - `src/git-backend.ts`：Git 状态、全部分支的拓扑提交、远程同步、提交文件清单、单文件前后版本、暂存和提交。
-- `src/client/controller.ts`：按工作区隔离的文件/Diff 统一标签、全局中栏可见状态、并发异步加载、草稿和视图状态。
+- `src/client/controller.ts`：按工作区隔离的文件/Diff 统一标签、Git 主视图与文件排列、全局中栏可见状态、一次性收起栏命令、并发异步加载和草稿状态。
 - `src/client/EditorTabs.tsx`：DSH 风格的可滚动文件与 Diff 标签、滚轮横移、边界放行、脏状态和关闭入口。
 - `src/client/SourceControlIcon.tsx`：符合 DSH 尺寸与颜色约定的源码管理入口图标。
 - `src/client/CreateEntryIcons.tsx`、`CommitGraphIcon.tsx`：新建文件/文件夹与提交图的 DSH 规格线框图标。
