@@ -155,7 +155,7 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
   const switchBranch = async (ref: string): Promise<void> => {
     if (workspaceId === undefined) return
     const targetWorkspace = workspaceId
-    if (workbench.dirty) {
+    if (workbench.tabs.some(tab => tab.dirty)) {
       setError(t('git.unsavedOperation'))
       return
     }
@@ -180,7 +180,7 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
   const remoteOperation = async (operation: GitRemoteOperation): Promise<void> => {
     if (workspaceId === undefined) return
     const targetWorkspace = workspaceId
-    if ((operation === 'pull' || operation === 'sync') && workbench.dirty) {
+    if ((operation === 'pull' || operation === 'sync') && workbench.tabs.some(tab => tab.dirty)) {
       setError(t('git.unsavedOperation'))
       return
     }

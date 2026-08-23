@@ -8,7 +8,7 @@
 
 - 左栏通过“会话 / 文件 / Git”切换；“会话”会恢复 DSH 原生工作区与会话列表。
 - 文件目录按需展开，不会一次读取整棵目录树。
-- 中栏使用 CodeMirror 编辑 UTF-8 文本，支持未保存状态、保存/还原、按工作区保留草稿、版本冲突保护、原子保存和 `Ctrl/Cmd + S`。
+- 中栏使用紧凑的多文件标签和 CodeMirror 编辑 UTF-8 文本；每个标签独立保留草稿、未保存状态、Markdown 模式和保存错误，切换文件不会丢失修改。中栏不显示常驻保存按钮，只通过 `Ctrl/Cmd + S` 保存当前标签，并保留版本冲突保护与原子保存。
 - 文件、编辑器选择、草稿、Diff 与 Git 状态绑定到 DSH 官方工作区 id；在同一工作区的不同会话之间切换会保留工作台，只有切换工作区才会切换整套状态。没有当前会话、会话尚未产生消息或会话暂未归属工作区时，工作台使用 DSH 官方最近工作区，因此仍可浏览文件与 Git。
 - Markdown 文件首次打开默认显示 DSH 官方 Markdown 渲染结果，可在“预览 / 源码”之间切换。
 - 中右栏优先使用 DSH AppFrame 原生列宽和拖拽处理；官方 AppFrame 在空会话 Hero 中主动隐藏详情轨道时，插件按同一套 300–520px 约束、360px 默认值、640px 中栏让步规则和无装饰拖拽热区补足轨道，首条消息产生后立即交还官方处理。
@@ -47,7 +47,7 @@ dsh plugin --profile web remove @lsq64737/dsh-workbench-layout
 
 - 当前版本编辑已有 UTF-8 文本文件，不创建、删除或重命名文件。
 - 符号链接不会在文件树中打开。
-- 工作区草稿只保留在当前页面内，刷新页面会丢失未保存内容。
+- 已打开标签及其草稿只保留在当前页面内，刷新页面会丢失未保存内容。
 - 二进制文件由 Git 标记为二进制差异，不展示二进制内容。
 - 提交历史当前显示最近 40 条，不包含分页加载。
 - 远程操作依赖系统中已经配置好的 Git 凭据；插件不收集或保存远程账号、密码和令牌。
@@ -69,7 +69,8 @@ npm run test:bundle
 - `src/index.ts`：宿主路由注册和请求分发。
 - `src/workspace-backend.ts`：受控的目录、读取和原子保存。
 - `src/git-backend.ts`：Git 状态、分支、远程同步、提交文件清单、单文件前后版本、暂存和提交。
-- `src/client/controller.ts`：跨栏文件、Diff 和视图状态。
+- `src/client/controller.ts`：按工作区隔离的多文件标签、异步读写、Diff 和视图状态。
+- `src/client/EditorTabs.tsx`：DSH 风格的可滚动文件标签、脏状态和关闭入口。
 - `src/client/workspace-binding.ts`：优先按 DSH 官方成员关系解析会话所属工作区，并在无会话状态下回退到官方最近工作区。
 - `src/client/workspace-layout.ts`：工作区与 AppFrame 原生详情列状态绑定。
 - `src/client/fallback-details-layout.ts`：空会话 Hero 下与官方几何约束一致的临时详情轨道。

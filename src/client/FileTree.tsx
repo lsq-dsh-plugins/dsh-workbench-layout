@@ -106,7 +106,7 @@ export function FileTree({ controller, workspaceId, t }: FileTreeProps) {
               expanded={expanded}
               listings={listings}
               loading={loading}
-              selected={workbench.file?.path}
+              selected={workbench.activeFilePath}
               onToggle={path => { void toggle(path) }}
               onOpen={path => { void controller.openFile(workspaceId, path) }}
             />

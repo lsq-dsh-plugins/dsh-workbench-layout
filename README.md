@@ -8,7 +8,7 @@ An independent DeepSeek Harness Web plugin that keeps the official AppFrame and 
 
 - Switch the left column among Sessions, Files, and Git. Sessions releases the region back to the native DSH workspace browser.
 - Expand directories lazily instead of reading the full tree at once.
-- Edit existing UTF-8 text in CodeMirror with dirty state, save/revert, per-Workspace draft retention, version conflict protection, atomic saves, and `Ctrl/Cmd + S`.
+- Edit existing UTF-8 text through compact multi-file tabs and CodeMirror. Every tab retains its own draft, dirty state, Markdown mode, and save error while file switches preserve edits. The middle column has no persistent Save button: `Ctrl/Cmd + S` saves the active tab with version-conflict protection and an atomic write.
 - Bind files, editor selection, drafts, diffs, and Git state to DSH's official Workspace id. Switching conversations inside one Workspace preserves the workbench; changing Workspace switches the entire workbench state. With no current Session, before a Session has any messages, or while a Session is not yet accounted to a Workspace, the workbench uses DSH's official recent Workspace so files and Git remain available.
 - Open Markdown in the official DSH rendered view by default, with Preview and Source modes.
 - Prefer DSH AppFrame's native track sizing and drag handling between the editor and conversation. While AppFrame intentionally hides its details track for an empty-Session Hero, supply the same 300–520px range, 360px default, 640px center concession, and undecorated drag hit area; hand control back to AppFrame after the first message.
@@ -47,7 +47,7 @@ dsh plugin --profile web remove @lsq64737/dsh-workbench-layout
 
 - This version edits existing UTF-8 text files; it does not create, delete, or rename files.
 - Symbolic links are not opened from the tree.
-- Workspace drafts live only in the current page; refreshing discards unsaved content.
+- Open tabs and their drafts live only in the current page; refreshing discards unsaved content.
 - Binary changes are identified by Git without rendering binary content.
 - Commit history currently shows the latest 40 entries without pagination.
 - Remote operations use Git credentials already configured on the system. The plugin does not collect or store remote usernames, passwords, or tokens.
@@ -69,7 +69,8 @@ npm run test:bundle
 - `src/index.ts`: Host route registration and request dispatch.
 - `src/workspace-backend.ts`: bounded directory, read, and atomic-save operations.
 - `src/git-backend.ts`: Git status, branches, remote synchronization, commit file lists, per-file before/after content, index, and commit operations.
-- `src/client/controller.ts`: cross-column file, diff, and view state.
+- `src/client/controller.ts`: per-Workspace multi-file tabs, asynchronous reads and saves, diffs, and view state.
+- `src/client/EditorTabs.tsx`: DSH-styled scrollable file tabs, dirty state, and close affordances.
 - `src/client/workspace-binding.ts`: official Session membership resolution with the official recent-Workspace fallback for no-Session surfaces.
 - `src/client/workspace-layout.ts`: Workspace binding to AppFrame's native details-track state.
 - `src/client/fallback-details-layout.ts`: temporary empty-Session Hero track with AppFrame-matching geometry.

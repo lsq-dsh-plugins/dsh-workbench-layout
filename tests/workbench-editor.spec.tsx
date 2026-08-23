@@ -1,0 +1,126 @@
+// @vitest-environment jsdom
+
+import { cleanup, fireEvent, render } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { WorkbenchState } from '../src/client/controller.ts'
+import { zh } from '../src/client/locales.ts'
+import { WorkbenchEditor, type WorkbenchEditorProps } from '../src/client/WorkbenchEditor.tsx'
+
+const workbenchState = vi.hoisted(() => ({ current: {} as WorkbenchState }))
+
+vi.mock('../src/client/use-workbench.ts', () => ({ useWorkbench: () => workbenchState.current }))
+vi.mock('../src/client/CodeEditor.tsx', () => ({
+  CodeEditor: ({ ariaLabel }: { ariaLabel: string }) => <textarea aria-label={ariaLabel} />,
+}))
+vi.mock('../src/client/GitDiffEditor.tsx', () => ({ GitDiffEditor: () => <div>diff</div> }))
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+  Button: ({ children, variant: _variant, size: _size, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) => <button {...props}>{children}</button>,
+  FishLogo: () => <span data-fish-logo="" />,
+  IconCloseOutline16: () => <span data-close-icon="" />,
+  MarkdownText: ({ text }: { text: string }) => <article>{text}</article>,
+  Modal: ({ open, title, description, footer }: { open: boolean; title: string; description?: string; footer?: React.ReactNode }) => open
+    ? <div role="dialog" aria-label={title}><p>{description}</p>{footer}</div>
+    : null,
+}))
+
+beforeEach(() => {
+  workbenchState.current = state()
+})
+afterEach(() => { cleanup() })
+
+describe('WorkbenchEditor multi-file tabs', () => {
+  it('renders open files without a persistent Save button and saves the active tab with Ctrl+S', () => {
+    const controller = controllerFake()
+    const view = renderEditor(controller)
+    expect(view.getAllByRole('tab')).toHaveLength(2)
+    expect(view.getByRole('tab', { name: 'README.md' }).getAttribute('aria-selected')).toBe('true')
+    expect(view.queryByRole('button', { name: '保存' })).toBeNull()
+
+    fireEvent.keyDown(window, { key: 's', ctrlKey: true })
+    expect(controller.save).toHaveBeenCalledWith('README.md')
+  })
+
+  it('selects an existing file tab instead of reopening it', () => {
+    const controller = controllerFake()
+    const view = renderEditor(controller)
+    fireEvent.click(view.getByRole('tab', { name: 'a.ts' }))
+    expect(controller.selectFile).toHaveBeenCalledWith('src/a.ts')
+  })
+
+  it('uses a DSH modal before discarding an unsaved tab', () => {
+    workbenchState.current.tabs[0]!.dirty = true
+    const controller = controllerFake()
+    const view = renderEditor(controller)
+    fireEvent.click(view.getByRole('button', { name: '关闭 a.ts' }))
+    expect(controller.selectFile).toHaveBeenCalledWith('src/a.ts')
+    expect(view.getByRole('dialog', { name: '关闭未保存的文件？' })).toBeTruthy()
+    fireEvent.click(view.getByRole('button', { name: '放弃更改' }))
+    expect(controller.closeFile).toHaveBeenCalledWith('src/a.ts', true)
+  })
+})
+
+function renderEditor(controller: ReturnType<typeof controllerFake>) {
+  const props = {
+    sessionId: 'session-1',
+    useWorkspaces: (selector: (snapshot: {
+      items: Array<{ workspaceId: string; sessionIds: string[] }>
+      recentWorkspaceId: string
+    }) => unknown) => selector({
+      items: [{ workspaceId: 'workspace-1', sessionIds: ['session-1'] }],
+      recentWorkspaceId: 'workspace-1',
+    }),
+    controller,
+    activateWorkspace: vi.fn(),
+    t: (key: keyof typeof zh, values?: Record<string, string>) => interpolate(zh[key], values),
+  } as unknown as WorkbenchEditorProps
+  return render(<WorkbenchEditor {...props} />)
+}
+
+function controllerFake() {
+  return {
+    store: { getSnapshot: () => workbenchState.current },
+    save: vi.fn(() => Promise.resolve(true)),
+    selectFile: vi.fn(),
+    closeFile: vi.fn(() => true),
+    setPreview: vi.fn(),
+    revert: vi.fn(),
+    setDraft: vi.fn(),
+    setDiffViewMode: vi.fn(),
+    showFile: vi.fn(),
+  }
+}
+
+function state(): WorkbenchState {
+  return {
+    sidebarMode: 'files',
+    workspaceId: 'workspace-1',
+    tabs: [
+      tab('src/a.ts', 'const a = 1', false),
+      tab('README.md', '# Readme', true),
+    ],
+    activeFilePath: 'README.md',
+    centerMode: 'file',
+    diff: null,
+    diffViewMode: 'split',
+    loading: false,
+    error: null,
+  }
+}
+
+function tab(path: string, content: string, markdown: boolean) {
+  return {
+    path,
+    file: { path, content, version: '1', size: content.length, markdown },
+    draft: content,
+    dirty: false,
+    preview: markdown,
+    loading: false,
+    saving: false,
+    error: null,
+  }
+}
+
+function interpolate(template: string, values: Record<string, string> | undefined): string {
+  if (values === undefined) return template
+  return Object.entries(values).reduce((text, [key, value]) => text.replace(`{${key}}`, value), template)
+}

@@ -661,9 +661,10 @@
   flex: none;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  height: 52px;
-  padding: 0 14px;
+  gap: 8px;
+  height: 46px;
+  padding: 0 10px 0 0;
+  overflow: hidden;
   border-bottom: 1px solid var(--dsw-alias-border-l1);
   background: var(--dsw-alias-bg-layer-1);
 }
@@ -676,6 +677,15 @@
   gap: 8px;
 }
 
+.editorTitle {
+  flex: 1;
+  font: var(--dsw-font-xs-strong-13);
+}
+
+.editorActions {
+  flex: none;
+}
+
 .editorTitle > span:first-of-type {
   min-width: 0;
   overflow: hidden;
@@ -683,8 +693,125 @@
   white-space: nowrap;
 }
 
-.editorTitle {
+.editorTabs {
+  display: flex;
+  flex: 1;
+  align-self: stretch;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.editorTabs::-webkit-scrollbar {
+  display: none;
+}
+
+.editorTab {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  max-width: 180px;
+  padding-left: 10px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.editorTab::after {
+  content: '';
+  position: absolute;
+  right: 8px;
+  bottom: 0;
+  left: 8px;
+  height: 2px;
+  border-radius: 2px;
+  background: transparent;
+}
+
+.editorTab[data-active] {
+  color: var(--dsw-alias-state-business-primary);
+}
+
+.editorTab:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.editorTab[data-active]::after {
+  background: var(--dsw-alias-state-business-primary);
+}
+
+.editorTabSelect,
+.editorTabClose {
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.editorTabSelect {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
   font: var(--dsw-font-xs-strong-13);
+}
+
+.editorTabName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editorTabStatus {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dsw-alias-state-warn-primary);
+}
+
+.editorTabStatus[data-saving] {
+  background: var(--dsw-alias-state-business-primary);
+  animation: editor-tab-saving 900ms ease-in-out infinite alternate;
+}
+
+.editorTabClose {
+  display: grid;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  place-items: center;
+  border-radius: 7px;
+  opacity: 0;
+}
+
+.editorTab:hover .editorTabClose,
+.editorTab[data-active] .editorTabClose,
+.editorTabClose:focus-visible {
+  opacity: 1;
+}
+
+.editorTabClose:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.discardAction {
+  color: var(--dsw-alias-state-error-primary) !important;
+}
+
+.editorModalError {
+  margin-top: 10px;
+  color: var(--dsw-alias-state-error-primary);
+  font: var(--dsw-font-xs-13);
+}
+
+@keyframes editor-tab-saving {
+  from { opacity: 0.35; }
+  to { opacity: 1; }
 }
 
 .diffDirectory {

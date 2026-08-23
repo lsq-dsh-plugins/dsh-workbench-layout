@@ -1,21 +1,20 @@
 import { useEffect, useRef } from 'react'
 import { EditorState } from '@codemirror/state'
-import { EditorView, keymap } from '@codemirror/view'
+import { EditorView } from '@codemirror/view'
 import { basicSetup } from 'codemirror'
 
 export interface CodeEditorProps {
   value: string
   onChange: (value: string) => void
-  onSave: () => void
   ariaLabel: string
 }
 
 /** CodeMirror surface themed entirely through DSH design tokens. */
-export function CodeEditor({ value, onChange, onSave, ariaLabel }: CodeEditorProps) {
+export function CodeEditor({ value, onChange, ariaLabel }: CodeEditorProps) {
   const parent = useRef<HTMLDivElement>(null)
   const view = useRef<EditorView | null>(null)
-  const callbacks = useRef({ onChange, onSave })
-  callbacks.current = { onChange, onSave }
+  const onChangeRef = useRef(onChange)
+  onChangeRef.current = onChange
 
   useEffect(() => {
     if (parent.current === null) return
@@ -25,15 +24,10 @@ export function CodeEditor({ value, onChange, onSave, ariaLabel }: CodeEditorPro
         doc: value,
         extensions: [
           basicSetup,
-          keymap.of([{
-            key: 'Mod-s',
-            preventDefault: true,
-            run: () => { callbacks.current.onSave(); return true },
-          }]),
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({ 'aria-label': ariaLabel }),
           EditorView.updateListener.of((update) => {
-            if (update.docChanged) callbacks.current.onChange(update.state.doc.toString())
+            if (update.docChanged) onChangeRef.current(update.state.doc.toString())
           }),
           EditorView.theme({
             '&': {

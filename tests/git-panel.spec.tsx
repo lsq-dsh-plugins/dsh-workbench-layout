@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { GitPanel } from '../src/client/GitPanel.tsx'
 import { zh } from '../src/client/locales.ts'
 
-const workbenchState = vi.hoisted(() => ({ diff: null, dirty: false }))
+const workbenchState = vi.hoisted(() => ({ diff: null, tabs: [] as Array<{ dirty: boolean }> }))
 
 vi.mock('../src/client/use-workbench.ts', () => ({ useWorkbench: () => workbenchState }))
 
@@ -45,7 +45,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconSendOutline16: () => <span />,
 }))
 
-beforeEach(() => { workbenchState.dirty = false })
+beforeEach(() => { workbenchState.tabs = [] })
 afterEach(() => { cleanup() })
 
 describe('Git panel', () => {
@@ -100,7 +100,7 @@ describe('Git panel', () => {
   })
 
   it('blocks workspace-changing Git operations while the editor has an unsaved draft', async () => {
-    workbenchState.dirty = true
+    workbenchState.tabs = [{ dirty: false }, { dirty: true }]
     const { controller } = harness()
     const view = renderPanel(controller)
     await waitFor(() => { expect(view.getByRole('button', { name: '切换分支' })).toBeTruthy() })
