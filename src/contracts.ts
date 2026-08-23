@@ -31,6 +31,13 @@ export interface SavedWorkspaceFile {
   size: number
 }
 
+export interface CreatedWorkspaceEntry {
+  name: string
+  path: string
+  kind: 'file' | 'directory'
+  size?: number
+}
+
 export interface GitFileStatus {
   path: string
   originalPath?: string

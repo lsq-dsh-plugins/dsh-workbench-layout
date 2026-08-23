@@ -7,12 +7,12 @@ An independent DeepSeek Harness Web plugin that keeps the official AppFrame and 
 ## Features
 
 - Switch the left column among Sessions, Files, Git, and Terminal from a compact control at the top of the official sidebar. Sessions releases the region back to the native DSH workspace browser. The redundant wide New Session bar is removed while DSH's wordmark shortcut and collapsed-rail action remain available.
-- Expand directories lazily instead of reading the full tree at once.
+- Expand directories lazily instead of reading the full tree at once. Compact New File and New Folder actions open an inline name field inside the selected directory; selecting a file targets its parent, and a newly created file opens as an editor tab immediately.
 - Use a compact 38px header and a unified editor-tab model: regular files, working-tree diffs, staged diffs, and commit diffs can be opened, switched, and closed together like VS Code. When tabs overflow, the mouse wheel over the strip scrolls them horizontally and releases normal page scrolling at either boundary. Every file tab retains its own draft, dirty state, Markdown mode, and save error. The middle column has no persistent Save button: `Ctrl/Cmd + S` saves only the active regular file tab with version-conflict protection and an atomic write. The sidebar footer is an independent two-column tool row: official Settings stays content-sized on the left, while the middle-editor icon remains a separate right-aligned action whose tooltip resets when its state changes. Collapse and expand interpolate registered editor/conversation length tracks with AppFrame's official 0.3-second easing, then atomically return track ownership with native transition disabled for that single handoff; selecting any file, Diff, terminal, or existing terminal tab reveals the editor again.
 - Bind files, editor selection, drafts, diffs, and Git state to DSH's official Workspace id. Switching conversations inside one Workspace preserves the workbench; changing Workspace switches the entire workbench state. With no current Session, before a Session has any messages, or while a Session is not yet accounted to a Workspace, the workbench uses DSH's official recent Workspace so files and Git remain available.
 - Open Markdown in the official DSH rendered view by default, with Preview and Source modes.
 - Prefer DSH AppFrame's native track sizing and drag handling between the editor and conversation. While AppFrame intentionally hides its details track for an empty-Session Hero, supply the same 300–520px range, 360px default, 640px center concession, and undecorated drag hit area. The temporary grid mirrors AppFrame's live sidebar rail, expanded width, and drag updates, then hands control back after the first message.
-- Follow the VS Code source-control model with Changes and Graph tabs. Changes separates staged files from the working tree and switches between a flat list and a collapsible directory tree.
+- Use one Git View menu for three peer views: Changes (list), Changes (tree), and Commit Graph. Changes still separates staged files from the working tree without adding a second, redundant tab strip.
 - Build the Graph from every local and remote branch in topological order, drawing color-segmented commit lanes, forks, joins, and merge commits. Regular commits, reference boundaries, and merges use solid dots, hollow rings, and double-ring nodes respectively. Each row reserves only the width required by its currently visible lanes, keeping single-lane commits compact; content follows subject, author, then local/remote/tag reference order. Hover for the short hash, timestamp, and real file/insertion/deletion totals, then select the row to expand its changed files in place.
 - Selecting a working-tree, staged, or Graph file opens that single Diff as a normal editor tab. The same Diff is deduplicated while different files and revisions can remain open together; an entire commit is never concatenated into one surface.
 - Browse and switch local or remote branches, see upstream incoming/outgoing counts, and explicitly Fetch, fast-forward Pull, Push, publish the current branch, or Sync by pulling then pushing.
@@ -38,7 +38,7 @@ dsh plugin --profile web remove @lsq64737/dsh-workbench-layout
 
 - The browser sends only an official DSH Workspace id and workspace-relative paths. The Host resolves that id through DSH's Workspace registry instead of trusting a browser path or deriving identity from a conversation.
 - Traversal, workspace escape, and symbolic links are rejected. The file editor reads text only; Git diff reports binary files without transferring their raw bytes.
-- Saves use DSH filesystem version tokens and a `workspace-write` policy, so external edits are not silently overwritten.
+- Saves use DSH filesystem version tokens and a `workspace-write` policy, while new files use atomic `createIfAbsent` writes so an existing entry is never overwritten. New folders create exactly one level below a validated Workspace parent instead of recursively inventing missing paths.
 - Git uses fixed argv without a shell. A commit runs only after an explicit Commit action.
 - Branch and remote commands run only after explicit UI actions and disable terminal credential prompts. Pull and Sync are fast-forward only and never auto-merge, stash, or overwrite changes.
 - Git requires the selected Workspace to be the repository root, avoiding commits that include staged content outside the workspace.
@@ -48,7 +48,7 @@ dsh plugin --profile web remove @lsq64737/dsh-workbench-layout
 
 ## Limitations
 
-- This version edits existing UTF-8 text files; it does not create, delete, or rename files.
+- This version creates empty text files and folders; delete and rename are not exposed yet.
 - Symbolic links are not opened from the tree.
 - Open tabs and their drafts live only in the current page; refreshing discards unsaved content.
 - Binary changes are identified by Git without rendering binary content.
@@ -71,7 +71,7 @@ npm run test:bundle
 ## Structure
 
 - `src/index.ts`: Host route registration and request dispatch.
-- `src/workspace-backend.ts`: bounded directory, read, and atomic-save operations.
+- `src/workspace-backend.ts`: bounded directory, read, atomic-save, and file/folder creation operations.
 - `src/git-backend.ts`: Git status, all-branch commit topology, remote synchronization, commit file lists, per-file before/after content, index, and commit operations.
 - `src/client/controller.ts`: per-Workspace unified file/Diff tabs, global middle-editor visibility, concurrent asynchronous loading, drafts, and view state.
 - `src/client/EditorTabs.tsx`: DSH-styled file and Diff tabs with wheel-to-horizontal scrolling, boundary release, dirty state, and close affordances.
@@ -83,10 +83,10 @@ npm run test:bundle
 - `src/client/editor-layout-contract.ts`, `editor-track-transition.ts`: shared visibility/terminal DOM contract plus registered editor/conversation length-track coordination using AppFrame's official timing and an atomic native-layout handoff.
 - `src/terminal-protocol.ts`, `terminal-backend.ts`, `terminal-websocket.ts`: bounded terminal protocol, Workspace-root PTY lifecycle, and trusted WebSocket bridge.
 - `src/client/fallback-details-layout.ts`: visibility-aware temporary empty-Session Hero track with AppFrame-matching geometry.
-- `src/client/FileTree.tsx`, `GitPanel.tsx`: left-column file tree and source-control state orchestration.
+- `src/client/FileTree.tsx`, `FileTreeCreateRow.tsx`, `GitPanel.tsx`: left-column file tree, inline creation, and source-control state orchestration.
 - `src/client/GitChangesView.tsx`, `git-tree.ts`: change groups, list/tree layouts, and per-file actions.
 - `src/client/GitGraphView.tsx`, `GitReferenceBadge.tsx`, `git-graph.ts`: commit graph rendering, color-segmented lanes, reference badges, fork/join edges, and in-place commit details.
-- `src/client/GitRepositoryToolbar.tsx`: branch picker and remote action menus.
+- `src/client/GitRepositoryToolbar.tsx`: unified Git view, branch picker, and remote action menus.
 - `src/client/WorkbenchEditor.tsx`: unified middle-column tab container, source editor, and Markdown preview.
 - `src/client/TerminalPanel.tsx`, `TerminalSurface.tsx`, `TerminalIcon.tsx`: terminal instance list, xterm.js editor tab, and DSH-style terminal entry glyph.
 - `src/client/GitDiffEditor.tsx`, `DiffSurface.tsx`, `git-diff-labels.ts`: in-tab per-file Diff toolbar, adaptive layout, shared kind labels, wrapping, and CodeMirror diff renderer.

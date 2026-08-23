@@ -5,13 +5,16 @@ import {
   IconCodeOutline16,
   IconFolderClose16,
   IconFolderOpen16,
+  IconProjectAddOutline16,
+  IconPlusOutline16,
   IconRefreshOutline14,
   Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { DirectoryListing, WorkspaceEntry } from '../contracts.ts'
 import type { WorkbenchController } from './controller.ts'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
-import type { WorkbenchKey } from './locales.ts'
+import { childWorkspacePath } from '../path-policy.ts'
+import { FileTreeCreateRow, type FileTreeCreateKind } from './FileTreeCreateRow.tsx'
 import { useWorkbench } from './use-workbench.ts'
 import css from './Workbench.module.css'
 
@@ -19,6 +22,16 @@ interface FileTreeProps {
   controller: WorkbenchController
   workspaceId: string | undefined
   t: TranslateNS<'workbench'>
+}
+
+interface TreeSelection {
+  path: string
+  kind: 'file' | 'directory'
+}
+
+interface CreateDraft {
+  parent: string
+  kind: FileTreeCreateKind
 }
 
 /** Lazy directory tree; each expansion performs one bounded Host listing. */
@@ -32,11 +45,15 @@ export function FileTree({ controller, workspaceId, t }: FileTreeProps) {
   const [loading, setLoading] = useState<Set<string>>(() => new Set())
   const [error, setError] = useState<string | null>(null)
   const [revision, setRevision] = useState(0)
+  const [selection, setSelection] = useState<TreeSelection | null>(null)
+  const [createDraft, setCreateDraft] = useState<CreateDraft | null>(null)
 
   useEffect(() => {
     setListings({})
     setExpanded(new Set(['']))
     setError(null)
+    setSelection(null)
+    setCreateDraft(null)
     if (workspaceId === undefined) return
     let active = true
     setLoading(new Set(['']))
@@ -52,18 +69,9 @@ export function FileTree({ controller, workspaceId, t }: FileTreeProps) {
     return () => { active = false }
   }, [controller, workspaceId, revision])
 
-  const toggle = async (path: string): Promise<void> => {
+  const loadDirectory = async (path: string): Promise<void> => {
     if (workspaceId === undefined) return
     const targetWorkspace = workspaceId
-    if (expanded.has(path)) {
-      setExpanded(previous => {
-        const next = new Set(previous)
-        next.delete(path)
-        return next
-      })
-      return
-    }
-    setExpanded(previous => new Set(previous).add(path))
     if (listings[path] !== undefined || loading.has(path)) return
     setLoading(previous => new Set(previous).add(path))
     try {
@@ -84,17 +92,80 @@ export function FileTree({ controller, workspaceId, t }: FileTreeProps) {
     }
   }
 
+  const toggle = (path: string): void => {
+    if (expanded.has(path)) {
+      setExpanded(previous => {
+        const next = new Set(previous)
+        next.delete(path)
+        return next
+      })
+      return
+    }
+    setExpanded(previous => new Set(previous).add(path))
+    void loadDirectory(path)
+  }
+
+  const beginCreate = (kind: FileTreeCreateKind): void => {
+    const selectedPath = selection?.path ?? (activeTab?.kind === 'file' ? activeTab.path : undefined)
+    const parent = selection?.kind === 'directory' ? selection.path : parentPath(selectedPath)
+    setError(null)
+    setCreateDraft({ parent, kind })
+    setExpanded(previous => new Set(previous).add(parent))
+    void loadDirectory(parent)
+  }
+
+  const createEntry = async (draft: CreateDraft, name: string): Promise<boolean> => {
+    if (workspaceId === undefined) return false
+    const targetWorkspace = workspaceId
+    let path: string
+    try {
+      path = childWorkspacePath(draft.parent, name)
+      setError(null)
+      if (draft.kind === 'file') await controller.api.createFile(targetWorkspace, path)
+      else await controller.api.createDirectory(targetWorkspace, path)
+    } catch (reason: unknown) {
+      if (activeWorkspace.current === targetWorkspace) setError(messageOf(reason))
+      return false
+    }
+    if (activeWorkspace.current !== targetWorkspace) return true
+    setSelection({ path, kind: draft.kind })
+    try {
+      const listing = await controller.api.listDirectory(targetWorkspace, draft.parent)
+      if (activeWorkspace.current === targetWorkspace) {
+        setListings(previous => ({ ...previous, [draft.parent]: listing }))
+      }
+    } catch (reason: unknown) {
+      if (activeWorkspace.current === targetWorkspace) setError(messageOf(reason))
+    }
+    if (draft.kind === 'file' && activeWorkspace.current === targetWorkspace) {
+      void controller.openFile(targetWorkspace, path)
+    }
+    return true
+  }
+
   if (workspaceId === undefined) return <div className={css.emptyState}>{t('files.emptyWorkspace')}</div>
   const root = listings['']
   return (
     <div className={css.panelBody}>
       <div className={css.panelHeader}>
         <span>{t('files.title')}</span>
-        <Tooltip label={t('files.refresh')} delayMs={500}>
-          <button type="button" className={css.iconButton} aria-label={t('files.refresh')} onClick={() => { setRevision(value => value + 1) }}>
-            <IconRefreshOutline14 size={14} />
-          </button>
-        </Tooltip>
+        <div className={css.fileHeaderActions}>
+          <Tooltip label={t('files.newFile')} delayMs={500}>
+            <button type="button" className={css.iconButton} aria-label={t('files.newFile')} onClick={() => { beginCreate('file') }}>
+              <IconPlusOutline16 size={15} />
+            </button>
+          </Tooltip>
+          <Tooltip label={t('files.newDirectory')} delayMs={500}>
+            <button type="button" className={css.iconButton} aria-label={t('files.newDirectory')} onClick={() => { beginCreate('directory') }}>
+              <IconProjectAddOutline16 size={15} />
+            </button>
+          </Tooltip>
+          <Tooltip label={t('files.refresh')} delayMs={500}>
+            <button type="button" className={css.iconButton} aria-label={t('files.refresh')} onClick={() => { setRevision(value => value + 1) }}>
+              <IconRefreshOutline14 size={14} />
+            </button>
+          </Tooltip>
+        </div>
       </div>
       {error !== null && <div className={css.error} role="alert">{error}</div>}
       {root === undefined
@@ -103,15 +174,20 @@ export function FileTree({ controller, workspaceId, t }: FileTreeProps) {
           <div className={css.tree} role="tree">
             <TreeLevel
               entries={root.entries}
+              directoryPath=""
               depth={0}
               expanded={expanded}
               listings={listings}
               loading={loading}
-              selected={activeTab?.kind === 'file' ? activeTab.path : undefined}
-              onToggle={path => { void toggle(path) }}
-              onOpen={path => { void controller.openFile(workspaceId, path) }}
+              selected={selection?.path ?? (activeTab?.kind === 'file' ? activeTab.path : undefined)}
+              createDraft={createDraft}
+              createLabel={createDraft?.kind === 'file' ? t('files.fileName') : t('files.directoryName')}
+              onCreate={(draft, name) => createEntry(draft, name)}
+              onCancelCreate={() => { setCreateDraft(null) }}
+              onToggle={(path) => { setSelection({ path, kind: 'directory' }); toggle(path) }}
+              onOpen={(path) => { setSelection({ path, kind: 'file' }); void controller.openFile(workspaceId, path) }}
             />
-            {root.entries.length === 0 && <div className={css.emptyState}>{t('files.empty')}</div>}
+            {root.entries.length === 0 && createDraft === null && <div className={css.emptyState}>{t('files.empty')}</div>}
             {root.truncated && <div className={css.notice}>{t('files.truncated')}</div>}
           </div>
         )}
@@ -121,44 +197,66 @@ export function FileTree({ controller, workspaceId, t }: FileTreeProps) {
 
 function TreeLevel(props: {
   entries: WorkspaceEntry[]
+  directoryPath: string
   depth: number
   expanded: Set<string>
   listings: Record<string, DirectoryListing | undefined>
   loading: Set<string>
   selected: string | undefined
+  createDraft: CreateDraft | null
+  createLabel: string
+  onCreate: (draft: CreateDraft, name: string) => Promise<boolean>
+  onCancelCreate: () => void
   onToggle: (path: string) => void
   onOpen: (path: string) => void
 }) {
-  return props.entries.filter(entry => entry.name !== '.git').map((entry) => {
-    const directory = entry.kind === 'directory'
-    const open = directory && props.expanded.has(entry.path)
-    const children = props.listings[entry.path]
-    return (
-      <div key={entry.path} role="none">
-        <button
-          type="button"
-          role="treeitem"
-          aria-expanded={directory ? open : undefined}
-          className={css.treeRow}
-          data-selected={props.selected === entry.path || undefined}
-          style={{ paddingLeft: 8 + props.depth * 16 }}
-          onClick={() => { directory ? props.onToggle(entry.path) : props.onOpen(entry.path) }}
-        >
-          <span className={css.chevron}>
-            {directory && (open ? <IconChevronDownOutline14 size={12} /> : <IconChevronRightOutline14 size={12} />)}
-          </span>
-          {directory
-            ? open ? <IconFolderOpen16 size={16} /> : <IconFolderClose16 size={16} />
-            : <IconCodeOutline16 size={15} />}
-          <span className={css.rowName}>{entry.name}</span>
-        </button>
-        {open && props.loading.has(entry.path) && <div className={css.treeLoading} style={{ paddingLeft: 28 + props.depth * 16 }}>…</div>}
-        {open && children !== undefined && (
-          <TreeLevel {...props} entries={children.entries} depth={props.depth + 1} />
-        )}
-      </div>
-    )
-  })
+  return <>
+    {props.createDraft?.parent === props.directoryPath && (
+      <FileTreeCreateRow
+        kind={props.createDraft.kind}
+        depth={props.depth}
+        label={props.createLabel}
+        onCreate={name => props.onCreate(props.createDraft!, name)}
+        onCancel={props.onCancelCreate}
+      />
+    )}
+    {props.entries.filter(entry => entry.name !== '.git').map((entry) => {
+      const directory = entry.kind === 'directory'
+      const open = directory && props.expanded.has(entry.path)
+      const children = props.listings[entry.path]
+      return (
+        <div key={entry.path} role="none">
+          <button
+            type="button"
+            role="treeitem"
+            aria-expanded={directory ? open : undefined}
+            className={css.treeRow}
+            data-selected={props.selected === entry.path || undefined}
+            style={{ paddingLeft: 8 + props.depth * 16 }}
+            onClick={() => { directory ? props.onToggle(entry.path) : props.onOpen(entry.path) }}
+          >
+            <span className={css.chevron}>
+              {directory && (open ? <IconChevronDownOutline14 size={12} /> : <IconChevronRightOutline14 size={12} />)}
+            </span>
+            {directory
+              ? open ? <IconFolderOpen16 size={16} /> : <IconFolderClose16 size={16} />
+              : <IconCodeOutline16 size={15} />}
+            <span className={css.rowName}>{entry.name}</span>
+          </button>
+          {open && props.loading.has(entry.path) && <div className={css.treeLoading} style={{ paddingLeft: 28 + props.depth * 16 }}>…</div>}
+          {open && children !== undefined && (
+            <TreeLevel {...props} entries={children.entries} directoryPath={entry.path} depth={props.depth + 1} />
+          )}
+        </div>
+      )
+    })}
+  </>
+}
+
+function parentPath(path: string | undefined): string {
+  if (path === undefined) return ''
+  const separator = path.lastIndexOf('/')
+  return separator < 0 ? '' : path.slice(0, separator)
 }
 
 function messageOf(error: unknown): string {

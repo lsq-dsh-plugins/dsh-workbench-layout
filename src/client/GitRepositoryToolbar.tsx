@@ -15,17 +15,17 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { GitBranches, GitRemoteOperation, GitStatus } from '../contracts.ts'
-import type { GitChangeLayout } from './GitChangesView.tsx'
 import { IconSourceControlOutline16 } from './SourceControlIcon.tsx'
 import css from './Workbench.module.css'
+
+export type GitView = 'changes-list' | 'changes-tree' | 'graph'
 
 interface GitRepositoryToolbarProps {
   status: GitStatus | null
   branches: GitBranches | null
-  showViewOptions: boolean
-  changeLayout: GitChangeLayout
+  view: GitView
   busy: string | null
-  onChangeLayout: (layout: GitChangeLayout) => void
+  onViewChange: (view: GitView) => void
   onSwitchBranch: (ref: string) => void
   onRemoteOperation: (operation: GitRemoteOperation) => void
   onRefresh: () => void
@@ -38,7 +38,7 @@ export function GitRepositoryToolbar(props: GitRepositoryToolbarProps) {
     <div className={css.panelHeader}>
       <BranchMenu {...props} />
       <div className={css.gitHeaderActions}>
-        {props.showViewOptions && <ViewMenu {...props} />}
+        <ViewMenu {...props} />
         <Tooltip label={syncLabel(props.status, props.t)} side="bottom" delayMs={450}>
           <button
             type="button"
@@ -108,12 +108,13 @@ function ViewMenu(props: GitRepositoryToolbarProps) {
       open={open}
       onClose={() => { setOpen(false) }}
       items={[
-        { id: 'list', label: props.t('git.viewList'), icon: <IconListPenOutline16 size={14} /> },
-        { id: 'tree', label: props.t('git.viewTree'), icon: <IconFolderOpenOutline16 size={14} /> },
+        { id: 'changes-list', label: props.t('git.viewChangesList'), icon: <IconListPenOutline16 size={14} /> },
+        { id: 'changes-tree', label: props.t('git.viewChangesTree'), icon: <IconFolderOpenOutline16 size={14} /> },
+        { id: 'graph', label: props.t('git.viewGraph'), icon: <IconSourceControlOutline16 size={14} /> },
       ]}
-      selectedId={props.changeLayout}
+      selectedId={props.view}
       onSelect={(id) => {
-        if (id === 'list' || id === 'tree') props.onChangeLayout(id)
+        if (id === 'changes-list' || id === 'changes-tree' || id === 'graph') props.onViewChange(id)
         setOpen(false)
       }}
       align="end"

@@ -12,7 +12,7 @@ import type {
 import type { WorkbenchController } from './controller.ts'
 import { GitChangesView, type GitChangeLayout } from './GitChangesView.tsx'
 import { GitGraphView, type CommitFilesState } from './GitGraphView.tsx'
-import { GitRepositoryToolbar } from './GitRepositoryToolbar.tsx'
+import { GitRepositoryToolbar, type GitView } from './GitRepositoryToolbar.tsx'
 import { useWorkbench } from './use-workbench.ts'
 import css from './Workbench.module.css'
 
@@ -22,8 +22,6 @@ interface GitPanelProps {
   t: TranslateNS<'workbench'>
 }
 
-type GitView = 'changes' | 'graph'
-
 /** 组合源码管理状态；具体的更改、提交图和仓库工具栏各自保持独立。 */
 export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
   const workbench = useWorkbench(controller)
@@ -32,8 +30,7 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
   const refreshId = useRef(0)
   const activeWorkspace = useRef(workspaceId)
   activeWorkspace.current = workspaceId
-  const [view, setView] = useState<GitView>('changes')
-  const [changeLayout, setChangeLayout] = useState<GitChangeLayout>('list')
+  const [view, setView] = useState<GitView>('changes-list')
   const [status, setStatus] = useState<GitStatus | null>(null)
   const [branches, setBranches] = useState<GitBranches | null>(null)
   const [graph, setGraph] = useState<GitGraph | null>(null)
@@ -208,15 +205,16 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
   if (workspaceId === undefined) return <div className={css.emptyState}>{t('git.emptyWorkspace')}</div>
   const stagedFiles = status?.files.filter(isStaged) ?? []
   const changedFiles = status?.files.filter(hasWorktreeChange) ?? []
+  const changeLayout: GitChangeLayout = view === 'changes-tree' ? 'tree' : 'list'
+  const showingChanges = view !== 'graph'
   return (
     <div className={css.panelBody}>
       <GitRepositoryToolbar
         status={status}
         branches={branches}
-        showViewOptions={view === 'changes'}
-        changeLayout={changeLayout}
+        view={view}
         busy={busy}
-        onChangeLayout={setChangeLayout}
+        onViewChange={setView}
         onSwitchBranch={ref => { void switchBranch(ref) }}
         onRemoteOperation={operation => { void remoteOperation(operation) }}
         onRefresh={() => {
@@ -225,19 +223,11 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
         }}
         t={t}
       />
-      <div className={css.gitViewTabs} role="tablist" aria-label={t('git.title')}>
-        <button type="button" role="tab" aria-selected={view === 'changes'} data-active={view === 'changes' || undefined} onClick={() => { setView('changes') }}>
-          {t('git.changesTab')}<span>{stagedFiles.length + changedFiles.length}</span>
-        </button>
-        <button type="button" role="tab" aria-selected={view === 'graph'} data-active={view === 'graph' || undefined} onClick={() => { setView('graph') }}>
-          {t('git.graphTab')}<span>{graph?.commits.length ?? 0}</span>
-        </button>
-      </div>
       {error !== null && <div className={css.error} role="alert">{error}</div>}
       {result !== null && <div className={css.success} role="status">{result}</div>}
       {loading && status === null && <div className={css.emptyState}>{t('files.loading')}</div>}
       {status?.available === false && <div className={css.emptyState}>{status.message}</div>}
-      {status?.available === true && view === 'changes' && (
+      {status?.available === true && showingChanges && (
         <>
           <div className={css.commitBox}>
             <textarea

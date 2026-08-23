@@ -100,6 +100,10 @@ async function dispatch(
       return workspace.read(body.workspaceId, body.path)
     case `${WORKBENCH_API_PREFIX}/file/save`:
       return workspace.save(body.workspaceId, body.path, body.content, body.version)
+    case `${WORKBENCH_API_PREFIX}/file/create`:
+      return workspace.createFile(body.workspaceId, body.path)
+    case `${WORKBENCH_API_PREFIX}/directory/create`:
+      return workspace.createDirectory(body.workspaceId, body.path)
     case `${WORKBENCH_API_PREFIX}/git/status`:
       return git.status(body.workspaceId)
     case `${WORKBENCH_API_PREFIX}/git/diff`:

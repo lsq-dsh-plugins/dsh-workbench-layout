@@ -68,6 +68,7 @@ export function errorResponse(error: unknown): { status: number; body: Workbench
 function publicFailureMessage(code: string): string {
   switch (code) {
     case 'FS_STALE_VERSION': return '文件已被其他程序修改，请重新加载后再保存。'
+    case 'FS_NOT_OBSERVED': return '同名文件或目录已经存在。'
     case 'FS_TOO_LARGE': return '文件超过工作台允许的大小。'
     case 'FS_NOT_TEXT': return '该文件不是可编辑的 UTF-8 文本。'
     case 'FS_NOT_FOUND': return '文件或目录不存在。'

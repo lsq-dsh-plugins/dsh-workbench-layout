@@ -56,12 +56,12 @@ describe('Git panel', () => {
     const { controller } = harness()
     const view = renderPanel(controller)
 
-    await waitFor(() => { expect(view.getByRole('tab', { name: /更改/u })).toBeTruthy() })
+    await waitFor(() => { expect(view.container.querySelector('[data-change-layout="list"]')).not.toBeNull() })
     fireEvent.click(view.getAllByTitle('src/nested/a.ts')[1]!)
     expect(controller.openDiff).toHaveBeenCalledWith('workspace-1', 'src/nested/a.ts', false)
 
-    fireEvent.click(view.getByRole('button', { name: '更改视图' }))
-    fireEvent.click(view.getByRole('button', { name: '以目录树显示' }))
+    fireEvent.click(view.getByRole('button', { name: 'Git 视图' }))
+    fireEvent.click(view.getByRole('button', { name: '更改（目录树）' }))
     expect(view.container.querySelector('[data-change-layout="tree"]')).not.toBeNull()
     expect(view.getAllByTitle('src')).toHaveLength(2)
     expect(view.getAllByTitle('src/nested')).toHaveLength(2)
@@ -70,8 +70,9 @@ describe('Git panel', () => {
   it('renders a commit graph while keeping subject, author, refs, and in-place file expansion', async () => {
     const { controller, commit } = harness()
     const view = renderPanel(controller)
-    await waitFor(() => { expect(view.getByRole('tab', { name: /提交图/u })).toBeTruthy() })
-    fireEvent.click(view.getByRole('tab', { name: /提交图/u }))
+    await waitFor(() => { expect(view.getByRole('button', { name: 'Git 视图' })).toBeTruthy() })
+    fireEvent.click(view.getByRole('button', { name: 'Git 视图' }))
+    fireEvent.click(view.getByRole('button', { name: '提交图' }))
 
     const row = view.getByRole('button', { name: /完善工作台.*Tester.*main/u })
     expect(row.textContent).not.toContain(commit.shortHash)
@@ -86,6 +87,7 @@ describe('Git panel', () => {
     expect(row.closest<HTMLElement>('[data-graph-lanes]')?.style.getPropertyValue('--git-row-graph-width')).toBe('16px')
     expect(view.container.querySelectorAll('[data-graph-node]')).toHaveLength(1)
     expect(view.container.querySelector('[data-node-kind="reference"]')).not.toBeNull()
+    expect(view.getByRole('button', { name: 'Git 视图' })).toBeTruthy()
     expect(view.container.querySelectorAll('[data-graph-edge="outgoing"]')).toHaveLength(1)
     expect(view.container.querySelectorAll('[data-graph-continuation]')).toHaveLength(1)
 

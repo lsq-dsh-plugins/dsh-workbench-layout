@@ -1,9 +1,11 @@
 /** Host-side workspace operations over DSH's filesystem service. */
 
+import { mkdir } from 'node:fs/promises'
 import type { Context } from '@deepseek-ai/cordis'
 import type { FsTarget, FsVersion } from '@deepseek-ai/dsh-fs'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace'
 import type {
+  CreatedWorkspaceEntry,
   DirectoryListing,
   SavedWorkspaceFile,
   WorkspaceEntry,
@@ -126,6 +128,54 @@ export class WorkspaceBackend {
     return { path: workspace.path, version: outcome.version, size }
   }
 
+  /** Atomically create one empty text file without replacing an existing entry. */
+  async createFile(workspaceIdValue: unknown, pathValue: unknown): Promise<CreatedWorkspaceEntry> {
+    const workspace = await this.resolveCreationTarget(workspaceIdValue, pathValue)
+    try {
+      await this.ctx.fs.writeText(
+        workspace.target,
+        '',
+        { kind: 'createIfAbsent' },
+        undefined,
+        { mode: 'workspace-write', workspaceRoot: workspace.cwd },
+      )
+    } catch (error: unknown) {
+      const code = errorCode(error)
+      if (code === 'FS_NOT_OBSERVED' || code === 'FS_NOT_REGULAR_FILE') {
+        throw new WorkbenchHttpError(409, 'FS_ALREADY_EXISTS', '同名文件或目录已经存在。')
+      }
+      throw error
+    }
+    this.ctx.logger.info(
+      `workbench-layout: created workspace file ${JSON.stringify(workspace.path)} in ${JSON.stringify(workspace.workspaceId)}`,
+    )
+    return { name: workspaceName(workspace.path), path: workspace.path, kind: 'file', size: 0 }
+  }
+
+  /** Create one directory level under a validated DSH Workspace parent. */
+  async createDirectory(workspaceIdValue: unknown, pathValue: unknown): Promise<CreatedWorkspaceEntry> {
+    const workspace = await this.resolveCreationTarget(workspaceIdValue, pathValue)
+    try {
+      await mkdir(this.ctx.fs.processPath(workspace.target))
+    } catch (error: unknown) {
+      switch (errorCode(error)) {
+        case 'EEXIST':
+          throw new WorkbenchHttpError(409, 'FS_ALREADY_EXISTS', '同名文件或目录已经存在。')
+        case 'ENOENT':
+          throw new WorkbenchHttpError(404, 'FS_NOT_FOUND', '父目录不存在，请刷新文件目录。')
+        case 'EACCES':
+        case 'EPERM':
+          throw new WorkbenchHttpError(403, 'FS_PERMISSION_DENIED', '没有权限创建目录。')
+        default:
+          throw error
+      }
+    }
+    this.ctx.logger.info(
+      `workbench-layout: created workspace directory ${JSON.stringify(workspace.path)} in ${JSON.stringify(workspace.workspaceId)}`,
+    )
+    return { name: workspaceName(workspace.path), path: workspace.path, kind: 'directory' }
+  }
+
   async rootProcessPath(workspaceIdValue: unknown): Promise<{ cwd: string; workspaceId: WorkspaceId }> {
     const workspace = await this.resolve(workspaceIdValue, '')
     await this.requireType(workspace, 'directory')
@@ -188,6 +238,19 @@ export class WorkspaceBackend {
     return { workspaceId, cwd, root, target, path }
   }
 
+  private async resolveCreationTarget(workspaceIdValue: unknown, pathValue: unknown): Promise<WorkspaceTarget> {
+    const workspace = await this.resolve(workspaceIdValue, pathValue, false)
+    if (workspace.path === '') throw new WorkbenchHttpError(400, 'ENTRY_REQUIRED', '请输入文件或目录名称。')
+    const existing = await this.ctx.fs.lstat(workspace.path, { cwd: workspace.cwd })
+    if (existing !== undefined) {
+      throw new WorkbenchHttpError(409, 'FS_ALREADY_EXISTS', '同名文件或目录已经存在。')
+    }
+    const parentPath = workspaceParent(workspace.path)
+    const parent = await this.resolve(workspace.workspaceId, parentPath)
+    await this.requireType(parent, 'directory')
+    return workspace
+  }
+
   private async requireType(workspace: WorkspaceTarget, expected: 'file' | 'directory') {
     const info = await this.ctx.fs.stat(workspace.target)
     if (info === undefined) throw new WorkbenchHttpError(404, 'FS_NOT_FOUND', '文件或目录不存在。')
@@ -197,4 +260,17 @@ export class WorkspaceBackend {
     }
     return info
   }
+}
+
+function workspaceParent(path: string): string {
+  const separator = path.lastIndexOf('/')
+  return separator < 0 ? '' : path.slice(0, separator)
+}
+
+function workspaceName(path: string): string {
+  return path.slice(path.lastIndexOf('/') + 1)
+}
+
+function errorCode(error: unknown): unknown {
+  return error !== null && typeof error === 'object' && 'code' in error ? error.code : undefined
 }

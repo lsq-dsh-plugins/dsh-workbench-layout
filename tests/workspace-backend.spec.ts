@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
+import { mkdtemp, rm, stat } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { WorkspaceBackend } from '../src/workspace-backend.ts'
 
@@ -29,7 +32,12 @@ function harness(overrides: Record<string, unknown> = {}) {
     },
     logger: { info: vi.fn(), warn: vi.fn() },
   } as unknown as Context
-  return { backend: new WorkspaceBackend(ctx, { maxFileBytes: 1024, maxDirectoryEntries: 100 }), fs, writeText }
+  return {
+    backend: new WorkspaceBackend(ctx, { maxFileBytes: 1024, maxDirectoryEntries: 100 }),
+    fs,
+    writeText,
+    logger: (ctx as unknown as { logger: { info: ReturnType<typeof vi.fn> } }).logger,
+  }
 }
 
 describe('WorkspaceBackend', () => {
@@ -45,6 +53,55 @@ describe('WorkspaceBackend', () => {
       undefined,
       { mode: 'workspace-write', workspaceRoot: '/workspace' },
     )
+  })
+
+  it('creates an empty file through DSH createIfAbsent and logs only its relative path', async () => {
+    const { backend, writeText, logger } = harness({
+      lstat: vi.fn((path: string) => Promise.resolve(path === 'src/new.ts' ? undefined : { type: 'directory' })),
+      stat: vi.fn((target: { targetKey: string }) => Promise.resolve({
+        type: target.targetKey === '/workspace/src' ? 'directory' : 'file',
+      })),
+    })
+
+    await expect(backend.createFile('workspace-1', 'src/new.ts')).resolves.toEqual({
+      name: 'new.ts', path: 'src/new.ts', kind: 'file', size: 0,
+    })
+    expect(writeText).toHaveBeenCalledWith(
+      expect.objectContaining({ targetKey: '/workspace/src/new.ts' }),
+      '',
+      { kind: 'createIfAbsent' },
+      undefined,
+      { mode: 'workspace-write', workspaceRoot: '/workspace' },
+    )
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('src/new.ts'))
+  })
+
+  it('creates one directory level only after validating its Workspace parent', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'dsh-workbench-create-'))
+    try {
+      const { backend, logger } = harness({
+        lstat: vi.fn((path: string) => Promise.resolve(path === 'docs' ? undefined : { type: 'directory' })),
+        stat: vi.fn(() => Promise.resolve({ type: 'directory' })),
+        processPath: vi.fn((target: { targetKey: string }) => join(directory, target.targetKey.slice('/workspace/'.length))),
+      })
+
+      await expect(backend.createDirectory('workspace-1', 'docs')).resolves.toEqual({
+        name: 'docs', path: 'docs', kind: 'directory',
+      })
+      await expect(stat(join(directory, 'docs'))).resolves.toMatchObject({})
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('docs'))
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('does not replace an existing entry during creation', async () => {
+    const { backend, writeText } = harness()
+    await expect(backend.createFile('workspace-1', 'existing.txt')).rejects.toMatchObject({
+      status: 409,
+      code: 'FS_ALREADY_EXISTS',
+    })
+    expect(writeText).not.toHaveBeenCalled()
   })
 
   it('rejects a resolved target outside the registered Workspace', async () => {

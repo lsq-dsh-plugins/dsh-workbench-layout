@@ -75,10 +75,11 @@
   max-width: 100%;
 }
 
-[data-dsh-workbench-sidebar-settings-trigger] {
+[data-dsh-workbench-sidebar-foot][data-wide] [data-dsh-workbench-sidebar-settings-trigger] {
   width: auto;
-  margin-right: 0;
-  margin-left: 0;
+  min-height: 32px;
+  height: 32px;
+  margin: 0;
 }
 
 .modeSwitch {
@@ -325,6 +326,13 @@
   opacity: 0.45;
 }
 
+.fileHeaderActions {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 1px;
+}
+
 .gitSyncButton {
   display: inline-flex;
   align-items: center;
@@ -382,6 +390,32 @@
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
+.treeCreateRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  box-sizing: border-box;
+  padding-right: 8px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.treeCreateRow input {
+  min-width: 0;
+  height: 23px;
+  flex: 1;
+  box-sizing: border-box;
+  padding: 0 5px;
+  border: 1px solid var(--dsw-alias-brand-border);
+  border-radius: 5px;
+  outline: none;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font: var(--dsw-font-xs-13);
+}
+
 .treeRow[data-selected] {
   background: var(--dsw-alias-interactive-bg-active);
   color: var(--dsw-alias-brand-text);
@@ -436,48 +470,6 @@
 .success {
   background: var(--dsw-alias-state-success-secondary);
   color: var(--dsw-alias-state-success-primary);
-}
-
-.gitViewTabs {
-  display: grid;
-  flex: none;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
-  margin: 0 10px 8px 6px;
-  padding: 3px;
-  border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: 10px;
-  background: var(--dsw-alias-bg-layer-1);
-}
-
-.gitViewTabs button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 8px;
-  border: none;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--dsw-alias-label-tertiary);
-  font: var(--dsw-font-xxs-12);
-  cursor: pointer;
-}
-
-.gitViewTabs button:hover {
-  color: var(--dsw-alias-label-primary);
-}
-
-.gitViewTabs button[data-active] {
-  background: var(--dsw-alias-button-elevated-fill);
-  color: var(--dsw-alias-label-primary);
-  box-shadow: 0 1px 3px var(--dsw-alias-bg-mask-1);
-}
-
-.gitViewTabs button span {
-  color: var(--dsw-alias-label-quaternary);
-  font-size: 10px;
 }
 
 .gitContent {

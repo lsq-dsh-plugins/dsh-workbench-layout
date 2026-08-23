@@ -66,7 +66,7 @@ export function createSidebarFooterLayout(
     nextActions.setAttribute(SIDEBAR_FOOT_ACTIONS_ATTRIBUTE, '')
     nextSettings.setAttribute(SIDEBAR_SETTINGS_AREA_ATTRIBUTE, '')
     nextSettingsTrigger?.setAttribute(SIDEBAR_SETTINGS_TRIGGER_ATTRIBUTE, '')
-    logger.info('workbench-layout: separated middle-editor control beside the content-sized Settings action')
+    logger.info('workbench-layout: aligned the compact Settings action beside the independent middle-editor control')
   }
 
   reconcile()

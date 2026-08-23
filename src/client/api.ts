@@ -1,6 +1,7 @@
 /** Same-origin browser client for the workbench Host route. */
 
 import type {
+  CreatedWorkspaceEntry,
   DirectoryListing,
   GitBranches,
   GitCommitFiles,
@@ -35,6 +36,14 @@ export class WorkbenchApi {
 
   async saveFile(workspaceId: string, path: string, content: string, version: string): Promise<SavedWorkspaceFile> {
     return this.post('/file/save', { workspaceId, path, content, version })
+  }
+
+  async createFile(workspaceId: string, path: string): Promise<CreatedWorkspaceEntry> {
+    return this.post('/file/create', { workspaceId, path })
+  }
+
+  async createDirectory(workspaceId: string, path: string): Promise<CreatedWorkspaceEntry> {
+    return this.post('/directory/create', { workspaceId, path })
   }
 
   async gitStatus(workspaceId: string): Promise<GitStatus> {

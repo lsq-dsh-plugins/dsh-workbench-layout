@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import {
   createSidebarFooterLayout,
   SIDEBAR_FOOT_ACTIONS_ATTRIBUTE,
@@ -23,7 +25,11 @@ describe('侧栏底部同行布局', () => {
     expect(settings.hasAttribute(SIDEBAR_SETTINGS_AREA_ATTRIBUTE)).toBe(true)
     expect(settingsTrigger.hasAttribute(SIDEBAR_SETTINGS_TRIGGER_ATTRIBUTE)).toBe(true)
     expect(actions.nextElementSibling).toBe(settings)
-    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('content-sized Settings action'))
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('compact Settings action'))
+
+    const stylesheet = readFileSync(resolve(process.cwd(), 'src/client/Workbench.module.css'), 'utf8')
+    expect(stylesheet).toContain('[data-dsh-workbench-sidebar-foot][data-wide] [data-dsh-workbench-sidebar-settings-trigger]')
+    expect(stylesheet).toContain('height: 32px')
 
     layout.setWide(false)
     expect(foot.hasAttribute('data-wide')).toBe(false)
