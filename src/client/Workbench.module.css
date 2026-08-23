@@ -9,7 +9,8 @@
   margin-bottom: 12px;
 }
 
-.sidebarTopHost[data-wide] + [data-dsh-workbench-new-session] {
+.sidebarTopHost[data-wide] + [data-dsh-workbench-new-session],
+.sidebarTopHost:not([data-mode='sessions']) + [data-dsh-workbench-new-session] {
   display: none !important;
 }
 
@@ -83,15 +84,18 @@
 }
 
 .modeSwitch {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 3px;
-  width: 100%;
-  padding: 4px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 36px;
+  padding: 0;
 }
 
 .modeSwitch[data-wide] {
+  display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 3px;
+  width: 100%;
   padding: 0 2px;
 }
 
@@ -100,19 +104,25 @@
   align-items: center;
   justify-content: center;
   gap: 5px;
+  width: 36px;
   min-width: 0;
-  height: 32px;
+  height: 36px;
   padding: 0;
-  border: 1px solid transparent;
-  border-radius: 10px;
+  border: none;
+  border-radius: 50%;
   background: transparent;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--dsw-alias-label-primary);
   font: var(--dsw-font-xxs-12);
   cursor: pointer;
 }
 
 .modeSwitch[data-wide] .modeButton {
+  width: auto;
+  height: 32px;
   padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: var(--dsw-alias-label-secondary);
 }
 
 .modeButton > span {
@@ -128,8 +138,12 @@
 }
 
 .modeButton[data-active] {
-  border-color: var(--dsw-alias-border-l2);
   background: var(--dsw-alias-button-elevated-fill);
+  color: var(--dsw-alias-label-primary);
+}
+
+.modeSwitch[data-wide] .modeButton[data-active] {
+  border-color: var(--dsw-alias-border-l2);
   color: var(--dsw-alias-brand-text);
 }
 
@@ -144,7 +158,90 @@
 }
 
 .collapsedBody {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
   width: 36px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.collapsedBody::-webkit-scrollbar {
+  display: none;
+}
+
+.railButton {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+}
+
+.railButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.railButton[data-active] {
+  background: var(--dsw-alias-button-elevated-fill);
+}
+
+.railButton:disabled {
+  color: var(--dsw-alias-label-quaternary);
+  cursor: not-allowed;
+}
+
+.railButton[data-status='connecting']::after,
+.railButton[data-status='running']::after,
+.railButton[data-status='exited']::after,
+.railButton[data-status='error']::after {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  width: 5px;
+  height: 5px;
+  border: 1px solid var(--dsw-specific-sidebar-fill);
+  border-radius: 50%;
+  background: var(--dsw-alias-label-tertiary);
+  content: '';
+}
+
+.railButton[data-status='connecting']::after {
+  background: var(--dsw-alias-state-warn-primary);
+}
+
+.railButton[data-status='running']::after {
+  background: var(--dsw-alias-state-success-primary);
+}
+
+.railButton[data-status='error']::after {
+  background: var(--dsw-alias-state-error-primary);
+}
+
+.railTerminalAdd {
+  position: relative;
+  display: inline-flex;
+}
+
+.railAddGlyph {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  padding: 1px;
+  border-radius: 50%;
+  background: var(--dsw-specific-sidebar-fill);
 }
 
 .terminalList {

@@ -5,9 +5,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FileTree } from '../src/client/FileTree.tsx'
 import { zh } from '../src/client/locales.ts'
 
-vi.mock('../src/client/use-workbench.ts', () => ({
-  useWorkbench: () => ({ activeTabId: undefined, tabs: [] }),
+const workbench = vi.hoisted(() => ({
+  current: {
+    activeTabId: undefined as string | undefined,
+    tabs: [] as Array<{ id: string; kind: 'file'; path: string; dirty: boolean }>,
+    sidebarAction: undefined as { id: number; action: 'files.newFile' | 'files.newDirectory' | 'files.refresh'; workspaceId: string } | undefined,
+  },
 }))
+
+vi.mock('../src/client/use-workbench.ts', () => ({ useWorkbench: () => workbench.current }))
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -19,7 +25,10 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconRefreshOutline14: () => <span />,
 }))
 
-afterEach(() => { cleanup() })
+afterEach(() => {
+  cleanup()
+  workbench.current = { activeTabId: undefined, tabs: [], sidebarAction: undefined }
+})
 
 describe('文件目录', () => {
   it('在所选目录内新建文件，并在所选文件的父目录中新建文件夹', async () => {
@@ -73,5 +82,27 @@ describe('文件目录', () => {
     await waitFor(() => {
       expect(controller.api.createDirectory).toHaveBeenCalledWith('workspace-1', 'docs')
     })
+  })
+
+  it('展开后只消费一次收起栏的新建文件命令', async () => {
+    workbench.current = {
+      activeTabId: undefined,
+      tabs: [],
+      sidebarAction: { id: 7, action: 'files.newFile', workspaceId: 'workspace-1' },
+    }
+    const controller = {
+      api: {
+        listDirectory: vi.fn(() => Promise.resolve({ path: '', truncated: false, entries: [] })),
+      },
+      consumeSidebarAction: vi.fn(),
+      openFile: vi.fn(),
+    }
+    const view = render(
+      <FileTree controller={controller as never} workspaceId="workspace-1" t={key => zh[key]} />,
+    )
+
+    expect(await view.findByRole('textbox', { name: '文件名' })).toBeTruthy()
+    expect(controller.consumeSidebarAction).toHaveBeenCalledOnce()
+    expect(controller.consumeSidebarAction).toHaveBeenCalledWith(7)
   })
 })

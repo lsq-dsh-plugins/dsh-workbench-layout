@@ -16,11 +16,10 @@ import {
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { GitBranches, GitRemoteOperation, GitStatus } from '../contracts.ts'
 import { IconCommitGraphOutline16 } from './CommitGraphIcon.tsx'
+import type { GitView } from './controller.ts'
 import type { GitFileLayout } from './git-tree.ts'
 import { IconSourceControlOutline16 } from './SourceControlIcon.tsx'
 import css from './Workbench.module.css'
-
-export type GitView = 'changes' | 'graph'
 
 interface GitRepositoryToolbarProps {
   status: GitStatus | null

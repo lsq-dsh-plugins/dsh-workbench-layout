@@ -12,8 +12,7 @@ import type {
 import type { WorkbenchController } from './controller.ts'
 import { GitChangesView } from './GitChangesView.tsx'
 import { GitGraphView, type CommitFilesState } from './GitGraphView.tsx'
-import { GitRepositoryToolbar, type GitView } from './GitRepositoryToolbar.tsx'
-import type { GitFileLayout } from './git-tree.ts'
+import { GitRepositoryToolbar } from './GitRepositoryToolbar.tsx'
 import { useWorkbench } from './use-workbench.ts'
 import css from './Workbench.module.css'
 
@@ -31,9 +30,9 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
   const refreshId = useRef(0)
   const activeWorkspace = useRef(workspaceId)
   activeWorkspace.current = workspaceId
-  const [view, setView] = useState<GitView>('changes')
-  const [changeLayout, setChangeLayout] = useState<GitFileLayout>('list')
-  const [graphFileLayout, setGraphFileLayout] = useState<GitFileLayout>('list')
+  const view = workbench.gitView
+  const changeLayout = workbench.gitChangeLayout
+  const graphFileLayout = workbench.gitGraphFileLayout
   const [status, setStatus] = useState<GitStatus | null>(null)
   const [branches, setBranches] = useState<GitBranches | null>(null)
   const [graph, setGraph] = useState<GitGraph | null>(null)
@@ -205,6 +204,23 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
     }
   }
 
+  useEffect(() => {
+    const request = workbench.sidebarAction
+    if (request === undefined || request.workspaceId !== workspaceId) return
+    if (request.action === 'git.refresh') {
+      controller.consumeSidebarAction(request.id)
+      if (status !== null) void refresh()
+      return
+    }
+    if (request.action !== 'git.sync' || status === null) return
+    controller.consumeSidebarAction(request.id)
+    if (!status.available || status.upstream === undefined) {
+      setError(t('git.syncUnavailable'))
+      return
+    }
+    void remoteOperation('sync')
+  }, [controller, refresh, status, t, workbench.sidebarAction, workspaceId])
+
   if (workspaceId === undefined) return <div className={css.emptyState}>{t('git.emptyWorkspace')}</div>
   const stagedFiles = status?.files.filter(isStaged) ?? []
   const changedFiles = status?.files.filter(hasWorktreeChange) ?? []
@@ -218,10 +234,9 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
         view={view}
         fileLayout={activeFileLayout}
         busy={busy}
-        onToggleView={() => { setView(current => current === 'changes' ? 'graph' : 'changes') }}
+        onToggleView={() => { controller.toggleGitView() }}
         onFileLayoutChange={layout => {
-          if (view === 'changes') setChangeLayout(layout)
-          else setGraphFileLayout(layout)
+          controller.setGitFileLayout(view, layout)
         }}
         onSwitchBranch={ref => { void switchBranch(ref) }}
         onRemoteOperation={operation => { void remoteOperation(operation) }}

@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ModeSwitch } from '../src/client/ModeSwitch.tsx'
 import type { WorkbenchController } from '../src/client/controller.ts'
@@ -48,6 +50,7 @@ describe('工作台模式切换', () => {
     )
 
     const gitButton = view.getByRole('button', { name: 'Git' })
+    expect(document.querySelector('[data-dsh-workbench-sidebar-top]')?.getAttribute('data-mode')).toBe('git')
     const icon = gitButton.querySelector('svg')
     expect(icon?.getAttribute('width')).toBe('18')
     expect(icon?.getAttribute('aria-hidden')).toBe('true')
@@ -97,6 +100,19 @@ describe('工作台模式切换', () => {
 
     expect(view.getByRole('button', { name: 'Git' }).querySelector('svg')?.getAttribute('width')).toBe('16')
     expect(view.getByRole('button', { name: 'editor.collapse' }).querySelector('svg')?.getAttribute('width')).toBe('16')
+  })
+
+  it('让收起态按钮遵循官方 36px 圆形与 12px 纵向节奏', () => {
+    const stylesheet = readFileSync(resolve(process.cwd(), 'src/client/Workbench.module.css'), 'utf8')
+    const modeSwitchRule = stylesheet.match(/\.modeSwitch\s*\{[^}]+\}/u)?.[0]
+    const modeButtonRule = stylesheet.match(/\.modeButton\s*\{[^}]+\}/u)?.[0]
+
+    expect(modeSwitchRule).toContain('gap: 12px')
+    expect(modeSwitchRule).toContain('width: 36px')
+    expect(modeButtonRule).toContain('width: 36px')
+    expect(modeButtonRule).toContain('height: 36px')
+    expect(modeButtonRule).toContain('border-radius: 50%')
+    expect(stylesheet).toContain(".sidebarTopHost:not([data-mode='sessions']) + [data-dsh-workbench-new-session]")
   })
 })
 

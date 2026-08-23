@@ -7,12 +7,47 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { GitPanel } from '../src/client/GitPanel.tsx'
 import { zh } from '../src/client/locales.ts'
 
-const workbenchState = vi.hoisted(() => ({
-  activeTabId: undefined as string | undefined,
-  tabs: [] as Array<{ id: string; kind: 'file'; dirty: boolean }>,
-}))
+const workbenchStore = vi.hoisted(() => {
+  let snapshot = {
+    activeTabId: undefined as string | undefined,
+    tabs: [] as Array<{ id: string; kind: 'file'; dirty: boolean }>,
+    gitView: 'changes' as 'changes' | 'graph',
+    gitChangeLayout: 'list' as 'list' | 'tree',
+    gitGraphFileLayout: 'list' as 'list' | 'tree',
+    sidebarAction: undefined as { id: number; action: string; workspaceId: string } | undefined,
+  }
+  const listeners = new Set<() => void>()
+  return {
+    getSnapshot: () => snapshot,
+    subscribe: (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener) } },
+    update: (patch: Partial<typeof snapshot>) => {
+      snapshot = { ...snapshot, ...patch }
+      listeners.forEach(listener => { listener() })
+    },
+    reset: () => {
+      snapshot = {
+        activeTabId: undefined,
+        tabs: [],
+        gitView: 'changes',
+        gitChangeLayout: 'list',
+        gitGraphFileLayout: 'list',
+        sidebarAction: undefined,
+      }
+      listeners.forEach(listener => { listener() })
+    },
+  }
+})
 
-vi.mock('../src/client/use-workbench.ts', () => ({ useWorkbench: () => workbenchState }))
+vi.mock('../src/client/use-workbench.ts', async () => {
+  const { useSyncExternalStore } = await import('react')
+  return {
+    useWorkbench: () => useSyncExternalStore(
+      workbenchStore.subscribe,
+      workbenchStore.getSnapshot,
+      workbenchStore.getSnapshot,
+    ),
+  }
+})
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Button: ({ children, variant: _variant, size: _size, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) => <button {...props}>{children}</button>,
@@ -50,7 +85,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconSendOutline16: () => <span />,
 }))
 
-beforeEach(() => { workbenchState.tabs = [] })
+beforeEach(() => { workbenchStore.reset() })
 afterEach(() => { cleanup() })
 
 describe('Git panel', () => {
@@ -154,11 +189,22 @@ describe('Git panel', () => {
     expect(controller.closeDiffTabs).toHaveBeenCalledWith('workspace-1')
   })
 
+  it('waits for Git status before consuming a queued collapsed-rail sync', async () => {
+    workbenchStore.update({ sidebarAction: { id: 9, action: 'git.sync', workspaceId: 'workspace-1' } })
+    const { controller } = harness()
+    renderPanel(controller)
+
+    await waitFor(() => {
+      expect(controller.consumeSidebarAction).toHaveBeenCalledWith(9)
+      expect(controller.api.gitRemoteOperation).toHaveBeenCalledWith('workspace-1', 'sync')
+    })
+  })
+
   it('blocks workspace-changing Git operations while the editor has an unsaved draft', async () => {
-    workbenchState.tabs = [
+    workbenchStore.update({ tabs: [
       { id: 'file:a.ts', kind: 'file', dirty: false },
       { id: 'file:b.ts', kind: 'file', dirty: true },
-    ]
+    ] })
     const { controller } = harness()
     const view = renderPanel(controller)
     await waitFor(() => { expect(view.getByRole('button', { name: '切换分支' })).toBeTruthy() })
@@ -230,6 +276,16 @@ function harness() {
     openCommitDiff: vi.fn(() => Promise.resolve()),
     resetWorkspaceView: vi.fn(),
     closeDiffTabs: vi.fn(),
+    setGitView: vi.fn((view: 'changes' | 'graph') => { workbenchStore.update({ gitView: view }) }),
+    toggleGitView: vi.fn(() => {
+      workbenchStore.update({ gitView: workbenchStore.getSnapshot().gitView === 'changes' ? 'graph' : 'changes' })
+    }),
+    setGitFileLayout: vi.fn((view: 'changes' | 'graph', layout: 'list' | 'tree') => {
+      workbenchStore.update(view === 'changes' ? { gitChangeLayout: layout } : { gitGraphFileLayout: layout })
+    }),
+    consumeSidebarAction: vi.fn((id: number) => {
+      if (workbenchStore.getSnapshot().sidebarAction?.id === id) workbenchStore.update({ sidebarAction: undefined })
+    }),
   }
   return { controller, commit }
 }

@@ -45,8 +45,9 @@ export function ModeSwitch({ wide, controller, logger, t }: ModeSwitchProps) {
   }, [logger]) // wide updates through the stable footer layout below.
   useEffect(() => {
     target?.toggleAttribute('data-wide', wide)
+    if (target !== null) target.dataset.mode = state.sidebarMode
     footerLayout.current?.setWide(wide)
-  }, [target, wide])
+  }, [state.sidebarMode, target, wide])
   const editorToggleLabel = state.editorExpanded ? t('editor.collapse') : t('editor.expand')
 
   return (

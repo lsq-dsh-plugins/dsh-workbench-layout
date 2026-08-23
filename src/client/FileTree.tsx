@@ -113,6 +113,19 @@ export function FileTree({ controller, workspaceId, t }: FileTreeProps) {
     void loadDirectory(parent)
   }
 
+  useEffect(() => {
+    const request = workbench.sidebarAction
+    if (request === undefined || request.workspaceId !== workspaceId || !request.action.startsWith('files.')) return
+    if (request.action === 'files.refresh') {
+      controller.consumeSidebarAction(request.id)
+      return
+    }
+    if (listings[''] === undefined && error === null) return
+    controller.consumeSidebarAction(request.id)
+    if (error !== null) return
+    beginCreate(request.action === 'files.newFile' ? 'file' : 'directory')
+  }, [controller, error, listings, workbench.sidebarAction, workspaceId])
+
   const createEntry = async (draft: CreateDraft, name: string): Promise<boolean> => {
     if (workspaceId === undefined) return false
     const targetWorkspace = workspaceId

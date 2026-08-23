@@ -6,6 +6,7 @@ import { FileTree } from './FileTree.tsx'
 import { GitPanel } from './GitPanel.tsx'
 import { TerminalPanel } from './TerminalPanel.tsx'
 import { useWorkbench } from './use-workbench.ts'
+import { WorkbenchRail } from './WorkbenchRail.tsx'
 import { resolveWorkbenchWorkspaceId } from './workspace-binding.ts'
 import css from './Workbench.module.css'
 
@@ -14,7 +15,7 @@ export type WorkbenchSidebarProps = PropsRuntime<'sidebar.workspaces'> & PropsLo
 }
 
 /** Sidebar replacement body; the official shell, brand, controls, and settings stay mounted. */
-export function WorkbenchSidebar({ wide, useSessions, useWorkspaces, controller, t }: WorkbenchSidebarProps) {
+export function WorkbenchSidebar({ wide, expandSidebar, useSessions, useWorkspaces, controller, t }: WorkbenchSidebarProps) {
   const state = useWorkbench(controller)
   const sessionId = useSessions(snapshot => snapshot.current)
   const workspaceId = useWorkspaces(snapshot => resolveWorkbenchWorkspaceId(
@@ -23,7 +24,16 @@ export function WorkbenchSidebar({ wide, useSessions, useWorkspaces, controller,
     snapshot.recentWorkspaceId,
   ))
   useEffect(() => { controller.setWorkspace(workspaceId) }, [controller, workspaceId])
-  if (!wide) return <div className={css.collapsedBody} aria-hidden />
+  if (!wide) {
+    return (
+      <WorkbenchRail
+        controller={controller}
+        workspaceId={workspaceId}
+        expandSidebar={expandSidebar}
+        t={t}
+      />
+    )
+  }
   return (
     <div className={css.sidebarBody}>
       {state.sidebarMode === 'git'
