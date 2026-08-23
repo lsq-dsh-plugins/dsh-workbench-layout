@@ -2,6 +2,8 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  ASSISTANT_ACTIONS_ATTRIBUTE,
+  ASSISTANT_METRICS_ATTRIBUTE,
   CONVERSATION_NARROW_ATTRIBUTE,
   CONVERSATION_ROOT_ATTRIBUTE,
   createConversationLayout,
@@ -87,6 +89,31 @@ describe('右侧原生会话窄栏适配', () => {
     layout.dispose()
     expect(sessionLogButton.getAttribute('aria-label')).toBe('下载会话日志')
     expect(sessionLogButton.title).toBe('下载')
+  })
+
+  it('只标记助手按钮行末尾的统计信息并在释放时清理', () => {
+    const { column, conversationRoot } = conversationFixture()
+    const tail = document.createElement('div')
+    tail.dataset.turnTail = 'turn-1'
+    tail.dataset.timeHoverRoot = ''
+    const actions = document.createElement('div')
+    actions.appendChild(document.createElement('button'))
+    const metrics = document.createElement('span')
+    metrics.textContent = '8月22日 23:39 · 用时 2秒 · 首 token 2.1秒 · 250 tok/s'
+    actions.appendChild(metrics)
+    tail.appendChild(actions)
+    conversationRoot.appendChild(tail)
+    vi.spyOn(column, 'getBoundingClientRect').mockReturnValue(rect(0, 0, 360, 800))
+    const logger = { info: vi.fn() }
+    const layout = createConversationLayout(column, logger)
+
+    expect(actions.hasAttribute(ASSISTANT_ACTIONS_ATTRIBUTE)).toBe(true)
+    expect(metrics.hasAttribute(ASSISTANT_METRICS_ATTRIBUTE)).toBe(true)
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('assistant action metrics'))
+
+    layout.dispose()
+    expect(actions.hasAttribute(ASSISTANT_ACTIONS_ATTRIBUTE)).toBe(false)
+    expect(metrics.hasAttribute(ASSISTANT_METRICS_ATTRIBUTE)).toBe(false)
   })
 })
 

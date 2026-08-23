@@ -71,6 +71,7 @@ describe('Git panel', () => {
     const { controller, commit } = harness()
     const view = renderPanel(controller)
     await waitFor(() => { expect(view.getByRole('button', { name: '切换到提交图' })).toBeTruthy() })
+    expect(view.getByRole('button', { name: '切换到提交图' }).querySelector('[data-icon="commit-graph"]')).not.toBeNull()
 
     fireEvent.click(view.getByRole('button', { name: '文件排列方式' }))
     fireEvent.click(view.getByRole('button', { name: '目录树' }))

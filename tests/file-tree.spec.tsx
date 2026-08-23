@@ -16,8 +16,6 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconCodeOutline16: () => <span />,
   IconFolderClose16: () => <span />,
   IconFolderOpen16: () => <span />,
-  IconProjectAddOutline16: () => <span />,
-  IconPlusOutline16: () => <span />,
   IconRefreshOutline14: () => <span />,
 }))
 
@@ -51,6 +49,8 @@ describe('文件目录', () => {
     )
 
     await waitFor(() => { expect(view.getByText('src')).toBeTruthy() })
+    expect(view.getByRole('button', { name: '新建文件' }).querySelector('[data-icon="file-add"]')).not.toBeNull()
+    expect(view.getByRole('button', { name: '新建文件夹' }).querySelector('[data-icon="folder-add"]')).not.toBeNull()
     fireEvent.click(view.getByText('src'))
     fireEvent.click(view.getByRole('button', { name: '新建文件' }))
     const fileInput = await view.findByRole('textbox', { name: '文件名' })

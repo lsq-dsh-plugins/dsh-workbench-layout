@@ -2,6 +2,8 @@
 
 export const CONVERSATION_NARROW_ATTRIBUTE = 'data-dsh-workbench-conversation-narrow'
 export const CONVERSATION_ROOT_ATTRIBUTE = 'data-dsh-workbench-conversation-root'
+export const ASSISTANT_ACTIONS_ATTRIBUTE = 'data-dsh-workbench-assistant-actions'
+export const ASSISTANT_METRICS_ATTRIBUTE = 'data-dsh-workbench-assistant-metrics'
 export const FLOATING_MODEL_MENU_ATTRIBUTE = 'data-dsh-workbench-floating-model-menu'
 export const SESSION_LOG_BUTTON_ATTRIBUTE = 'data-dsh-workbench-session-log-button'
 export const FLOATING_MENU_LEFT_PROPERTY = '--dsh-workbench-floating-menu-left'
@@ -15,6 +17,7 @@ const MODEL_TRIGGER_SELECTOR = "button[aria-haspopup='menu']"
 const CONVERSATION_SLOT_SELECTOR = ":scope > [data-slot='conversation']"
 const SESSION_HEADER_UTILITIES_SELECTOR = "[data-slot='conversation.session.header.utilities']"
 const SESSION_LOG_LABEL = 'Session log'
+const ASSISTANT_TAIL_SELECTOR = '[data-turn-tail][data-time-hover-root]'
 
 export interface ConversationLayoutLogger {
   info(message: string): void
@@ -42,6 +45,9 @@ export function createConversationLayout(
   let ownsSessionLogAriaLabel = false
   let ownsSessionLogTitle = false
   let conversationRoot: HTMLElement | null = null
+  let assistantActionRows = new Set<HTMLElement>()
+  let assistantMetrics = new Set<HTMLElement>()
+  let reportedAssistantMetrics = false
 
   const reconcileConversationRoot = (): void => {
     const nextRoot = findConversationRoot(column)
@@ -158,10 +164,41 @@ export function createConversationLayout(
     logger.info('workbench-layout: adopted native Session log action for responsive presentation')
   }
 
+  const reconcileAssistantMetrics = (): void => {
+    const nextActionRows = new Set<HTMLElement>()
+    const nextMetrics = new Set<HTMLElement>()
+
+    for (const tail of column.querySelectorAll<HTMLElement>(ASSISTANT_TAIL_SELECTOR)) {
+      const actions = tail.lastElementChild
+      if (!(actions instanceof HTMLElement) || actions.querySelector('button') === null) continue
+      const metrics = actions.lastElementChild
+      if (!(metrics instanceof HTMLSpanElement) || metrics.querySelector('button') !== null) continue
+      actions.setAttribute(ASSISTANT_ACTIONS_ATTRIBUTE, '')
+      metrics.setAttribute(ASSISTANT_METRICS_ATTRIBUTE, '')
+      nextActionRows.add(actions)
+      nextMetrics.add(metrics)
+    }
+
+    for (const actions of assistantActionRows) {
+      if (!nextActionRows.has(actions)) actions.removeAttribute(ASSISTANT_ACTIONS_ATTRIBUTE)
+    }
+    for (const metrics of assistantMetrics) {
+      if (!nextMetrics.has(metrics)) metrics.removeAttribute(ASSISTANT_METRICS_ATTRIBUTE)
+    }
+    assistantActionRows = nextActionRows
+    assistantMetrics = nextMetrics
+
+    if (!reportedAssistantMetrics && nextMetrics.size > 0) {
+      reportedAssistantMetrics = true
+      logger.info('workbench-layout: adopted native assistant action metrics for narrow wrapping')
+    }
+  }
+
   const reconcileDynamicControls = (): void => {
     reconcileConversationRoot()
     reconcileMenu()
     reconcileSessionLogButton()
+    reconcileAssistantMetrics()
   }
 
   const reconcile = (): void => {
@@ -190,6 +227,10 @@ export function createConversationLayout(
       window.removeEventListener('scroll', schedulePosition, true)
       releaseMenu()
       releaseSessionLogButton()
+      for (const actions of assistantActionRows) actions.removeAttribute(ASSISTANT_ACTIONS_ATTRIBUTE)
+      for (const metrics of assistantMetrics) metrics.removeAttribute(ASSISTANT_METRICS_ATTRIBUTE)
+      assistantActionRows.clear()
+      assistantMetrics.clear()
       conversationRoot?.removeAttribute(CONVERSATION_ROOT_ATTRIBUTE)
       conversationRoot = null
       column.removeAttribute(CONVERSATION_NARROW_ATTRIBUTE)

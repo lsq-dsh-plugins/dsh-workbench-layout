@@ -15,6 +15,7 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { GitBranches, GitRemoteOperation, GitStatus } from '../contracts.ts'
+import { IconCommitGraphOutline16 } from './CommitGraphIcon.tsx'
 import type { GitFileLayout } from './git-tree.ts'
 import { IconSourceControlOutline16 } from './SourceControlIcon.tsx'
 import css from './Workbench.module.css'
@@ -117,7 +118,7 @@ function ViewToggle(props: GitRepositoryToolbarProps) {
         aria-pressed={graph}
         onClick={props.onToggleView}
       >
-        {graph ? <IconListPenOutline16 size={15} /> : <IconSourceControlOutline16 size={15} />}
+        {graph ? <IconListPenOutline16 size={15} /> : <IconCommitGraphOutline16 size={16} />}
       </button>
     </Tooltip>
   )

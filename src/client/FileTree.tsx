@@ -5,8 +5,6 @@ import {
   IconCodeOutline16,
   IconFolderClose16,
   IconFolderOpen16,
-  IconProjectAddOutline16,
-  IconPlusOutline16,
   IconRefreshOutline14,
   Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -14,6 +12,7 @@ import type { DirectoryListing, WorkspaceEntry } from '../contracts.ts'
 import type { WorkbenchController } from './controller.ts'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import { childWorkspacePath } from '../path-policy.ts'
+import { IconFileAddOutline16, IconFolderAddOutline16 } from './CreateEntryIcons.tsx'
 import { FileTreeCreateRow, type FileTreeCreateKind } from './FileTreeCreateRow.tsx'
 import { useWorkbench } from './use-workbench.ts'
 import css from './Workbench.module.css'
@@ -152,12 +151,12 @@ export function FileTree({ controller, workspaceId, t }: FileTreeProps) {
         <div className={css.fileHeaderActions}>
           <Tooltip label={t('files.newFile')} delayMs={500}>
             <button type="button" className={css.iconButton} aria-label={t('files.newFile')} onClick={() => { beginCreate('file') }}>
-              <IconPlusOutline16 size={15} />
+              <IconFileAddOutline16 size={16} />
             </button>
           </Tooltip>
           <Tooltip label={t('files.newDirectory')} delayMs={500}>
             <button type="button" className={css.iconButton} aria-label={t('files.newDirectory')} onClick={() => { beginCreate('directory') }}>
-              <IconProjectAddOutline16 size={15} />
+              <IconFolderAddOutline16 size={16} />
             </button>
           </Tooltip>
           <Tooltip label={t('files.refresh')} delayMs={500}>

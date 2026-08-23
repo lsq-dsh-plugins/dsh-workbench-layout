@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   IconFolderOpenOutline16,
-  IconNewChatOutline16,
   IconPanelLeftOutline16,
+  IconQueueOutline14,
   Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -28,7 +28,7 @@ export function ModeSwitch({ wide, controller, logger, t }: ModeSwitchProps) {
   const footerLayout = useRef<SidebarFooterLayout | null>(null)
   const iconSize = wide ? 16 : 18
   const items = [
-    { mode: 'sessions' as const, label: t('mode.sessions'), icon: <IconNewChatOutline16 size={iconSize} /> },
+    { mode: 'sessions' as const, label: t('mode.sessions'), icon: <IconQueueOutline14 size={iconSize} /> },
     { mode: 'files' as const, label: t('mode.files'), icon: <IconFolderOpenOutline16 size={iconSize} /> },
     { mode: 'git' as const, label: t('mode.git'), icon: <IconSourceControlOutline16 size={iconSize} /> },
     { mode: 'terminal' as const, label: t('mode.terminal'), icon: <IconTerminalOutline16 size={iconSize} /> },

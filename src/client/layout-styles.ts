@@ -2,6 +2,8 @@
 
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import {
+  ASSISTANT_ACTIONS_ATTRIBUTE,
+  ASSISTANT_METRICS_ATTRIBUTE,
   CONVERSATION_NARROW_ATTRIBUTE,
   CONVERSATION_ROOT_ATTRIBUTE,
   createConversationLayout,
@@ -168,6 +170,30 @@ const CSS = `
   white-space: normal;
 }
 
+/* The official assistant footer keeps its metrics in one nowrap span and its
+   action row at a fixed 28px height. In the narrow workbench conversation this
+   pushes hover-revealed timing beyond the clipped column. Keep the native icon
+   row, then give only its trailing metrics span a full-width wrapping line. */
+[${FRAME_ATTRIBUTE}] > :nth-child(2)[${CONVERSATION_NARROW_ATTRIBUTE}]
+  [${ASSISTANT_ACTIONS_ATTRIBUTE}] {
+  flex-wrap: wrap;
+  align-content: flex-start;
+  height: auto;
+  min-height: 28px;
+  column-gap: 10px;
+  row-gap: 2px;
+}
+
+[${FRAME_ATTRIBUTE}] > :nth-child(2)[${CONVERSATION_NARROW_ATTRIBUTE}]
+  [${ASSISTANT_METRICS_ATTRIBUTE}] {
+  flex: 1 0 100%;
+  box-sizing: border-box;
+  padding-left: 0;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
 /* Keep the official composer toolbar on one row. Fixed actions retain their
    hit targets; gaps, effort text, and the flexible model label concede. */
 [${FRAME_ATTRIBUTE}] > :nth-child(2)[${CONVERSATION_NARROW_ATTRIBUTE}] [data-input-scroll] + div {
@@ -296,7 +322,7 @@ export function installWorkbenchLayout(ctx: ClientContext, visibility: Workbench
     const documentObserver = new MutationObserver(attach)
     documentObserver.observe(document.body, { childList: true, subtree: true })
     const unsubscribeVisibility = visibility.subscribe(synchronizeVisibility)
-    ctx.logger.info('workbench-layout: native AppFrame tracks, root-scoped conversation surface, and content-sized narrow model selector adopted')
+    ctx.logger.info('workbench-layout: native AppFrame tracks, root-scoped conversation surface, and wrapping narrow assistant metrics adopted')
     return () => {
       documentObserver.disconnect()
       unsubscribeVisibility()

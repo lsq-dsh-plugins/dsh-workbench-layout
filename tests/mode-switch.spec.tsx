@@ -7,8 +7,8 @@ import type { WorkbenchController } from '../src/client/controller.ts'
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconFolderOpenOutline16: ({ size }: { size: number }) => <svg data-icon="files" width={size} />,
-  IconNewChatOutline16: ({ size }: { size: number }) => <svg data-icon="sessions" width={size} />,
   IconPanelLeftOutline16: ({ size, className }: { size: number; className?: string }) => <svg data-icon="editor" className={className} width={size} />,
+  IconQueueOutline14: ({ size }: { size: number }) => <svg data-icon="sessions" width={size} />,
   Tooltip: ({ children, label }: { children: React.ReactNode; label: string }) => <span data-tooltip-label={label}>{children}</span>,
 }))
 
@@ -53,6 +53,7 @@ describe('工作台模式切换', () => {
     expect(icon?.getAttribute('aria-hidden')).toBe('true')
     expect(icon?.querySelectorAll('circle')).toHaveLength(3)
     expect(icon?.querySelector('path')?.getAttribute('stroke')).toBe('currentColor')
+    expect(view.getByRole('button', { name: '会话' }).querySelector('svg')?.getAttribute('data-icon')).toBe('sessions')
 
     fireEvent.click(gitButton)
     expect(setSidebarMode).toHaveBeenCalledWith('git')

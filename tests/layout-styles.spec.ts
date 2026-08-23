@@ -2,7 +2,12 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-import { CONVERSATION_ROOT_ATTRIBUTE } from '../src/client/conversation-layout.ts'
+import {
+  ASSISTANT_ACTIONS_ATTRIBUTE,
+  ASSISTANT_METRICS_ATTRIBUTE,
+  CONVERSATION_NARROW_ATTRIBUTE,
+  CONVERSATION_ROOT_ATTRIBUTE,
+} from '../src/client/conversation-layout.ts'
 import {
   EDITOR_RELEASE_ATTRIBUTE,
   EDITOR_TRANSITION_ATTRIBUTE,
@@ -51,6 +56,10 @@ describe('workbench layout presentation', () => {
     expect(style?.textContent).toContain("[data-side='details']::after")
     expect(style?.textContent).toContain('data-dsh-workbench-conversation-narrow')
     expect(style?.textContent).toContain("[role='status']:has(> code) > code")
+    expect(style?.textContent).toContain(`[${ASSISTANT_ACTIONS_ATTRIBUTE}]`)
+    expect(style?.textContent).toContain('flex-wrap: wrap')
+    expect(style?.textContent).toContain(`[${ASSISTANT_METRICS_ATTRIBUTE}]`)
+    expect(style?.textContent).toContain('overflow-wrap: anywhere')
     expect(style?.textContent).toContain('[data-input-scroll] + div')
     expect(style?.textContent).toContain("[data-slot='conversation.input.model']")
     expect(style?.textContent).toContain('[data-composer-seat]')
@@ -84,6 +93,37 @@ describe('workbench layout presentation', () => {
     expect(frame.hasAttribute('data-dsh-workbench-frame')).toBe(false)
     expect(frame.style.gridTemplateColumns).toBe('312px minmax(0, 1fr) 0px')
     expect(document.head.querySelector('[data-dsh-workbench-layout]')).toBeNull()
+  })
+
+  it('gives narrow assistant metrics a wrapping line below the native action icons', () => {
+    const { frame, conversation } = appFrameFixture('active', 312)
+    const conversationColumn = frame.children.item(1) as HTMLElement
+    const tail = document.createElement('div')
+    tail.dataset.turnTail = 'turn-1'
+    tail.dataset.timeHoverRoot = ''
+    const actions = document.createElement('div')
+    actions.appendChild(document.createElement('button'))
+    const metrics = document.createElement('span')
+    metrics.textContent = '8月22日 23:39 · 用时 2秒 · 首 token 2.1秒 · 250 tok/s'
+    actions.appendChild(metrics)
+    tail.appendChild(actions)
+    conversation.appendChild(tail)
+    document.body.appendChild(frame)
+    let dispose: (() => void) | undefined
+
+    try {
+      installWorkbenchLayout(contextWithDispose(value => { dispose = value }), editorVisibility())
+      conversationColumn.setAttribute(CONVERSATION_NARROW_ATTRIBUTE, '')
+
+      expect(actions.hasAttribute(ASSISTANT_ACTIONS_ATTRIBUTE)).toBe(true)
+      expect(metrics.hasAttribute(ASSISTANT_METRICS_ATTRIBUTE)).toBe(true)
+      expect(getComputedStyle(actions).flexWrap).toBe('wrap')
+      expect(getComputedStyle(actions).height).toBe('auto')
+      expect(getComputedStyle(metrics).whiteSpace).toBe('normal')
+      expect(getComputedStyle(metrics).flexBasis).toBe('100%')
+    } finally {
+      dispose?.()
+    }
   })
 
   it('opens a draggable workbench track for the blank-Session Hero and releases it when active', async () => {
