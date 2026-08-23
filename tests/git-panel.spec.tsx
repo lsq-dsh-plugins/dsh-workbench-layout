@@ -5,7 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { GitPanel } from '../src/client/GitPanel.tsx'
 import { zh } from '../src/client/locales.ts'
 
-const workbenchState = vi.hoisted(() => ({ diff: null, tabs: [] as Array<{ dirty: boolean }> }))
+const workbenchState = vi.hoisted(() => ({
+  activeTabId: undefined as string | undefined,
+  tabs: [] as Array<{ id: string; kind: 'file'; dirty: boolean }>,
+}))
 
 vi.mock('../src/client/use-workbench.ts', () => ({ useWorkbench: () => workbenchState }))
 
@@ -117,10 +120,17 @@ describe('Git panel', () => {
     fireEvent.click(view.getByRole('button', { name: '更多 Git 操作' }))
     fireEvent.click(view.getByRole('button', { name: '抓取远程更新' }))
     await waitFor(() => { expect(controller.api.gitRemoteOperation).toHaveBeenCalledWith('workspace-1', 'fetch') })
+
+    fireEvent.click(view.getByRole('button', { name: '更多 Git 操作' }))
+    fireEvent.click(view.getByRole('button', { name: '刷新 Git 状态' }))
+    expect(controller.closeDiffTabs).toHaveBeenCalledWith('workspace-1')
   })
 
   it('blocks workspace-changing Git operations while the editor has an unsaved draft', async () => {
-    workbenchState.tabs = [{ dirty: false }, { dirty: true }]
+    workbenchState.tabs = [
+      { id: 'file:a.ts', kind: 'file', dirty: false },
+      { id: 'file:b.ts', kind: 'file', dirty: true },
+    ]
     const { controller } = harness()
     const view = renderPanel(controller)
     await waitFor(() => { expect(view.getByRole('button', { name: '切换分支' })).toBeTruthy() })
@@ -187,7 +197,7 @@ function harness() {
     openDiff: vi.fn(() => Promise.resolve()),
     openCommitDiff: vi.fn(() => Promise.resolve()),
     resetWorkspaceView: vi.fn(),
-    showFile: vi.fn(),
+    closeDiffTabs: vi.fn(),
   }
   return { controller, commit }
 }

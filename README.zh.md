@@ -8,15 +8,15 @@
 
 - 左栏通过“会话 / 文件 / Git”切换；“会话”会恢复 DSH 原生工作区与会话列表。
 - 文件目录按需展开，不会一次读取整棵目录树。
-- 中栏使用 38px 紧凑顶栏、多文件标签和 CodeMirror 编辑 UTF-8 文本；文件较多时，在标签栏上滚动鼠标滚轮即可左右浏览，到达边界后会恢复页面正常滚动。每个标签独立保留草稿、未保存状态、Markdown 模式和保存错误，切换文件不会丢失修改。中栏不显示常驻保存按钮，只通过 `Ctrl/Cmd + S` 保存当前标签，并保留版本冲突保护与原子保存。
+- 中栏使用 38px 紧凑顶栏和统一编辑器标签：普通文件、工作区 Diff、暂存 Diff 与提交 Diff 可以像 VS Code 一样同时打开、切换和关闭；文件较多时，在标签栏上滚动鼠标滚轮即可左右浏览，到达边界后会恢复页面正常滚动。每个文件标签独立保留草稿、未保存状态、Markdown 模式和保存错误，切换标签不会丢失修改。中栏不显示常驻保存按钮，只通过 `Ctrl/Cmd + S` 保存当前普通文件标签，并保留版本冲突保护与原子保存。
 - 文件、编辑器选择、草稿、Diff 与 Git 状态绑定到 DSH 官方工作区 id；在同一工作区的不同会话之间切换会保留工作台，只有切换工作区才会切换整套状态。没有当前会话、会话尚未产生消息或会话暂未归属工作区时，工作台使用 DSH 官方最近工作区，因此仍可浏览文件与 Git。
 - Markdown 文件首次打开默认显示 DSH 官方 Markdown 渲染结果，可在“预览 / 源码”之间切换。
 - 中右栏优先使用 DSH AppFrame 原生列宽和拖拽处理；官方 AppFrame 在空会话 Hero 中主动隐藏详情轨道时，插件按同一套 300–520px 约束、360px 默认值、640px 中栏让步规则和无装饰拖拽热区补足轨道，首条消息产生后立即交还官方处理。
 - Git 左栏按 VS Code 的源码管理习惯分成“更改 / 提交图”标签；更改页区分“已暂存”和“工作区”，并可在扁平列表与可折叠目录树之间切换。
 - 提交图读取所有本地和远程分支，按拓扑顺序绘制分段着色的提交节点、分叉、汇合与 Merge commit；普通提交、引用边界和合并点分别使用实心点、空心环和双层环。每行只按当前经过的轨道动态留出图形宽度，避免单轨提交浪费左栏空间；提交信息保持紧凑单行，按“提交说明、作者、分支/远程/标签标志”排列。悬浮显示短提交号、时间以及真实的文件数和增删行统计，点击整行后在原位置展开该提交的文件。
-- 点击工作区、暂存区或提交图中的文件时，中栏只打开该文件的差异，不会把整次提交的所有文件拼在一起。
+- 点击工作区、暂存区或提交图中的文件时，中栏把该文件的差异作为普通编辑器标签打开；同一 Diff 只保留一个标签，不同文件和不同版本可以同时打开，不会把整次提交的所有文件拼在一起。
 - 仓库工具栏支持查看和切换本地/远程分支，并显示上游分支的拉取/推送计数；提供 Fetch、快进 Pull、Push、发布当前分支和先拉后推的 Sync。
-- 中栏使用 CodeMirror MergeView 渲染只读 Diff，默认左右对照，包含行号、红绿变更块、未修改区域折叠和增删统计；可手动切换行内模式，窄列下会自动采用行内模式。
+- 中栏使用 CodeMirror MergeView 渲染只读 Diff，默认左右对照，包含行号、红绿变更块、未修改区域折叠和增删统计；可手动切换行内模式，窄列下会自动采用行内模式。普通文件与 Diff 两侧都默认对长行自动换行。
 - 支持暂存、取消暂存以及显式提交；提交后提交图会立即刷新。
 - 右栏继续使用 DSH 原生聊天、输入框、任务状态与交互流程。
 - 布局、文字、边框、按钮、图标、Markdown 和明暗主题尽量复用 DSH 官方组件与设计变量；Git 模块入口和分支选择器统一使用三节点源码管理图形。
@@ -69,8 +69,8 @@ npm run test:bundle
 - `src/index.ts`：宿主路由注册和请求分发。
 - `src/workspace-backend.ts`：受控的目录、读取和原子保存。
 - `src/git-backend.ts`：Git 状态、全部分支的拓扑提交、远程同步、提交文件清单、单文件前后版本、暂存和提交。
-- `src/client/controller.ts`：按工作区隔离的多文件标签、异步读写、Diff 和视图状态。
-- `src/client/EditorTabs.tsx`：DSH 风格的可滚动文件标签、滚轮横移、边界放行、脏状态和关闭入口。
+- `src/client/controller.ts`：按工作区隔离的文件/Diff 统一标签、并发异步加载、草稿和视图状态。
+- `src/client/EditorTabs.tsx`：DSH 风格的可滚动文件与 Diff 标签、滚轮横移、边界放行、脏状态和关闭入口。
 - `src/client/SourceControlIcon.tsx`：符合 DSH 尺寸与颜色约定的源码管理入口图标。
 - `src/client/workspace-binding.ts`：优先按 DSH 官方成员关系解析会话所属工作区，并在无会话状态下回退到官方最近工作区。
 - `src/client/workspace-layout.ts`：工作区与 AppFrame 原生详情列状态绑定。
@@ -79,6 +79,6 @@ npm run test:bundle
 - `src/client/GitChangesView.tsx`、`git-tree.ts`：更改分组、列表/目录树和文件操作。
 - `src/client/GitGraphView.tsx`、`GitReferenceBadge.tsx`、`git-graph.ts`：提交图渲染、分段色轨道、引用标志、分叉/汇合连线和行内提交详情。
 - `src/client/GitRepositoryToolbar.tsx`：分支选择与远程操作菜单。
-- `src/client/WorkbenchEditor.tsx`：中栏源码编辑、Markdown 预览和 Diff 入口。
-- `src/client/GitDiffEditor.tsx`、`DiffSurface.tsx`：单文件 Diff 工具栏、自适应布局和 CodeMirror 差异渲染。
+- `src/client/WorkbenchEditor.tsx`：中栏统一标签容器、源码编辑和 Markdown 预览。
+- `src/client/GitDiffEditor.tsx`、`DiffSurface.tsx`、`git-diff-labels.ts`：标签内单文件 Diff 工具栏、自适应布局、统一类型标签、自动换行和 CodeMirror 差异渲染。
 - `src/client/layout-styles.ts`：官方 AppFrame 列顺序与原生分隔线视觉适配。

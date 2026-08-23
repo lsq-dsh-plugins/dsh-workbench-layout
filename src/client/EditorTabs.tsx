@@ -1,20 +1,21 @@
 import { useEffect, useRef } from 'react'
 import { IconCloseOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
-import type { WorkbenchFileTab } from './controller.ts'
+import type { WorkbenchTab } from './controller.ts'
+import { diffKindText } from './git-diff-labels.ts'
 import type { WorkbenchKey } from './locales.ts'
 import css from './Workbench.module.css'
 
 export interface EditorTabsProps {
-  tabs: readonly WorkbenchFileTab[]
-  activePath: string | undefined
-  onSelect: (path: string) => void
-  onClose: (path: string) => void
+  tabs: readonly WorkbenchTab[]
+  activeTabId: string | undefined
+  onSelect: (tabId: string) => void
+  onClose: (tabId: string) => void
   t: TranslateNS<'workbench'>
 }
 
-/** Compact scrollable file tabs following DSH's native active-tab underline. */
-export function EditorTabs({ tabs, activePath, onSelect, onClose, t }: EditorTabsProps) {
+/** Compact scrollable file/Diff tabs following DSH's native active-tab underline. */
+export function EditorTabs({ tabs, activeTabId, onSelect, onClose, t }: EditorTabsProps) {
   const tabListRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const tabList = tabListRef.current
@@ -35,33 +36,40 @@ export function EditorTabs({ tabs, activePath, onSelect, onClose, t }: EditorTab
   return (
     <div ref={tabListRef} className={css.editorTabs} role="tablist" aria-label={t('editor.openFiles')}>
       {tabs.map((tab) => {
-        const active = tab.path === activePath
-        const status = tab.saving ? t('editor.saving') : tab.dirty ? t('editor.unsaved') : undefined
+        const active = tab.id === activeTabId
+        const kind = tab.kind === 'diff' ? diffKindText(tab.diffKind, t) : undefined
+        const label = kind === undefined ? basename(tab.path) : `${basename(tab.path)} (${kind})`
+        const status = tab.kind === 'file'
+          ? tab.saving ? t('editor.saving') : tab.dirty ? t('editor.unsaved') : undefined
+          : tab.loading ? t('editor.loading') : undefined
         return (
           <div
-            key={tab.path}
+            key={tab.id}
             className={css.editorTab}
             data-active={active || undefined}
-            data-dirty={tab.dirty || undefined}
-            title={status === undefined ? tab.path : `${tab.path} · ${status}`}
+            data-dirty={tab.kind === 'file' && tab.dirty || undefined}
+            data-tab-kind={tab.kind}
+            title={[tab.path, kind, status].filter(Boolean).join(' · ')}
           >
             <button
               type="button"
               role="tab"
               aria-selected={active}
+              aria-label={label}
               className={css.editorTabSelect}
-              onClick={() => { onSelect(tab.path) }}
+              onClick={() => { onSelect(tab.id) }}
             >
               <span className={css.editorTabName}>{basename(tab.path)}</span>
-              {(tab.dirty || tab.saving) && (
+              {kind !== undefined && <span className={css.editorTabKind}>{kind}</span>}
+              {tab.kind === 'file' && (tab.dirty || tab.saving) && (
                 <span className={css.editorTabStatus} data-saving={tab.saving || undefined} aria-label={status} />
               )}
             </button>
             <button
               type="button"
               className={css.editorTabClose}
-              aria-label={t('editor.closeTab', { name: basename(tab.path) })}
-              onClick={() => { onClose(tab.path) }}
+              aria-label={t('editor.closeTab', { name: label })}
+              onClick={() => { onClose(tab.id) }}
             >
               <IconCloseOutline16 size={13} />
             </button>

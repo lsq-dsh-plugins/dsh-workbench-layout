@@ -5,10 +5,11 @@ import type { GitCommit, GitFileDiff, WorkspaceFile } from '../contracts.ts'
 import { WorkbenchApi } from './api.ts'
 
 export type SidebarMode = 'sessions' | 'files' | 'git'
-export type CenterMode = 'file' | 'diff'
 export type DiffViewMode = 'split' | 'inline'
 
 export interface WorkbenchFileTab {
+  id: string
+  kind: 'file'
   path: string
   file: WorkspaceFile | null
   draft: string
@@ -19,26 +20,31 @@ export interface WorkbenchFileTab {
   error: string | null
 }
 
+export interface WorkbenchDiffTab {
+  id: string
+  kind: 'diff'
+  path: string
+  diffKind: GitFileDiff['kind']
+  revision?: string
+  diff: GitFileDiff | null
+  loading: boolean
+  error: string | null
+}
+
+export type WorkbenchTab = WorkbenchFileTab | WorkbenchDiffTab
+
 export interface WorkbenchState {
   sidebarMode: SidebarMode
   workspaceId?: string
-  tabs: WorkbenchFileTab[]
-  activeFilePath?: string
-  centerMode: CenterMode
-  diff: GitFileDiff | null
+  tabs: WorkbenchTab[]
+  activeTabId?: string
   diffViewMode: DiffViewMode
-  loading: boolean
-  error: string | null
 }
 
 const INITIAL_STATE: WorkbenchState = {
   sidebarMode: 'files',
   tabs: [],
-  centerMode: 'file',
-  diff: null,
   diffViewMode: 'split',
-  loading: false,
-  error: null,
 }
 
 export interface WorkbenchLogger {
@@ -46,14 +52,14 @@ export interface WorkbenchLogger {
   warn(message: string): void
 }
 
-/** Own multi-file tabs, async races, dirty state, and the sidebar shadow. */
+/** Own unified file/Diff tabs, async races, dirty state, and the sidebar shadow. */
 export class WorkbenchController {
   readonly store: SnapshotStore<WorkbenchState> = createSnapshotStore(INITIAL_STATE)
   readonly api: WorkbenchApi
 
-  private diffRequestId = 0
-  private fileRequestId = 0
+  private requestId = 0
   private readonly fileRequests = new Map<string, number>()
+  private readonly diffRequests = new Map<string, number>()
   private setSidebarShadow: ((active: boolean) => void) | undefined
   private readonly workspaceStates = new Map<string, WorkbenchState>()
 
@@ -82,7 +88,6 @@ export class WorkbenchController {
     const state = this.store.getSnapshot()
     if (state.workspaceId === workspaceId) return
     if (state.workspaceId !== undefined) this.workspaceStates.set(state.workspaceId, cloneState(state))
-    this.diffRequestId += 1
     if (workspaceId === undefined) {
       this.store.set({ ...INITIAL_STATE, sidebarMode: state.sidebarMode })
       return
@@ -96,33 +101,30 @@ export class WorkbenchController {
 
   async openFile(workspaceId: string, path: string): Promise<void> {
     this.setWorkspace(workspaceId)
+    const tabId = fileTabId(path)
     const current = this.store.getSnapshot()
-    const existing = current.tabs.find(tab => tab.path === path)
+    const existing = current.tabs.find(tab => tab.id === tabId)
     this.store.update((state) => {
-      state.activeFilePath = path
-      state.centerMode = 'file'
-      state.diff = null
-      state.loading = false
-      state.error = null
-      if (existing === undefined) state.tabs.push(emptyTab(path))
+      state.activeTabId = tabId
+      if (existing === undefined) state.tabs.push(emptyFileTab(path))
     })
-    if (existing !== undefined && existing.file !== null) {
+    if (existing?.kind === 'file' && existing.file !== null) {
       this.logger.info(`workbench-layout: selected open file tab ${JSON.stringify(path)}`)
       return
     }
     if (existing?.loading === true) return
 
-    const requestKey = fileRequestKey(workspaceId, path)
-    const requestId = ++this.fileRequestId
+    const requestKey = tabRequestKey(workspaceId, tabId)
+    const requestId = ++this.requestId
     this.fileRequests.set(requestKey, requestId)
-    this.updateTabState(workspaceId, path, (tab) => {
+    this.updateFileTabState(workspaceId, tabId, (tab) => {
       tab.loading = true
       tab.error = null
     })
     try {
       const file = await this.api.readFile(workspaceId, path)
       if (this.fileRequests.get(requestKey) !== requestId) return
-      this.updateTabState(workspaceId, path, (tab) => {
+      this.updateFileTabState(workspaceId, tabId, (tab) => {
         tab.file = file
         tab.draft = file.content
         tab.dirty = false
@@ -133,7 +135,7 @@ export class WorkbenchController {
       this.logger.info(`workbench-layout: opened workspace file tab ${JSON.stringify(path)}`)
     } catch (error: unknown) {
       if (this.fileRequests.get(requestKey) !== requestId) return
-      this.updateTabState(workspaceId, path, (tab) => {
+      this.updateFileTabState(workspaceId, tabId, (tab) => {
         tab.loading = false
         tab.error = messageOf(error)
       })
@@ -141,86 +143,86 @@ export class WorkbenchController {
     }
   }
 
-  selectFile(path: string): void {
+  selectTab(tabId: string): void {
     const state = this.store.getSnapshot()
-    if (!state.tabs.some(tab => tab.path === path)) return
-    this.store.update((draft) => {
-      draft.activeFilePath = path
-      draft.centerMode = 'file'
-      draft.diff = null
-      draft.loading = false
-      draft.error = null
-    })
-    this.logger.info(`workbench-layout: selected file tab ${JSON.stringify(path)}`)
+    const tab = state.tabs.find(candidate => candidate.id === tabId)
+    if (tab === undefined) return
+    this.store.update((draft) => { draft.activeTabId = tabId })
+    this.logger.info(`workbench-layout: selected ${tab.kind} tab ${JSON.stringify(tab.path)}`)
   }
 
-  closeFile(path: string, discardDirty = false): boolean {
+  closeTab(tabId: string, discardDirty = false): boolean {
     const state = this.store.getSnapshot()
-    const index = state.tabs.findIndex(tab => tab.path === path)
-    if (index < 0 || (state.tabs[index]!.dirty && !discardDirty)) return false
-    const nextPath = state.activeFilePath === path
-      ? state.tabs[index + 1]?.path ?? state.tabs[index - 1]?.path
-      : state.activeFilePath
-    this.fileRequests.delete(fileRequestKey(state.workspaceId, path))
+    const index = state.tabs.findIndex(tab => tab.id === tabId)
+    const tab = state.tabs[index]
+    if (tab === undefined || (tab.kind === 'file' && tab.dirty && !discardDirty)) return false
+    const nextTabId = state.activeTabId === tabId
+      ? state.tabs[index + 1]?.id ?? state.tabs[index - 1]?.id
+      : state.activeTabId
+    const requestKey = tabRequestKey(state.workspaceId, tabId)
+    this.fileRequests.delete(requestKey)
+    this.diffRequests.delete(requestKey)
     this.store.update((draft) => {
       draft.tabs.splice(index, 1)
-      if (nextPath === undefined) delete draft.activeFilePath
-      else draft.activeFilePath = nextPath
-      if (draft.tabs.length === 0) draft.centerMode = 'file'
+      if (nextTabId === undefined) delete draft.activeTabId
+      else draft.activeTabId = nextTabId
     })
-    this.logger.info(`workbench-layout: closed file tab ${JSON.stringify(path)}`)
+    this.logger.info(`workbench-layout: closed ${tab.kind} tab ${JSON.stringify(tab.path)}`)
     return true
   }
 
   setDraft(value: string): void {
-    const path = this.store.getSnapshot().activeFilePath
-    if (path === undefined) return
+    const tabId = this.store.getSnapshot().activeTabId
+    if (tabId === undefined) return
     this.store.update((state) => {
-      const tab = state.tabs.find(candidate => candidate.path === path)
-      if (tab === undefined || tab.file === null) return
+      const tab = state.tabs.find(candidate => candidate.id === tabId)
+      if (tab?.kind !== 'file' || tab.file === null) return
       tab.draft = value
       tab.dirty = value !== tab.file.content
       tab.error = null
     })
   }
 
-  revert(path = this.store.getSnapshot().activeFilePath): void {
-    if (path === undefined) return
+  revert(tabId = this.store.getSnapshot().activeTabId): void {
+    if (tabId === undefined) return
+    const selected = this.store.getSnapshot().tabs.find(tab => tab.id === tabId)
+    if (selected?.kind !== 'file') return
     this.store.update((state) => {
-      const tab = state.tabs.find(candidate => candidate.path === path)
-      if (tab === undefined || tab.file === null) return
+      const tab = state.tabs.find(candidate => candidate.id === tabId)
+      if (tab?.kind !== 'file' || tab.file === null) return
       tab.draft = tab.file.content
       tab.dirty = false
       tab.error = null
     })
-    this.logger.info(`workbench-layout: reverted file tab ${JSON.stringify(path)}`)
+    this.logger.info(`workbench-layout: reverted file tab ${JSON.stringify(selected.path)}`)
   }
 
   setPreview(preview: boolean): void {
-    const path = this.store.getSnapshot().activeFilePath
-    if (path === undefined) return
+    const tabId = this.store.getSnapshot().activeTabId
+    if (tabId === undefined) return
     this.store.update((state) => {
-      const tab = state.tabs.find(candidate => candidate.path === path)
-      if (tab !== undefined) tab.preview = preview
+      const tab = state.tabs.find(candidate => candidate.id === tabId)
+      if (tab?.kind === 'file') tab.preview = preview
     })
   }
 
-  async save(path = this.store.getSnapshot().activeFilePath): Promise<boolean> {
+  async save(tabId = this.store.getSnapshot().activeTabId): Promise<boolean> {
     const current = this.store.getSnapshot()
-    const tab = current.tabs.find(candidate => candidate.path === path)
-    if (tab === undefined || tab.file === null || current.workspaceId === undefined || tab.saving || !tab.dirty) {
-      return tab !== undefined && !tab.dirty
+    const tab = current.tabs.find(candidate => candidate.id === tabId)
+    if (tab?.kind !== 'file') return false
+    if (tab.file === null || current.workspaceId === undefined || tab.saving || !tab.dirty) {
+      return !tab.dirty
     }
     const workspaceId = current.workspaceId
     const savedContent = tab.draft
     const version = tab.file.version
-    this.updateTabState(workspaceId, tab.path, (draft) => {
+    this.updateFileTabState(workspaceId, tab.id, (draft) => {
       draft.saving = true
       draft.error = null
     })
     try {
       const saved = await this.api.saveFile(workspaceId, tab.path, savedContent, version)
-      this.updateTabState(workspaceId, tab.path, (draft) => {
+      this.updateFileTabState(workspaceId, tab.id, (draft) => {
         if (draft.file === null) return
         draft.file = { ...draft.file, content: savedContent, version: saved.version, size: saved.size }
         draft.dirty = draft.draft !== savedContent
@@ -230,7 +232,7 @@ export class WorkbenchController {
       this.logger.info(`workbench-layout: saved file tab ${JSON.stringify(tab.path)}`)
       return true
     } catch (error: unknown) {
-      this.updateTabState(workspaceId, tab.path, (draft) => {
+      this.updateFileTabState(workspaceId, tab.id, (draft) => {
         draft.saving = false
         draft.error = messageOf(error)
       })
@@ -240,53 +242,22 @@ export class WorkbenchController {
   }
 
   async openDiff(workspaceId: string, path: string, staged: boolean): Promise<void> {
-    this.setWorkspace(workspaceId)
-    const requestId = ++this.diffRequestId
-    this.store.update((state) => {
-      state.loading = true
-      state.error = null
-      state.diff = null
-      state.centerMode = 'diff'
-    })
-    try {
-      const diff = await this.api.gitDiff(workspaceId, path, staged)
-      if (requestId !== this.diffRequestId) return
-      this.store.update((state) => {
-        state.diff = diff
-        state.centerMode = 'diff'
-        state.loading = false
-      })
-      this.logger.info(`workbench-layout: rendered single-file Git diff ${JSON.stringify(path)}`)
-    } catch (error: unknown) {
-      if (requestId !== this.diffRequestId) return
-      this.store.update((state) => { state.loading = false; state.error = messageOf(error) })
-      this.logger.warn(`workbench-layout: failed to load Git diff ${JSON.stringify(path)}`)
-    }
+    const diffKind = staged ? 'staged' : 'worktree'
+    await this.openDiffTab(
+      workspaceId,
+      { id: diffTabId(diffKind, path), path, diffKind },
+      () => this.api.gitDiff(workspaceId, path, staged),
+      `Git ${diffKind} diff ${JSON.stringify(path)}`,
+    )
   }
 
   async openCommitDiff(workspaceId: string, commit: GitCommit, path: string): Promise<void> {
-    this.setWorkspace(workspaceId)
-    const requestId = ++this.diffRequestId
-    this.store.update((state) => {
-      state.loading = true
-      state.error = null
-      state.diff = null
-      state.centerMode = 'diff'
-    })
-    try {
-      const diff = await this.api.gitCommitFileDiff(workspaceId, commit.hash, path)
-      if (requestId !== this.diffRequestId) return
-      this.store.update((state) => {
-        state.diff = diff
-        state.centerMode = 'diff'
-        state.loading = false
-      })
-      this.logger.info(`workbench-layout: rendered Git commit file diff ${commit.shortHash} ${JSON.stringify(path)}`)
-    } catch (error: unknown) {
-      if (requestId !== this.diffRequestId) return
-      this.store.update((state) => { state.loading = false; state.error = messageOf(error) })
-      this.logger.warn(`workbench-layout: failed to load Git commit file diff ${commit.shortHash} ${JSON.stringify(path)}`)
-    }
+    await this.openDiffTab(
+      workspaceId,
+      { id: diffTabId('commit', path, commit.hash), path, diffKind: 'commit', revision: commit.hash },
+      () => this.api.gitCommitFileDiff(workspaceId, commit.hash, path),
+      `Git commit diff ${commit.shortHash} ${JSON.stringify(path)}`,
+    )
   }
 
   setDiffViewMode(mode: DiffViewMode): void {
@@ -294,23 +265,76 @@ export class WorkbenchController {
     this.logger.info(`workbench-layout: Diff view mode changed to ${mode}`)
   }
 
-  showFile(): void {
-    this.store.update((state) => { state.centerMode = 'file' })
+  /** 关闭已失效的 Diff 标签，同时保留普通文件及其草稿。 */
+  closeDiffTabs(workspaceId = this.store.getSnapshot().workspaceId): void {
+    if (workspaceId === undefined) return
+    this.updateWorkspaceState(workspaceId, (state) => {
+      const activeIndex = state.tabs.findIndex(tab => tab.id === state.activeTabId)
+      const retained = state.tabs.filter(tab => tab.kind === 'file')
+      const activeStillExists = retained.some(tab => tab.id === state.activeTabId)
+      state.tabs = retained
+      if (!activeStillExists) {
+        const next = retained[Math.min(Math.max(0, activeIndex), retained.length - 1)]
+        if (next === undefined) delete state.activeTabId
+        else state.activeTabId = next.id
+      }
+    })
+    this.logger.info(`workbench-layout: closed stale Diff tabs for workspace ${JSON.stringify(workspaceId)}`)
   }
 
-  /** Clear file tabs and Diff snapshots after Git changes one Workspace. */
+  /** Clear every editor tab after Git changes one Workspace. */
   resetWorkspaceView(workspaceId = this.store.getSnapshot().workspaceId): void {
     if (workspaceId === undefined) return
-    if (this.store.getSnapshot().workspaceId === workspaceId) this.diffRequestId += 1
     this.updateWorkspaceState(workspaceId, (state) => {
       state.tabs = []
-      delete state.activeFilePath
-      state.diff = null
-      state.centerMode = 'file'
-      state.loading = false
-      state.error = null
+      delete state.activeTabId
     })
-    this.logger.info(`workbench-layout: cleared file tabs after Git changed workspace ${JSON.stringify(workspaceId)}`)
+    this.logger.info(`workbench-layout: cleared editor tabs after Git changed workspace ${JSON.stringify(workspaceId)}`)
+  }
+
+  private async openDiffTab(
+    workspaceId: string,
+    descriptor: Pick<WorkbenchDiffTab, 'id' | 'path' | 'diffKind' | 'revision'>,
+    load: () => Promise<GitFileDiff>,
+    logLabel: string,
+  ): Promise<void> {
+    this.setWorkspace(workspaceId)
+    const current = this.store.getSnapshot()
+    const existing = current.tabs.find(tab => tab.id === descriptor.id)
+    this.store.update((state) => {
+      state.activeTabId = descriptor.id
+      if (existing === undefined) state.tabs.push(emptyDiffTab(descriptor))
+    })
+    if (existing?.kind === 'diff' && existing.diff !== null) {
+      this.logger.info(`workbench-layout: selected open ${logLabel} tab`)
+      return
+    }
+    if (existing?.loading === true) return
+
+    const requestKey = tabRequestKey(workspaceId, descriptor.id)
+    const requestId = ++this.requestId
+    this.diffRequests.set(requestKey, requestId)
+    this.updateDiffTabState(workspaceId, descriptor.id, (tab) => {
+      tab.loading = true
+      tab.error = null
+    })
+    try {
+      const diff = await load()
+      if (this.diffRequests.get(requestKey) !== requestId) return
+      this.updateDiffTabState(workspaceId, descriptor.id, (tab) => {
+        tab.diff = diff
+        tab.loading = false
+        tab.error = null
+      })
+      this.logger.info(`workbench-layout: opened ${logLabel} tab`)
+    } catch (error: unknown) {
+      if (this.diffRequests.get(requestKey) !== requestId) return
+      this.updateDiffTabState(workspaceId, descriptor.id, (tab) => {
+        tab.loading = false
+        tab.error = messageOf(error)
+      })
+      this.logger.warn(`workbench-layout: failed to open ${logLabel} tab`)
+    }
   }
 
   /** Apply an async result only to the Workspace that started the operation. */
@@ -326,16 +350,25 @@ export class WorkbenchController {
     this.workspaceStates.set(workspaceId, next)
   }
 
-  private updateTabState(workspaceId: string, path: string, update: (tab: WorkbenchFileTab) => void): void {
+  private updateFileTabState(workspaceId: string, tabId: string, update: (tab: WorkbenchFileTab) => void): void {
     this.updateWorkspaceState(workspaceId, (state) => {
-      const tab = state.tabs.find(candidate => candidate.path === path)
-      if (tab !== undefined) update(tab)
+      const tab = state.tabs.find(candidate => candidate.id === tabId)
+      if (tab?.kind === 'file') update(tab)
+    })
+  }
+
+  private updateDiffTabState(workspaceId: string, tabId: string, update: (tab: WorkbenchDiffTab) => void): void {
+    this.updateWorkspaceState(workspaceId, (state) => {
+      const tab = state.tabs.find(candidate => candidate.id === tabId)
+      if (tab?.kind === 'diff') update(tab)
     })
   }
 }
 
-function emptyTab(path: string): WorkbenchFileTab {
+function emptyFileTab(path: string): WorkbenchFileTab {
   return {
+    id: fileTabId(path),
+    kind: 'file',
     path,
     file: null,
     draft: '',
@@ -347,19 +380,37 @@ function emptyTab(path: string): WorkbenchFileTab {
   }
 }
 
-function cloneState(state: WorkbenchState): WorkbenchState {
+function emptyDiffTab(
+  descriptor: Pick<WorkbenchDiffTab, 'id' | 'path' | 'diffKind' | 'revision'>,
+): WorkbenchDiffTab {
   return {
-    ...state,
-    tabs: state.tabs.map(tab => ({
-      ...tab,
-      file: tab.file === null ? null : { ...tab.file },
-    })),
-    diff: state.diff === null ? null : { ...state.diff },
+    ...descriptor,
+    kind: 'diff',
+    diff: null,
+    loading: true,
+    error: null,
   }
 }
 
-function fileRequestKey(workspaceId: string | undefined, path: string): string {
-  return `${workspaceId ?? ''}\0${path}`
+function cloneState(state: WorkbenchState): WorkbenchState {
+  return {
+    ...state,
+    tabs: state.tabs.map(tab => tab.kind === 'file'
+      ? { ...tab, file: tab.file === null ? null : { ...tab.file } }
+      : { ...tab, diff: tab.diff === null ? null : { ...tab.diff } }),
+  }
+}
+
+function fileTabId(path: string): string {
+  return `file:${path}`
+}
+
+function diffTabId(kind: GitFileDiff['kind'], path: string, revision = ''): string {
+  return `diff:${kind}:${revision}:${path}`
+}
+
+function tabRequestKey(workspaceId: string | undefined, tabId: string): string {
+  return `${workspaceId ?? ''}\0${tabId}`
 }
 
 function messageOf(error: unknown): string {

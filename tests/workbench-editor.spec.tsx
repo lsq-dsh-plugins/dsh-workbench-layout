@@ -37,14 +37,14 @@ describe('WorkbenchEditor multi-file tabs', () => {
     expect(view.queryByRole('button', { name: '保存' })).toBeNull()
 
     fireEvent.keyDown(window, { key: 's', ctrlKey: true })
-    expect(controller.save).toHaveBeenCalledWith('README.md')
+    expect(controller.save).toHaveBeenCalledWith('file:README.md')
   })
 
   it('selects an existing file tab instead of reopening it', () => {
     const controller = controllerFake()
     const view = renderEditor(controller)
     fireEvent.click(view.getByRole('tab', { name: 'a.ts' }))
-    expect(controller.selectFile).toHaveBeenCalledWith('src/a.ts')
+    expect(controller.selectTab).toHaveBeenCalledWith('file:src/a.ts')
   })
 
   it('uses a DSH modal before discarding an unsaved tab', () => {
@@ -52,10 +52,26 @@ describe('WorkbenchEditor multi-file tabs', () => {
     const controller = controllerFake()
     const view = renderEditor(controller)
     fireEvent.click(view.getByRole('button', { name: '关闭 a.ts' }))
-    expect(controller.selectFile).toHaveBeenCalledWith('src/a.ts')
+    expect(controller.selectTab).toHaveBeenCalledWith('file:src/a.ts')
     expect(view.getByRole('dialog', { name: '关闭未保存的文件？' })).toBeTruthy()
     fireEvent.click(view.getByRole('button', { name: '放弃更改' }))
-    expect(controller.closeFile).toHaveBeenCalledWith('src/a.ts', true)
+    expect(controller.closeTab).toHaveBeenCalledWith('file:src/a.ts', true)
+  })
+
+  it('renders Diff as a normal closable editor tab beside files', () => {
+    workbenchState.current.tabs.push(diffTab('src/a.ts'))
+    workbenchState.current.activeTabId = 'diff:worktree::src/a.ts'
+    const controller = controllerFake()
+    const view = renderEditor(controller)
+
+    expect(view.getAllByRole('tab')).toHaveLength(3)
+    expect(view.getByRole('tab', { name: 'a.ts (工作区差异)' }).getAttribute('aria-selected')).toBe('true')
+    expect(view.getByText('diff')).toBeTruthy()
+    fireEvent.keyDown(window, { key: 's', ctrlKey: true })
+    expect(controller.save).not.toHaveBeenCalled()
+    fireEvent.click(view.getByRole('button', { name: '关闭 a.ts (工作区差异)' }))
+    expect(controller.closeTab).toHaveBeenCalledWith('diff:worktree::src/a.ts')
+    expect(view.queryByRole('dialog')).toBeNull()
   })
 })
 
@@ -80,13 +96,12 @@ function controllerFake() {
   return {
     store: { getSnapshot: () => workbenchState.current },
     save: vi.fn(() => Promise.resolve(true)),
-    selectFile: vi.fn(),
-    closeFile: vi.fn(() => true),
+    selectTab: vi.fn(),
+    closeTab: vi.fn(() => true),
     setPreview: vi.fn(),
     revert: vi.fn(),
     setDraft: vi.fn(),
     setDiffViewMode: vi.fn(),
-    showFile: vi.fn(),
   }
 }
 
@@ -98,17 +113,15 @@ function state(): WorkbenchState {
       tab('src/a.ts', 'const a = 1', false),
       tab('README.md', '# Readme', true),
     ],
-    activeFilePath: 'README.md',
-    centerMode: 'file',
-    diff: null,
+    activeTabId: 'file:README.md',
     diffViewMode: 'split',
-    loading: false,
-    error: null,
   }
 }
 
 function tab(path: string, content: string, markdown: boolean) {
   return {
+    id: `file:${path}`,
+    kind: 'file' as const,
     path,
     file: { path, content, version: '1', size: content.length, markdown },
     draft: content,
@@ -116,6 +129,18 @@ function tab(path: string, content: string, markdown: boolean) {
     preview: markdown,
     loading: false,
     saving: false,
+    error: null,
+  }
+}
+
+function diffTab(path: string) {
+  return {
+    id: `diff:worktree::${path}`,
+    kind: 'diff' as const,
+    path,
+    diffKind: 'worktree' as const,
+    diff: { kind: 'worktree' as const, path, status: 'M', original: 'old', modified: 'new', binary: false },
+    loading: false,
     error: null,
   }
 }

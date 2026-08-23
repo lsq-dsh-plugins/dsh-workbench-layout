@@ -24,6 +24,7 @@ interface FileTreeProps {
 /** Lazy directory tree; each expansion performs one bounded Host listing. */
 export function FileTree({ controller, workspaceId, t }: FileTreeProps) {
   const workbench = useWorkbench(controller)
+  const activeTab = workbench.tabs.find(tab => tab.id === workbench.activeTabId)
   const activeWorkspace = useRef(workspaceId)
   activeWorkspace.current = workspaceId
   const [listings, setListings] = useState<Record<string, DirectoryListing | undefined>>({})
@@ -106,7 +107,7 @@ export function FileTree({ controller, workspaceId, t }: FileTreeProps) {
               expanded={expanded}
               listings={listings}
               loading={loading}
-              selected={workbench.activeFilePath}
+              selected={activeTab?.kind === 'file' ? activeTab.path : undefined}
               onToggle={path => { void toggle(path) }}
               onOpen={path => { void controller.openFile(workspaceId, path) }}
             />

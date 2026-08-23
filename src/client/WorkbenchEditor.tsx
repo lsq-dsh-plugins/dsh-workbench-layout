@@ -24,12 +24,12 @@ export function WorkbenchEditor({ sessionId, useWorkspaces, controller, activate
     sessionId,
     snapshot.recentWorkspaceId,
   ))
-  const tab = state.tabs.find(candidate => candidate.path === state.activeFilePath)
-  const closeTab = pendingClose === null ? undefined : state.tabs.find(candidate => candidate.path === pendingClose)
+  const tab = state.tabs.find(candidate => candidate.id === state.activeTabId)
+  const closeTab = pendingClose === null ? undefined : state.tabs.find(candidate => candidate.id === pendingClose)
 
   useEffect(() => { activateWorkspace(workspaceId) }, [activateWorkspace, workspaceId])
   useEffect(() => {
-    if (pendingClose !== null && (closeTab === undefined || (!closeTab.dirty && !closeTab.saving))) {
+    if (pendingClose !== null && (closeTab?.kind !== 'file' || (!closeTab.dirty && !closeTab.saving))) {
       setPendingClose(null)
     }
   }, [closeTab, pendingClose])
@@ -37,10 +37,10 @@ export function WorkbenchEditor({ sessionId, useWorkspaces, controller, activate
     const onKeyDown = (event: KeyboardEvent): void => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey || event.key.toLowerCase() !== 's') return
       const snapshot = controller.store.getSnapshot()
-      const current = snapshot.tabs.find(candidate => candidate.path === snapshot.activeFilePath)
-      if (current?.file === null || current === undefined) return
+      const current = snapshot.tabs.find(candidate => candidate.id === snapshot.activeTabId)
+      if (current?.kind !== 'file' || current.file === null) return
       event.preventDefault()
-      void controller.save(current.path)
+      void controller.save(current.id)
     }
     window.addEventListener('keydown', onKeyDown)
     return () => { window.removeEventListener('keydown', onKeyDown) }
@@ -48,39 +48,26 @@ export function WorkbenchEditor({ sessionId, useWorkspaces, controller, activate
 
   if (workspaceId === undefined) return <EditorEmpty text={t('editor.emptyWorkspace')} />
   if (state.workspaceId !== workspaceId) return <EditorEmpty text={t('editor.loading')} />
-  if (state.centerMode === 'diff') {
-    if (state.loading || state.diff === null) return <EditorEmpty text={state.error ?? t('editor.loading')} />
-    return (
-      <GitDiffEditor
-        diff={state.diff}
-        error={state.error}
-        viewMode={state.diffViewMode}
-        onViewModeChange={mode => { controller.setDiffViewMode(mode) }}
-        onBack={() => { controller.showFile() }}
-        t={t}
-      />
-    )
-  }
   if (state.tabs.length === 0 || tab === undefined) return <EditorEmpty text={t('editor.empty')} />
 
-  const requestClose = (path: string): void => {
-    const target = state.tabs.find(candidate => candidate.path === path)
-    if (target?.dirty === true) {
-      controller.selectFile(path)
-      setPendingClose(path)
+  const requestClose = (tabId: string): void => {
+    const target = state.tabs.find(candidate => candidate.id === tabId)
+    if (target?.kind === 'file' && target.dirty) {
+      controller.selectTab(tabId)
+      setPendingClose(tabId)
       return
     }
-    controller.closeFile(path)
+    controller.closeTab(tabId)
   }
   const saveAndClose = async (): Promise<void> => {
     if (pendingClose === null) return
     setClosing(true)
     const saved = await controller.save(pendingClose)
-    if (saved && controller.closeFile(pendingClose)) setPendingClose(null)
+    if (saved && controller.closeTab(pendingClose)) setPendingClose(null)
     setClosing(false)
   }
   const discardAndClose = (): void => {
-    if (pendingClose !== null) controller.closeFile(pendingClose, true)
+    if (pendingClose !== null) controller.closeTab(pendingClose, true)
     setPendingClose(null)
   }
 
@@ -89,12 +76,12 @@ export function WorkbenchEditor({ sessionId, useWorkspaces, controller, activate
       <header className={css.editorHeader}>
         <EditorTabs
           tabs={state.tabs}
-          activePath={state.activeFilePath}
-          onSelect={path => { controller.selectFile(path) }}
+          activeTabId={state.activeTabId}
+          onSelect={tabId => { controller.selectTab(tabId) }}
           onClose={requestClose}
           t={t}
         />
-        {tab.file !== null && (
+        {tab.kind === 'file' && tab.file !== null && (
           <div className={css.editorActions}>
             {tab.file.markdown && (
               <div className={css.previewSwitch}>
@@ -110,18 +97,32 @@ export function WorkbenchEditor({ sessionId, useWorkspaces, controller, activate
       </header>
       {tab.error !== null && <div className={css.editorError} role="alert">{tab.error}</div>}
       <div className={css.editorBody}>
-        {tab.loading || tab.file === null
+        {tab.loading
           ? <EditorEmpty text={tab.error ?? t('editor.loading')} />
-          : tab.file.markdown && tab.preview
-            ? <div className={css.markdownPreview}><MarkdownText text={tab.draft} /></div>
-            : (
-              <CodeEditor
-                key={tab.path}
-                value={tab.draft}
-                ariaLabel={tab.path}
-                onChange={value => { controller.setDraft(value) }}
-              />
-            )}
+          : tab.kind === 'diff'
+            ? tab.diff === null
+              ? <EditorEmpty text={tab.error ?? t('editor.loading')} />
+              : (
+                <GitDiffEditor
+                  key={tab.id}
+                  diff={tab.diff}
+                  viewMode={state.diffViewMode}
+                  onViewModeChange={mode => { controller.setDiffViewMode(mode) }}
+                  t={t}
+                />
+              )
+            : tab.file === null
+              ? <EditorEmpty text={tab.error ?? t('editor.loading')} />
+              : tab.file.markdown && tab.preview
+                ? <div className={css.markdownPreview}><MarkdownText text={tab.draft} /></div>
+                : (
+                  <CodeEditor
+                    key={tab.id}
+                    value={tab.draft}
+                    ariaLabel={tab.path}
+                    onChange={value => { controller.setDraft(value) }}
+                  />
+                )}
       </div>
       <Modal
         open={closeTab !== undefined}

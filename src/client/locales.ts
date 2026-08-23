@@ -77,7 +77,6 @@ export const zh = {
   'editor.diffHead': 'HEAD',
   'editor.diffIndex': '暂存区',
   'editor.diffWorkingTree': '工作区',
-  'editor.backToFile': '返回文件',
 } as const
 
 export const en: Record<keyof typeof zh, string> = {
@@ -159,7 +158,6 @@ export const en: Record<keyof typeof zh, string> = {
   'editor.diffHead': 'HEAD',
   'editor.diffIndex': 'Index',
   'editor.diffWorkingTree': 'Working tree',
-  'editor.backToFile': 'Back to file',
 }
 
 export type WorkbenchKey = keyof typeof zh

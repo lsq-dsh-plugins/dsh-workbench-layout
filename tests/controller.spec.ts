@@ -54,13 +54,13 @@ describe('WorkbenchController', () => {
     await controller.openFile('workspace-1', 'second.ts')
 
     expect(controller.store.getSnapshot()).toMatchObject({
-      activeFilePath: 'second.ts',
       tabs: [
         { path: 'first.ts', draft: 'changed', dirty: true },
         { path: 'second.ts', draft: 'two', dirty: false },
       ],
     })
-    controller.selectFile('first.ts')
+    expect(activeTab(controller)?.path).toBe('second.ts')
+    controller.selectTab(fileTab(controller, 'first.ts')!.id)
     expect(activeTab(controller)).toMatchObject({ path: 'first.ts', draft: 'changed', dirty: true })
   })
 
@@ -78,7 +78,7 @@ describe('WorkbenchController', () => {
     resolveFirst?.(file('old.ts', 'old', '1'))
     await oldRequest
 
-    expect(controller.store.getSnapshot().activeFilePath).toBe('new.ts')
+    expect(activeTab(controller)?.path).toBe('new.ts')
     expect(controller.store.getSnapshot().tabs).toEqual(expect.arrayContaining([
       expect.objectContaining({ path: 'old.ts', draft: 'old', loading: false }),
       expect.objectContaining({ path: 'new.ts', draft: 'new', loading: false }),
@@ -104,10 +104,11 @@ describe('WorkbenchController', () => {
     await controller.openFile('workspace-1', 'first.ts')
     controller.setDraft('changed')
     await controller.openFile('workspace-1', 'second.ts')
-    expect(controller.closeFile('first.ts')).toBe(false)
-    expect(controller.closeFile('first.ts', true)).toBe(true)
+    const firstTabId = fileTab(controller, 'first.ts')!.id
+    expect(controller.closeTab(firstTabId)).toBe(false)
+    expect(controller.closeTab(firstTabId, true)).toBe(true)
     expect(controller.store.getSnapshot().tabs.map(tab => tab.path)).toEqual(['second.ts'])
-    expect(controller.store.getSnapshot().activeFilePath).toBe('second.ts')
+    expect(activeTab(controller)?.path).toBe('second.ts')
   })
 
   it('retains all tabs and unsaved drafts while switching Workspaces', async () => {
@@ -119,9 +120,9 @@ describe('WorkbenchController', () => {
     controller.setWorkspace('workspace-1')
     expect(controller.store.getSnapshot()).toMatchObject({
       workspaceId: 'workspace-1',
-      activeFilePath: 'draft.txt',
       tabs: [{ path: 'draft.txt', draft: 'unsaved', dirty: true }],
     })
+    expect(activeTab(controller)?.path).toBe('draft.txt')
   })
 
   it('keeps file tabs when another Session resolves to the same Workspace', async () => {
@@ -182,8 +183,8 @@ describe('WorkbenchController', () => {
     await controller.openFile('workspace-1', 'first.ts')
     controller.setDraft('changed')
     await controller.openFile('workspace-1', 'second.ts')
-    await controller.save('first.ts')
-    expect(controller.store.getSnapshot().activeFilePath).toBe('second.ts')
+    await controller.save(fileTab(controller, 'first.ts')!.id)
+    expect(activeTab(controller)?.path).toBe('second.ts')
     expect(controller.store.getSnapshot().tabs.find(tab => tab.path === 'first.ts')).toMatchObject({ dirty: false })
   })
 
@@ -202,28 +203,56 @@ describe('WorkbenchController', () => {
     const controller = createController(api)
     await controller.openFile('workspace-1', 'kept.ts')
     await controller.openCommitDiff('workspace-1', commit, 'src/a.ts')
-    expect(controller.store.getSnapshot()).toMatchObject({
-      centerMode: 'diff', diff: { path: 'src/a.ts' }, tabs: [{ path: 'kept.ts' }],
-    })
-    controller.showFile()
+    expect(controller.store.getSnapshot().tabs).toEqual([
+      expect.objectContaining({ kind: 'file', path: 'kept.ts' }),
+      expect.objectContaining({ kind: 'diff', path: 'src/a.ts', diff: expect.objectContaining({ path: 'src/a.ts' }) }),
+    ])
+    expect(activeTab(controller)).toMatchObject({ kind: 'diff', path: 'src/a.ts' })
+    controller.selectTab(fileTab(controller, 'kept.ts')!.id)
     expect(activeTab(controller)?.path).toBe('kept.ts')
   })
 
-  it('clears an older Diff while loading a newer selection', async () => {
-    let resolveSecond: ((value: unknown) => void) | undefined
-    const second = new Promise(resolve => { resolveSecond = resolve })
+  it('loads multiple Diff tabs independently without an older response stealing selection', async () => {
+    let resolveFirst: ((value: unknown) => void) | undefined
+    const first = new Promise(resolve => { resolveFirst = resolve })
     const api = {
       gitDiff: vi.fn()
-        .mockResolvedValueOnce({ kind: 'worktree', path: 'old.ts', status: 'M', original: 'old', modified: 'older', binary: false })
-        .mockReturnValueOnce(second),
+        .mockReturnValueOnce(first)
+        .mockResolvedValueOnce({ kind: 'worktree', path: 'new.ts', status: 'M', original: 'before', modified: 'after', binary: false }),
     }
     const controller = createController(api)
-    await controller.openDiff('workspace-1', 'old.ts', false)
-    const request = controller.openDiff('workspace-1', 'new.ts', false)
-    expect(controller.store.getSnapshot()).toMatchObject({ centerMode: 'diff', loading: true, diff: null })
-    resolveSecond?.({ kind: 'worktree', path: 'new.ts', status: 'M', original: 'before', modified: 'after', binary: false })
-    await request
-    expect(controller.store.getSnapshot()).toMatchObject({ loading: false, diff: { path: 'new.ts' } })
+    const oldRequest = controller.openDiff('workspace-1', 'old.ts', false)
+    await controller.openDiff('workspace-1', 'new.ts', false)
+    expect(activeTab(controller)).toMatchObject({ kind: 'diff', path: 'new.ts', loading: false })
+    resolveFirst?.({ kind: 'worktree', path: 'old.ts', status: 'M', original: 'old', modified: 'older', binary: false })
+    await oldRequest
+    expect(activeTab(controller)?.path).toBe('new.ts')
+    expect(controller.store.getSnapshot().tabs).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'diff', path: 'old.ts', loading: false }),
+      expect.objectContaining({ kind: 'diff', path: 'new.ts', loading: false }),
+    ]))
+
+    await controller.openDiff('workspace-1', 'new.ts', false)
+    expect(api.gitDiff).toHaveBeenCalledTimes(2)
+    expect(controller.store.getSnapshot().tabs).toHaveLength(2)
+  })
+
+  it('closes stale Diff tabs without discarding file drafts', async () => {
+    const api = {
+      readFile: vi.fn(() => Promise.resolve(file('kept.ts', 'base', '1'))),
+      gitDiff: vi.fn(() => Promise.resolve({
+        kind: 'worktree', path: 'changed.ts', status: 'M', original: 'old', modified: 'new', binary: false,
+      })),
+    }
+    const controller = createController(api)
+    await controller.openFile('workspace-1', 'kept.ts')
+    controller.setDraft('draft')
+    await controller.openDiff('workspace-1', 'changed.ts', false)
+    controller.closeDiffTabs()
+    expect(controller.store.getSnapshot().tabs).toEqual([
+      expect.objectContaining({ kind: 'file', path: 'kept.ts', draft: 'draft', dirty: true }),
+    ])
+    expect(activeTab(controller)?.path).toBe('kept.ts')
   })
 
   it('stores the preferred Diff layout in the current Workspace state', () => {
@@ -241,8 +270,9 @@ describe('WorkbenchController', () => {
     const controller = new WorkbenchController(api as never, logger)
     await controller.openFile('workspace-1', 'src/a.ts')
     controller.resetWorkspaceView()
-    expect(controller.store.getSnapshot()).toMatchObject({ tabs: [], diff: null, centerMode: 'file', loading: false })
-    expect(logger.info).toHaveBeenCalledWith('workbench-layout: cleared file tabs after Git changed workspace "workspace-1"')
+    expect(controller.store.getSnapshot()).toMatchObject({ tabs: [] })
+    expect(controller.store.getSnapshot().activeTabId).toBeUndefined()
+    expect(logger.info).toHaveBeenCalledWith('workbench-layout: cleared editor tabs after Git changed workspace "workspace-1"')
   })
 
   it('invalidates an inactive Workspace without clearing active Workspace tabs', async () => {
@@ -253,7 +283,7 @@ describe('WorkbenchController', () => {
     controller.resetWorkspaceView('workspace-a')
     expect(activeTab(controller)?.path).toBe('workspace-b.ts')
     controller.setWorkspace('workspace-a')
-    expect(controller.store.getSnapshot()).toMatchObject({ workspaceId: 'workspace-a', tabs: [], diff: null })
+    expect(controller.store.getSnapshot()).toMatchObject({ workspaceId: 'workspace-a', tabs: [] })
   })
 
   it('releases and restores the sidebar shadow when switching Sessions and Files', () => {
@@ -272,7 +302,11 @@ function createController(api: object) {
 
 function activeTab(controller: ReturnType<typeof createController>) {
   const state = controller.store.getSnapshot()
-  return state.tabs.find(tab => tab.path === state.activeFilePath)
+  return state.tabs.find(tab => tab.id === state.activeTabId)
+}
+
+function fileTab(controller: ReturnType<typeof createController>, path: string) {
+  return controller.store.getSnapshot().tabs.find(tab => tab.kind === 'file' && tab.path === path)
 }
 
 function file(path: string, content: string, version: string, markdown = false) {

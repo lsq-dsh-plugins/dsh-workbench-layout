@@ -27,6 +27,8 @@ type GitView = 'changes' | 'graph'
 /** 组合源码管理状态；具体的更改、提交图和仓库工具栏各自保持独立。 */
 export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
   const workbench = useWorkbench(controller)
+  const activeTab = workbench.tabs.find(tab => tab.id === workbench.activeTabId)
+  const activeDiff = activeTab?.kind === 'diff' ? activeTab.diff : null
   const refreshId = useRef(0)
   const activeWorkspace = useRef(workspaceId)
   activeWorkspace.current = workspaceId
@@ -97,6 +99,7 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
   const stage = async (file: GitFileStatus): Promise<void> => {
     if (workspaceId === undefined) return
     if (await update(workspaceId, () => controller.api.gitStage(workspaceId, file.path))) {
+      controller.closeDiffTabs(workspaceId)
       await controller.openDiff(workspaceId, file.path, true)
     }
   }
@@ -104,6 +107,7 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
   const unstage = async (file: GitFileStatus): Promise<void> => {
     if (workspaceId === undefined) return
     if (await update(workspaceId, () => controller.api.gitUnstage(workspaceId, file.path))) {
+      controller.closeDiffTabs(workspaceId)
       await controller.openDiff(workspaceId, file.path, false)
     }
   }
@@ -119,7 +123,7 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
       if (activeWorkspace.current !== targetWorkspace) return
       setMessage('')
       setResult(committed.summary)
-      controller.showFile()
+      controller.closeDiffTabs(targetWorkspace)
       await refresh()
     } catch (reason: unknown) {
       if (activeWorkspace.current !== targetWorkspace) return
@@ -155,7 +159,7 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
   const switchBranch = async (ref: string): Promise<void> => {
     if (workspaceId === undefined) return
     const targetWorkspace = workspaceId
-    if (workbench.tabs.some(tab => tab.dirty)) {
+    if (workbench.tabs.some(tab => tab.kind === 'file' && tab.dirty)) {
       setError(t('git.unsavedOperation'))
       return
     }
@@ -180,7 +184,7 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
   const remoteOperation = async (operation: GitRemoteOperation): Promise<void> => {
     if (workspaceId === undefined) return
     const targetWorkspace = workspaceId
-    if ((operation === 'pull' || operation === 'sync') && workbench.tabs.some(tab => tab.dirty)) {
+    if ((operation === 'pull' || operation === 'sync') && workbench.tabs.some(tab => tab.kind === 'file' && tab.dirty)) {
       setError(t('git.unsavedOperation'))
       return
     }
@@ -215,7 +219,10 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
         onChangeLayout={setChangeLayout}
         onSwitchBranch={ref => { void switchBranch(ref) }}
         onRemoteOperation={operation => { void remoteOperation(operation) }}
-        onRefresh={() => { void refresh() }}
+        onRefresh={() => {
+          controller.closeDiffTabs(workspaceId)
+          void refresh()
+        }}
         t={t}
       />
       <div className={css.gitViewTabs} role="tablist" aria-label={t('git.title')}>
@@ -248,8 +255,8 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
             stagedFiles={stagedFiles}
             changedFiles={changedFiles}
             layout={changeLayout}
-            selectedKind={workbench.diff?.kind === 'staged' || workbench.diff?.kind === 'worktree' ? workbench.diff.kind : undefined}
-            selectedPath={workbench.diff?.path}
+            selectedKind={activeDiff?.kind === 'staged' || activeDiff?.kind === 'worktree' ? activeDiff.kind : undefined}
+            selectedPath={activeDiff?.path}
             onOpen={(file, staged) => { void controller.openDiff(workspaceId, file.path, staged) }}
             onStage={file => { void stage(file) }}
             onUnstage={file => { void unstage(file) }}
@@ -262,8 +269,8 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
           graph={graph}
           expandedCommit={expandedCommit}
           commitFiles={commitFiles}
-          selectedRevision={workbench.diff?.revision}
-          selectedPath={workbench.diff?.path}
+          selectedRevision={activeDiff?.revision}
+          selectedPath={activeDiff?.path}
           onToggle={commitValue => { void toggleCommit(commitValue) }}
           onOpen={(commitValue, path) => { void controller.openCommitDiff(workspaceId, commitValue, path) }}
           t={t}

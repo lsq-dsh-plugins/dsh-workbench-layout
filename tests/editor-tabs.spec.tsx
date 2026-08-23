@@ -58,7 +58,7 @@ function renderTabs() {
       tabs={[
         tab('src/alpha.ts'), tab('src/beta.ts'), tab('src/gamma.ts'), tab('src/delta.ts'),
       ]}
-      activePath="src/alpha.ts"
+      activeTabId="file:src/alpha.ts"
       onSelect={vi.fn()}
       onClose={vi.fn()}
       t={(key: string) => key}
@@ -68,6 +68,8 @@ function renderTabs() {
 
 function tab(path: string) {
   return {
+    id: `file:${path}`,
+    kind: 'file' as const,
     path,
     file: { path, content: '', version: '1', size: 0, markdown: false },
     draft: '',

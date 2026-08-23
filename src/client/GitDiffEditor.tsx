@@ -1,24 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  Button,
   FishLogo,
-  IconCodeOutline16,
   Pill,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { GitFileDiff } from '../contracts.ts'
 import type { DiffViewMode } from './controller.ts'
 import { DiffSurface } from './DiffSurface.tsx'
+import { diffKindText } from './git-diff-labels.ts'
 import css from './Workbench.module.css'
 
 const INLINE_THRESHOLD = 720
 
 export interface GitDiffEditorProps {
   diff: GitFileDiff
-  error: string | null
   viewMode: DiffViewMode
   onViewModeChange: (mode: DiffViewMode) => void
-  onBack: () => void
   t: TranslateNS<'workbench'>
 }
 
@@ -42,38 +39,11 @@ export function GitDiffEditor(props: GitDiffEditorProps) {
   const renamed = props.diff.originalPath !== undefined && props.diff.originalPath !== props.diff.path
   const noChanges = !props.diff.binary && props.diff.original === props.diff.modified
   return (
-    <section ref={root} className={css.editorRoot} data-dsh-workbench-editor="" data-diff-effective-mode={effectiveMode}>
-      <header className={css.editorHeader}>
-        <div className={css.editorTitle} title={props.diff.path}>
-          <IconCodeOutline16 size={16} />
-          <span>{fileName(props.diff.path)}</span>
-          <span className={css.diffDirectory}>{directoryName(props.diff.path)}</span>
-          <span className={css.diffFileStatus} data-status={props.diff.status}>{props.diff.status}</span>
-          <Pill>{diffKindText(props.diff.kind, props.t)}</Pill>
-        </div>
-        <div className={css.editorActions}>
-          <div className={css.diffViewSwitch} role="group" aria-label={props.t('editor.diffView')}>
-            <button
-              type="button"
-              data-active={effectiveMode === 'split' || undefined}
-              disabled={narrow}
-              onClick={() => { props.onViewModeChange('split') }}
-            >
-              {props.t('editor.diffSplit')}
-            </button>
-            <button
-              type="button"
-              data-active={effectiveMode === 'inline' || undefined}
-              onClick={() => { props.onViewModeChange('inline') }}
-            >
-              {props.t('editor.diffInline')}
-            </button>
-          </div>
-          <Button size="sm" variant="toolbar" onClick={props.onBack}>{props.t('editor.backToFile')}</Button>
-        </div>
-      </header>
+    <section ref={root} className={css.diffDocument} data-diff-effective-mode={effectiveMode}>
       <div className={css.diffMetadata}>
-        <span>{renamed ? `${props.diff.originalPath} → ${props.diff.path}` : props.diff.path}</span>
+        <span title={props.diff.path}>{renamed ? `${props.diff.originalPath} → ${props.diff.path}` : props.diff.path}</span>
+        <span className={css.diffFileStatus} data-status={props.diff.status}>{props.diff.status}</span>
+        <Pill>{diffKindText(props.diff.kind, props.t)}</Pill>
         {props.diff.commit !== undefined && (
           <span>{props.diff.commit.shortHash} · {props.diff.commit.author} · {formatCommitTime(props.diff.commit.authoredAt)}</span>
         )}
@@ -81,8 +51,24 @@ export function GitDiffEditor(props: GitDiffEditorProps) {
           {props.diff.additions !== undefined && <span data-kind="added">+{props.diff.additions}</span>}
           {props.diff.deletions !== undefined && <span data-kind="deleted">-{props.diff.deletions}</span>}
         </span>
+        <div className={css.diffViewSwitch} role="group" aria-label={props.t('editor.diffView')}>
+          <button
+            type="button"
+            data-active={effectiveMode === 'split' || undefined}
+            disabled={narrow}
+            onClick={() => { props.onViewModeChange('split') }}
+          >
+            {props.t('editor.diffSplit')}
+          </button>
+          <button
+            type="button"
+            data-active={effectiveMode === 'inline' || undefined}
+            onClick={() => { props.onViewModeChange('inline') }}
+          >
+            {props.t('editor.diffInline')}
+          </button>
+        </div>
       </div>
-      {props.error !== null && <div className={css.editorError} role="alert">{props.error}</div>}
       {props.diff.binary
         ? <DiffNotice text={props.t('editor.diffBinary')} />
         : noChanges
@@ -129,23 +115,6 @@ function diffLabels(diff: GitFileDiff, t: TranslateNS<'workbench'>): { original:
         modified: diff.revision?.slice(0, 7) ?? t('editor.diffCommit'),
       }
   }
-}
-
-function diffKindText(kind: GitFileDiff['kind'], t: TranslateNS<'workbench'>): string {
-  switch (kind) {
-    case 'worktree': return t('editor.diffWorktree')
-    case 'staged': return t('editor.diffStaged')
-    case 'commit': return t('editor.diffCommit')
-  }
-}
-
-function fileName(path: string): string {
-  return path.split('/').at(-1) ?? path
-}
-
-function directoryName(path: string): string {
-  const boundary = path.lastIndexOf('/')
-  return boundary < 0 ? '' : path.slice(0, boundary)
 }
 
 function formatCommitTime(value: string): string {

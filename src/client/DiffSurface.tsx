@@ -24,6 +24,7 @@ export function DiffSurface(props: DiffSurfaceProps) {
       basicSetup,
       EditorState.readOnly.of(true),
       EditorView.editable.of(false),
+      EditorView.lineWrapping,
       EditorView.contentAttributes.of({ 'aria-label': label }),
       diffTheme,
     ]

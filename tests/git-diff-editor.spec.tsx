@@ -45,10 +45,8 @@ describe('Git Diff editor', () => {
       return (
         <GitDiffEditor
           diff={diff}
-          error={null}
           viewMode={mode}
           onViewModeChange={setMode}
-          onBack={vi.fn()}
           t={(key: keyof typeof zh) => zh[key]}
         />
       )
@@ -56,7 +54,7 @@ describe('Git Diff editor', () => {
     const view = render(<Harness />)
 
     await waitFor(() => { expect(view.container.querySelector('[data-diff-surface="split"]')).not.toBeNull() })
-    expect(view.getByText('src')).toBeTruthy()
+    expect(view.getByText('src/a.ts')).toBeTruthy()
     expect(view.getByText('+1')).toBeTruthy()
     expect(view.getByText('-1')).toBeTruthy()
     fireEvent.click(view.getByRole('button', { name: '行内' }))
@@ -68,10 +66,8 @@ describe('Git Diff editor', () => {
     const view = render(
       <GitDiffEditor
         diff={sampleDiff()}
-        error={null}
         viewMode="split"
         onViewModeChange={vi.fn()}
-        onBack={vi.fn()}
         t={(key: keyof typeof zh) => zh[key]}
       />,
     )
@@ -83,10 +79,8 @@ describe('Git Diff editor', () => {
     const view = render(
       <GitDiffEditor
         diff={{ ...sampleDiff(), binary: true, original: '', modified: '' }}
-        error={null}
         viewMode="split"
         onViewModeChange={vi.fn()}
-        onBack={vi.fn()}
         t={(key: keyof typeof zh) => zh[key]}
       />,
     )

@@ -741,7 +741,6 @@
   background: var(--dsw-alias-bg-layer-1);
 }
 
-.editorTitle,
 .editorActions {
   display: flex;
   min-width: 0;
@@ -749,20 +748,8 @@
   gap: 8px;
 }
 
-.editorTitle {
-  flex: 1;
-  font: var(--dsw-font-xs-strong-13);
-}
-
 .editorActions {
   flex: none;
-}
-
-.editorTitle > span:first-of-type {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .editorTabs {
@@ -837,6 +824,12 @@
   white-space: nowrap;
 }
 
+.editorTabKind {
+  flex: none;
+  color: var(--dsw-alias-label-quaternary);
+  font: var(--dsw-font-xxs-12);
+}
+
 .editorTabStatus {
   flex: none;
   width: 6px;
@@ -884,14 +877,6 @@
 @keyframes editor-tab-saving {
   from { opacity: 0.35; }
   to { opacity: 1; }
-}
-
-.diffDirectory {
-  overflow: hidden;
-  color: var(--dsw-alias-label-quaternary);
-  font: var(--dsw-font-xxs-12);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .diffFileStatus {
@@ -962,9 +947,18 @@
 }
 
 .editorBody {
+  display: flex;
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+
+.diffDocument {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
 }
 
 .diffMetadata {
