@@ -109,6 +109,16 @@ function sidebarFixture(): void {
   const seat = document.createElement('div')
   seat.dataset.slot = 'sidebar.workspaces'
   region.appendChild(seat)
-  root.append(brand, newSession, region, document.createElement('div'))
+  const foot = document.createElement('div')
+  const footerActions = document.createElement('div')
+  const footerActionSeat = document.createElement('div')
+  footerActionSeat.dataset.slot = 'sidebar.footer.action'
+  footerActions.appendChild(footerActionSeat)
+  const settingsArea = document.createElement('div')
+  const settingsSeat = document.createElement('div')
+  settingsSeat.dataset.slot = 'sidebar.settings'
+  settingsArea.appendChild(settingsSeat)
+  foot.append(footerActions, settingsArea)
+  root.append(brand, newSession, region, foot)
   document.body.appendChild(root)
 }

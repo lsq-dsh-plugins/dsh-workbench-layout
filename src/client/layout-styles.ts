@@ -55,8 +55,12 @@ const CSS = `
   );
 }
 
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) :has(> [data-input-scroll]),
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2) :has(> [data-input-scroll]) {
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) [data-composer-card],
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) [data-composer-card] [data-input-scroll],
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) [data-composer-card] [data-input-scroll] + div,
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2) [data-composer-card],
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2) [data-composer-card] [data-input-scroll],
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2) [data-composer-card] [data-input-scroll] + div {
   background: var(--dsw-specific-input-major);
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   IconFolderOpenOutline16,
@@ -12,6 +12,7 @@ import type { WorkbenchKey } from './locales.ts'
 import { IconSourceControlOutline16 } from './SourceControlIcon.tsx'
 import { IconTerminalOutline16 } from './TerminalIcon.tsx'
 import { createSidebarTopMount } from './sidebar-top-layout.ts'
+import { createSidebarFooterLayout, type SidebarFooterLayout } from './sidebar-footer-layout.ts'
 import { useWorkbench } from './use-workbench.ts'
 import css from './Workbench.module.css'
 
@@ -24,6 +25,7 @@ export type ModeSwitchProps = PropsRuntime<'sidebar.footer.action'> & PropsLocal
 export function ModeSwitch({ wide, controller, logger, t }: ModeSwitchProps) {
   const state = useWorkbench(controller)
   const [target, setTarget] = useState<HTMLElement | null>(null)
+  const footerLayout = useRef<SidebarFooterLayout | null>(null)
   const iconSize = wide ? 16 : 18
   const items = [
     { mode: 'sessions' as const, label: t('mode.sessions'), icon: <IconNewChatOutline16 size={iconSize} /> },
@@ -33,10 +35,17 @@ export function ModeSwitch({ wide, controller, logger, t }: ModeSwitchProps) {
   ]
   useEffect(() => {
     const mount = createSidebarTopMount(css.sidebarTopHost!, setTarget, logger)
-    return () => { mount.dispose() }
-  }, [logger])
+    const footer = createSidebarFooterLayout(wide, logger)
+    footerLayout.current = footer
+    return () => {
+      footerLayout.current = null
+      footer.dispose()
+      mount.dispose()
+    }
+  }, [logger]) // wide updates through the stable footer layout below.
   useEffect(() => {
     target?.toggleAttribute('data-wide', wide)
+    footerLayout.current?.setWide(wide)
   }, [target, wide])
   const editorToggleLabel = state.editorExpanded ? t('editor.collapse') : t('editor.expand')
 
