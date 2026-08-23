@@ -1,7 +1,8 @@
-/** 右侧原生会话栏的窄栏状态与模型菜单浮层几何。 */
+/** 右侧原生会话栏的窄栏状态、头部操作标记与模型菜单浮层几何。 */
 
 export const CONVERSATION_NARROW_ATTRIBUTE = 'data-dsh-workbench-conversation-narrow'
 export const FLOATING_MODEL_MENU_ATTRIBUTE = 'data-dsh-workbench-floating-model-menu'
+export const SESSION_LOG_BUTTON_ATTRIBUTE = 'data-dsh-workbench-session-log-button'
 export const FLOATING_MENU_LEFT_PROPERTY = '--dsh-workbench-floating-menu-left'
 export const FLOATING_MENU_TOP_PROPERTY = '--dsh-workbench-floating-menu-top'
 
@@ -10,6 +11,8 @@ const VIEWPORT_PADDING = 12
 const MENU_GAP = 8
 const MODEL_MENU_SELECTOR = "[data-slot='conversation.input.model'] [role='menu']"
 const MODEL_TRIGGER_SELECTOR = "button[aria-haspopup='menu']"
+const SESSION_HEADER_UTILITIES_SELECTOR = "[data-slot='conversation.session.header.utilities']"
+const SESSION_LOG_LABEL = 'Session log'
 
 export interface ConversationLayoutLogger {
   info(message: string): void
@@ -33,6 +36,9 @@ export function createConversationLayout(
   let trigger: HTMLElement | null = null
   let menuResizeObserver: ResizeObserver | undefined
   let positionFrame: number | null = null
+  let sessionLogButton: HTMLButtonElement | null = null
+  let ownsSessionLogAriaLabel = false
+  let ownsSessionLogTitle = false
 
   const applyWidth = (): void => {
     const width = Math.round(column.getBoundingClientRect().width)
@@ -105,11 +111,49 @@ export function createConversationLayout(
     logger.info('workbench-layout: lifted native model menu above workbench columns')
   }
 
+  const releaseSessionLogButton = (): void => {
+    if (sessionLogButton === null) return
+    sessionLogButton.removeAttribute(SESSION_LOG_BUTTON_ATTRIBUTE)
+    if (ownsSessionLogAriaLabel && sessionLogButton.getAttribute('aria-label') === SESSION_LOG_LABEL) {
+      sessionLogButton.removeAttribute('aria-label')
+    }
+    if (ownsSessionLogTitle && sessionLogButton.title === SESSION_LOG_LABEL) {
+      sessionLogButton.removeAttribute('title')
+    }
+    sessionLogButton = null
+    ownsSessionLogAriaLabel = false
+    ownsSessionLogTitle = false
+  }
+
+  const reconcileSessionLogButton = (): void => {
+    const utilities = column.querySelector<HTMLElement>(SESSION_HEADER_UTILITIES_SELECTOR)
+    const nextButton = utilities === null ? null : findSessionLogButton(utilities)
+    if (nextButton === sessionLogButton) return
+    releaseSessionLogButton()
+    if (nextButton === null) return
+    sessionLogButton = nextButton
+    sessionLogButton.setAttribute(SESSION_LOG_BUTTON_ATTRIBUTE, '')
+    if (!sessionLogButton.hasAttribute('aria-label')) {
+      sessionLogButton.setAttribute('aria-label', SESSION_LOG_LABEL)
+      ownsSessionLogAriaLabel = true
+    }
+    if (!sessionLogButton.hasAttribute('title')) {
+      sessionLogButton.title = SESSION_LOG_LABEL
+      ownsSessionLogTitle = true
+    }
+    logger.info('workbench-layout: adopted native Session log action for responsive presentation')
+  }
+
+  const reconcileDynamicControls = (): void => {
+    reconcileMenu()
+    reconcileSessionLogButton()
+  }
+
   const reconcile = (): void => {
     applyWidth()
-    reconcileMenu()
+    reconcileDynamicControls()
   }
-  const mutationObserver = new MutationObserver(reconcileMenu)
+  const mutationObserver = new MutationObserver(reconcileDynamicControls)
   mutationObserver.observe(column, { childList: true, subtree: true })
   const columnResizeObserver = typeof ResizeObserver === 'undefined'
     ? undefined
@@ -130,9 +174,20 @@ export function createConversationLayout(
       window.removeEventListener('resize', schedulePosition)
       window.removeEventListener('scroll', schedulePosition, true)
       releaseMenu()
+      releaseSessionLogButton()
       column.removeAttribute(CONVERSATION_NARROW_ATTRIBUTE)
     },
   }
+}
+
+function findSessionLogButton(utilities: HTMLElement): HTMLButtonElement | null {
+  for (const button of utilities.querySelectorAll<HTMLButtonElement>('button')) {
+    const children = Array.from(button.children)
+    const label = children.find((child): child is HTMLSpanElement => child instanceof HTMLSpanElement)
+    const hasDownloadGlyph = children.some(child => child instanceof SVGElement)
+    if (label?.textContent?.trim() === SESSION_LOG_LABEL && hasDownloadGlyph) return button
+  }
+  return null
 }
 
 function clamp(value: number, minimum: number, maximum: number): number {

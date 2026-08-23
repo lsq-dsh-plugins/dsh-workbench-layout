@@ -7,6 +7,7 @@ import {
   FLOATING_MENU_LEFT_PROPERTY,
   FLOATING_MENU_TOP_PROPERTY,
   FLOATING_MODEL_MENU_ATTRIBUTE,
+  SESSION_LOG_BUTTON_ATTRIBUTE,
   type ConversationLayout,
 } from './conversation-layout.ts'
 import {
@@ -27,6 +28,16 @@ const CSS = `
   grid-column: 3;
   grid-row: 1;
   border-left: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-specific-sidebar-fill);
+}
+
+/* The right conversation uses the same official theme surface as the left
+   sidebar. Rebinding the base token at the native root also keeps its sticky
+   composer fade and queue surfaces continuous in light and dark themes. */
+[${FRAME_ATTRIBUTE}]:not([data-details-collapsed]) > :nth-child(2) [data-phase],
+[${FRAME_ATTRIBUTE}][${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2) [data-phase] {
+  --dsw-alias-bg-base: var(--dsw-specific-sidebar-fill);
+  background: var(--dsw-specific-sidebar-fill);
 }
 
 [${FRAME_ATTRIBUTE}]:not([data-details-collapsed]) > :nth-child(3),
@@ -122,6 +133,34 @@ const CSS = `
   display: none;
 }
 
+/* Only the PermissionSelect chevron is omitted from the left tool group.
+   The Plan chip and conversation-header disclosure controls remain intact. */
+[${FRAME_ATTRIBUTE}] > :nth-child(2)[${CONVERSATION_NARROW_ATTRIBUTE}] [data-input-scroll] + div > div:first-child > div:first-of-type > span:first-child > button > span[aria-hidden]:last-child,
+[${FRAME_ATTRIBUTE}] > :nth-child(2)[${CONVERSATION_NARROW_ATTRIBUTE}] [data-slot='conversation.input.model'] button[aria-haspopup='menu'] > svg:last-child {
+  display: none;
+}
+
+/* Match the composer's compact icon buttons only after the right column is
+   narrow. At normal widths the official Session-log capsule is untouched. */
+[${FRAME_ATTRIBUTE}] > :nth-child(2)[${CONVERSATION_NARROW_ATTRIBUTE}] [${SESSION_LOG_BUTTON_ATTRIBUTE}] {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+  gap: 0;
+  border: 0;
+  border-radius: 999px;
+}
+
+[${FRAME_ATTRIBUTE}] > :nth-child(2)[${CONVERSATION_NARROW_ATTRIBUTE}] [${SESSION_LOG_BUTTON_ATTRIBUTE}] > span {
+  display: none;
+}
+
+[${FRAME_ATTRIBUTE}] > :nth-child(2)[${CONVERSATION_NARROW_ATTRIBUTE}] [${SESSION_LOG_BUTTON_ATTRIBUTE}] > svg {
+  width: 16px;
+  height: 16px;
+}
+
 /* Fixed positioning escapes the native conversation scroll/root clipping
    chain while the node remains in its official React tree for focus, outside
    click, keyboard navigation, and unmount ownership. */
@@ -166,7 +205,7 @@ export function installWorkbenchLayout(ctx: ClientContext): void {
     attach()
     const documentObserver = new MutationObserver(attach)
     documentObserver.observe(document.body, { childList: true, subtree: true })
-    ctx.logger.info('workbench-layout: native AppFrame tracks, drag handles, and narrow conversation presentation adopted')
+    ctx.logger.info('workbench-layout: native AppFrame tracks, drag handles, and themed narrow conversation presentation adopted')
     return () => {
       documentObserver.disconnect()
       conversationLayout?.dispose()

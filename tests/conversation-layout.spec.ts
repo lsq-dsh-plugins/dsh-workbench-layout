@@ -7,6 +7,7 @@ import {
   FLOATING_MENU_LEFT_PROPERTY,
   FLOATING_MENU_TOP_PROPERTY,
   FLOATING_MODEL_MENU_ATTRIBUTE,
+  SESSION_LOG_BUTTON_ATTRIBUTE,
 } from '../src/client/conversation-layout.ts'
 
 afterEach(() => {
@@ -54,6 +55,36 @@ describe('右侧原生会话窄栏适配', () => {
     })
     layout.dispose()
   })
+
+  it('只标记官方 Session log 操作并为窄栏图标保留无障碍名称', () => {
+    const { column, sessionLogButton, unrelatedButton } = conversationFixture()
+    vi.spyOn(column, 'getBoundingClientRect').mockReturnValue(rect(0, 0, 360, 800))
+    const logger = { info: vi.fn() }
+    const layout = createConversationLayout(column, logger)
+
+    expect(sessionLogButton.hasAttribute(SESSION_LOG_BUTTON_ATTRIBUTE)).toBe(true)
+    expect(sessionLogButton.getAttribute('aria-label')).toBe('Session log')
+    expect(sessionLogButton.title).toBe('Session log')
+    expect(unrelatedButton.hasAttribute(SESSION_LOG_BUTTON_ATTRIBUTE)).toBe(false)
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('adopted native Session log action'))
+
+    layout.dispose()
+    expect(sessionLogButton.hasAttribute(SESSION_LOG_BUTTON_ATTRIBUTE)).toBe(false)
+    expect(sessionLogButton.hasAttribute('aria-label')).toBe(false)
+    expect(sessionLogButton.hasAttribute('title')).toBe(false)
+  })
+
+  it('不覆盖 Session log 操作已有的无障碍名称和提示', () => {
+    const { column, sessionLogButton } = conversationFixture()
+    sessionLogButton.setAttribute('aria-label', '下载会话日志')
+    sessionLogButton.title = '下载'
+    vi.spyOn(column, 'getBoundingClientRect').mockReturnValue(rect(0, 0, 360, 800))
+    const layout = createConversationLayout(column, { info: vi.fn() })
+
+    layout.dispose()
+    expect(sessionLogButton.getAttribute('aria-label')).toBe('下载会话日志')
+    expect(sessionLogButton.title).toBe('下载')
+  })
 })
 
 function conversationFixture() {
@@ -67,9 +98,18 @@ function conversationFixture() {
   menu.setAttribute('role', 'menu')
   modelRoot.append(trigger, menu)
   slot.appendChild(modelRoot)
-  column.appendChild(slot)
+  const utilities = document.createElement('div')
+  utilities.dataset.slot = 'conversation.session.header.utilities'
+  const unrelatedButton = document.createElement('button')
+  unrelatedButton.append('Task', document.createElementNS('http://www.w3.org/2000/svg', 'svg'))
+  const sessionLogButton = document.createElement('button')
+  const sessionLogLabel = document.createElement('span')
+  sessionLogLabel.textContent = 'Session log'
+  sessionLogButton.append(sessionLogLabel, document.createElementNS('http://www.w3.org/2000/svg', 'svg'))
+  utilities.append(unrelatedButton, sessionLogButton)
+  column.append(slot, utilities)
   document.body.appendChild(column)
-  return { column, modelRoot, trigger, menu }
+  return { column, modelRoot, trigger, menu, sessionLogButton, unrelatedButton }
 }
 
 function rect(x: number, y: number, width: number, height: number): DOMRect {
