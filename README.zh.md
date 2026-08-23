@@ -64,6 +64,8 @@ dsh plugin --profile web remove @lsq64737/dsh-workbench-layout
 
 ## 开发命令
 
+公开 npm 包的 `repository` 元数据固定指向本仓库，供插件列表和安装界面核验包与源码的归属关系。
+
 ```sh
 npm run typecheck
 npm test

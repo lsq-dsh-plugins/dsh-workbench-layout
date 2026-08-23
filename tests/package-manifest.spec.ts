@@ -5,12 +5,17 @@ describe('published package metadata', () => {
   it('contains both Host and client entries plus an isolated patch row', async () => {
     const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')) as {
       name: string
+      repository: { type: string; url: string }
       exports: Record<string, unknown>
       dependencies: Record<string, string>
       peerDependencies: Record<string, string>
       dsh: { bundle: { patch: string }; client: { inject: string[]; platform: string } }
     }
     expect(manifest.name).toBe('@lsq64737/dsh-workbench-layout')
+    expect(manifest.repository).toEqual({
+      type: 'git',
+      url: 'git+https://github.com/lsq-dsh-plugins/dsh-workbench-layout.git',
+    })
     expect(manifest.exports).toHaveProperty('./client')
     expect(manifest.dependencies['@codemirror/merge']).toMatch(/^\^6\./u)
     expect(manifest.dependencies['@xterm/xterm']).toMatch(/^\^6\./u)

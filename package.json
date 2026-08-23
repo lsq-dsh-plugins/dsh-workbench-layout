@@ -4,6 +4,10 @@
   "description": "DSH-styled three-column workspace with file editing, Markdown preview, Git controls, terminals, and native conversation",
   "author": "lsq64737",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lsq-dsh-plugins/dsh-workbench-layout.git"
+  },
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"

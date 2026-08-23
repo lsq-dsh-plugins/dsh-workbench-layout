@@ -64,6 +64,8 @@ dsh plugin --profile web remove @lsq64737/dsh-workbench-layout
 
 ## Development
 
+The public npm package pins its `repository` metadata to this canonical repository so plugin catalogs and installers can verify package ownership against the source.
+
 ```sh
 npm run typecheck
 npm test

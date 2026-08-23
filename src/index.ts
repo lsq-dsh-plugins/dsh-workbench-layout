@@ -84,7 +84,7 @@ export function apply(ctx: Context, config: Config): void {
     },
   }), 'workbench-layout: workspace terminal WebSocket')
   ctx.effect(() => () => terminals.close(), 'workbench-layout: workspace terminal lifecycle')
-  ctx.logger.info('workbench-layout: workspace, Git, and terminal APIs registered')
+  ctx.logger.info('workbench-layout: public-package workspace, Git, and terminal APIs registered')
 }
 
 async function dispatch(
