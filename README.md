@@ -51,6 +51,7 @@ dsh plugin --profile web remove @lsq64737/dsh-workbench-layout
 ## Limitations
 
 - This version creates empty text files and folders; delete and rename are not exposed yet.
+- The file tree follows an opened file until a tree item is selected. Clicking blank tree space clears the concrete item selection and returns subsequent creation actions to the current Workspace root without closing the middle tab.
 - Symbolic links are not opened from the tree.
 - Open tabs and their drafts live only in the current page; refreshing discards unsaved content.
 - Binary changes are identified by Git without rendering binary content.

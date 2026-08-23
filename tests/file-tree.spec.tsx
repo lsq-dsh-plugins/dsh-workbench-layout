@@ -107,4 +107,42 @@ describe('文件目录', () => {
     expect(controller.consumeSidebarAction).toHaveBeenCalledOnce()
     expect(controller.consumeSidebarAction).toHaveBeenCalledWith(7)
   })
+
+  it('点击空白区域后取消文件高亮并将新建目标恢复到工作区根目录', async () => {
+    workbench.current = {
+      activeTabId: 'file:README.md',
+      tabs: [{ id: 'file:README.md', kind: 'file', path: 'README.md', dirty: false }],
+      sidebarAction: undefined,
+    }
+    const root = {
+      path: '',
+      truncated: false,
+      entries: [{ name: 'README.md', path: 'README.md', kind: 'file' as const }],
+    }
+    const controller = {
+      api: {
+        listDirectory: vi.fn(() => Promise.resolve(root)),
+        createDirectory: vi.fn(() => Promise.resolve({ name: 'docs', path: 'docs', kind: 'directory' })),
+      },
+      openFile: vi.fn(),
+    }
+    const view = render(
+      <FileTree controller={controller as never} workspaceId="workspace-1" t={key => zh[key]} />,
+    )
+
+    const fileRow = await view.findByRole('treeitem', { name: 'README.md' })
+    expect(fileRow.getAttribute('data-selected')).toBe('true')
+    const tree = view.getByRole('tree')
+    fireEvent.click(tree)
+    expect(tree.getAttribute('data-selection-root')).toBe('true')
+    expect(fileRow.hasAttribute('data-selected')).toBe(false)
+
+    fireEvent.click(view.getByRole('button', { name: '新建文件夹' }))
+    const input = await view.findByRole('textbox', { name: '文件夹名称' })
+    fireEvent.change(input, { target: { value: 'docs' } })
+    fireEvent.submit(input.closest('form')!)
+    await waitFor(() => {
+      expect(controller.api.createDirectory).toHaveBeenCalledWith('workspace-1', 'docs')
+    })
+  })
 })

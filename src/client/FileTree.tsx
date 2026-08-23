@@ -43,14 +43,20 @@ export function FileTree({ controller, workspaceId, t }: FileTreeProps) {
   const [loading, setLoading] = useState<Set<string>>(() => new Set())
   const [error, setError] = useState<string | null>(null)
   const [revision, setRevision] = useState(0)
-  const [selection, setSelection] = useState<TreeSelection | null>(null)
+  const [selection, setSelection] = useState<TreeSelection | null | undefined>(undefined)
   const [createDraft, setCreateDraft] = useState<CreateDraft | null>(null)
+  const selectedPath = selection === undefined
+    ? activeTab?.kind === 'file' ? activeTab.path : undefined
+    : selection?.path
+  const selectedKind = selection === undefined && activeTab?.kind === 'file'
+    ? 'file'
+    : selection?.kind
 
   useEffect(() => {
     setListings({})
     setExpanded(new Set(['']))
     setError(null)
-    setSelection(null)
+    setSelection(undefined)
     setCreateDraft(null)
     if (workspaceId === undefined) return
     let active = true
@@ -104,8 +110,7 @@ export function FileTree({ controller, workspaceId, t }: FileTreeProps) {
   }
 
   const beginCreate = (kind: FileTreeCreateKind): void => {
-    const selectedPath = selection?.path ?? (activeTab?.kind === 'file' ? activeTab.path : undefined)
-    const parent = selection?.kind === 'directory' ? selection.path : parentPath(selectedPath)
+    const parent = selectedKind === 'directory' && selectedPath !== undefined ? selectedPath : parentPath(selectedPath)
     setError(null)
     setCreateDraft({ parent, kind })
     setExpanded(previous => new Set(previous).add(parent))
@@ -182,7 +187,15 @@ export function FileTree({ controller, workspaceId, t }: FileTreeProps) {
       {root === undefined
         ? error === null && <div className={css.emptyState}>{t('files.loading')}</div>
         : (
-          <div className={css.tree} role="tree">
+          <div
+            className={css.tree}
+            role="tree"
+            data-selection-root={selection === null ? true : undefined}
+            onClick={(event) => {
+              if (event.target instanceof Element && event.target.closest('[role="treeitem"]') !== null) return
+              setSelection(null)
+            }}
+          >
             <TreeLevel
               entries={root.entries}
               directoryPath=""
@@ -190,7 +203,7 @@ export function FileTree({ controller, workspaceId, t }: FileTreeProps) {
               expanded={expanded}
               listings={listings}
               loading={loading}
-              selected={selection?.path ?? (activeTab?.kind === 'file' ? activeTab.path : undefined)}
+              selected={selectedPath}
               createDraft={createDraft}
               createLabel={createDraft?.kind === 'file' ? t('files.fileName') : t('files.directoryName')}
               onCreate={(draft, name) => createEntry(draft, name)}
