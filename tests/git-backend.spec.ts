@@ -8,6 +8,7 @@ import {
   GitBackend,
   parseGitBranches,
   parseGitGraph,
+  parseGitGraphWithStats,
   parseGitNameStatus,
   parseGitNumstat,
   parsePorcelainStatus,
@@ -43,6 +44,12 @@ describe('Git output parsers', () => {
       ],
     }])
     expect(() => parseGitGraph('malformed')).toThrow(/提交图/u)
+
+    const graphWithStats = `\x1e${record}\0\n\n 13 files changed, 775 insertions(+), 288 deletions(-)\n`
+    expect(parseGitGraphWithStats(graphWithStats)[0]).toMatchObject({
+      hash,
+      stats: { filesChanged: 13, additions: 775, deletions: 288 },
+    })
 
     expect(parseGitNameStatus('R100\0old.ts\0new.ts\0M\0same.ts\0')).toEqual([
       { path: 'new.ts', originalPath: 'old.ts', status: 'R' },
@@ -95,8 +102,14 @@ describe('GitBackend single-file diffs', () => {
 
     const graph = await fixture.backend.graph('workspace-1')
     const revision = graph.commits[0]?.hash
-    expect(graph).toMatchObject({ truncated: false, commits: [{ parents: [], subject: '添加说明', author: 'Workbench Test' }] })
-    expect(fixture.logger.info).toHaveBeenCalledWith('workbench-layout: loaded Git graph with 1 visible commits')
+    expect(graph).toMatchObject({
+      truncated: false,
+      commits: [{
+        parents: [], subject: '添加说明', author: 'Workbench Test',
+        stats: { filesChanged: 1, additions: 1, deletions: 0 },
+      }],
+    })
+    expect(fixture.logger.info).toHaveBeenCalledWith('workbench-layout: loaded Git graph with 1 visible commits and change statistics')
     const files = await fixture.backend.commitFiles('workspace-1', revision)
     expect(files).toMatchObject({ files: [{ path: 'note.txt', status: 'A' }] })
     const graphDiff = await fixture.backend.commitFileDiff('workspace-1', revision, 'note.txt')
@@ -171,6 +184,7 @@ describe('GitBackend single-file diffs', () => {
     const graph = await fixture.backend.graph('workspace-1')
     const merge = graph.commits.find(commit => commit.subject === 'merge topic')
     expect(merge?.parents).toEqual([main, topic])
+    expect(merge?.stats).toEqual({ filesChanged: 1, additions: 1, deletions: 0 })
     expect(graph.commits.map(commit => commit.subject)).toContain('unmerged work')
   })
 

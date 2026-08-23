@@ -58,6 +58,12 @@ export interface GitReference {
   kind: GitReferenceKind
 }
 
+export interface GitCommitStats {
+  filesChanged: number
+  additions: number
+  deletions: number
+}
+
 export interface GitCommit {
   hash: string
   shortHash: string
@@ -66,6 +72,7 @@ export interface GitCommit {
   author: string
   authoredAt: string
   references: GitReference[]
+  stats?: GitCommitStats
 }
 
 export interface GitGraph {

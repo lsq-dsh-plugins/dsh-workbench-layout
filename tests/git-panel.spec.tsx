@@ -74,9 +74,13 @@ describe('Git panel', () => {
     expect(row.textContent).not.toContain(commit.shortHash)
     expect(row.textContent).not.toContain('2026')
     expect(row.querySelector('[data-icon="chevron"]')).toBeNull()
-    expect(row.parentElement?.getAttribute('data-tooltip')).toContain(commit.hash)
+    expect(row.parentElement?.getAttribute('data-tooltip')).toContain(commit.shortHash)
+    expect(row.parentElement?.getAttribute('data-tooltip')).not.toContain(commit.hash)
+    expect(row.parentElement?.getAttribute('data-tooltip')).toContain('已更改 13 个文件，775 行插入(+)，288 行删除(-)')
     expect(row.querySelector('[data-reference-kind="head"]')).not.toBeNull()
     expect(view.container.querySelector('[data-git-graph]')).not.toBeNull()
+    expect(row.closest('[data-graph-lanes]')?.getAttribute('data-graph-lanes')).toBe('1')
+    expect(row.closest<HTMLElement>('[data-graph-lanes]')?.style.getPropertyValue('--git-row-graph-width')).toBe('16px')
     expect(view.container.querySelectorAll('[data-graph-node]')).toHaveLength(1)
     expect(view.container.querySelector('[data-node-kind="reference"]')).not.toBeNull()
     expect(view.container.querySelectorAll('[data-graph-edge="outgoing"]')).toHaveLength(1)
@@ -133,7 +137,7 @@ function renderPanel(controller: ReturnType<typeof harness>['controller']) {
     <GitPanel
       controller={controller as never}
       workspaceId="workspace-1"
-      t={(key: keyof typeof zh) => zh[key]}
+      t={(key: keyof typeof zh, params?: Record<string, unknown>) => interpolate(zh[key], params)}
     />,
   )
 }
@@ -147,6 +151,7 @@ function harness() {
     authoredAt: '2026-08-23T10:00:00Z',
     parents: ['b'.repeat(40)],
     references: [{ name: 'main', kind: 'head' as const }],
+    stats: { filesChanged: 13, additions: 775, deletions: 288 },
   }
   const status = {
     available: true,
@@ -185,4 +190,8 @@ function harness() {
     showFile: vi.fn(),
   }
   return { controller, commit }
+}
+
+function interpolate(template: string, params: Record<string, unknown> = {}): string {
+  return template.replace(/\{([^}]+)\}/gu, (_, key: string) => String(params[key] ?? `{${key}}`))
 }

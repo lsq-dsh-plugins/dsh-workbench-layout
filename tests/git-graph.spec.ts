@@ -30,6 +30,7 @@ describe('Git Graph 拓扑', () => {
 
     expect(graph.laneCount).toBe(2)
     expect(graph.rows[0]?.outgoing.map(edge => [edge.from, edge.to])).toEqual([[0, 0], [0, 1]])
+    expect(graph.rows.map(row => row.visibleLaneCount)).toEqual([2, 2, 2, 1])
     expect(graph.rows[0]).toMatchObject({ nodeKind: 'merge', nodeColor: 0, incomingColor: 0 })
     expect(graph.rows[1]?.passing.map(edge => [edge.from, edge.to])).toEqual([[1, 1]])
     expect(graph.rows[2]).toMatchObject({ lane: 1, incoming: true })

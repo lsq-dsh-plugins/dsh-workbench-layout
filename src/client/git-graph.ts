@@ -15,6 +15,7 @@ export interface GitGraphEdge {
 export interface GitGraphRow {
   commit: GitCommit
   lane: number
+  visibleLaneCount: number
   nodeColor: number
   incomingColor: number
   incoming: boolean
@@ -90,10 +91,12 @@ export function buildGitGraph(commits: readonly GitCommit[]): GitGraphLayout {
       ? 'merge'
       : commit.references.length > 0 ? 'reference' : 'commit'
 
-    laneCount = Math.max(laneCount, before.length, after.length)
+    const visibleLaneCount = Math.max(1, before.length, after.length)
+    laneCount = Math.max(laneCount, visibleLaneCount)
     rows.push({
       commit,
       lane,
+      visibleLaneCount,
       nodeColor,
       incomingColor: current.color,
       incoming,

@@ -11,6 +11,7 @@ import type {
   GitCommitFile,
   GitCommitFiles,
   GitCommitResult,
+  GitCommitStats,
   GitFileDiff,
   GitFileStatus,
   GitGraph,
@@ -104,19 +105,57 @@ export function parsePorcelainStatus(output: string): GitFileStatus[] {
 /** 解析每行使用 NUL 字段的 Git Graph 记录，并校验全部父提交。 */
 export function parseGitGraph(output: string): GitCommit[] {
   if (output.trim() === '') return []
-  return output.trimEnd().split('\n').map((record) => {
-    const [hash, shortHash, parentList, author, authoredAt, subject, decorations, ...extra] = record.split('\0')
-    if (hash === undefined || shortHash === undefined || author === undefined
-      || parentList === undefined || authoredAt === undefined || subject === undefined || decorations === undefined || extra.length > 0
-      || !REVISION_PATTERN.test(hash)) {
-      throw new WorkbenchHttpError(502, 'GIT_GRAPH_INVALID', 'Git 返回了无法识别的提交图数据。')
+  return output.trimEnd().split('\n').map(parseGitGraphRecord)
+}
+
+/** 解析带记录边界和 `--shortstat` 的提交图，避免从提交说明中猜测变更量。 */
+export function parseGitGraphWithStats(output: string): GitCommit[] {
+  if (output.trim() === '') return []
+  const [prefix, ...records] = output.split('\x1e')
+  if (prefix?.trim() !== '' || records.length === 0) {
+    throw new WorkbenchHttpError(502, 'GIT_GRAPH_INVALID', 'Git 返回了无法识别的提交图统计数据。')
+  }
+  return records.filter(record => record !== '').map((record) => {
+    const [hash, shortHash, parentList, author, authoredAt, subject, decorations, shortstat, ...extra] = record.split('\0')
+    if (shortstat === undefined || extra.length > 0) {
+      throw new WorkbenchHttpError(502, 'GIT_GRAPH_INVALID', 'Git 返回了无法识别的提交图统计数据。')
     }
-    const parents = parentList === '' ? [] : parentList.split(' ')
-    if (parents.some(parent => !REVISION_PATTERN.test(parent))) {
-      throw new WorkbenchHttpError(502, 'GIT_GRAPH_INVALID', 'Git 返回了无法识别的提交图父节点。')
-    }
-    return { hash, shortHash, parents, author, authoredAt, subject, references: parseGitReferences(decorations) }
+    const commit = parseGitGraphRecord([
+      hash, shortHash, parentList, author, authoredAt, subject, decorations,
+    ].join('\0'))
+    return { ...commit, stats: parseGitShortstat(shortstat) }
   })
+}
+
+/** 解析固定为英文的 `--shortstat` 汇总；没有统计行代表空提交。 */
+export function parseGitShortstat(value: string): GitCommitStats {
+  const summary = value.trim()
+  if (summary === '') return { filesChanged: 0, additions: 0, deletions: 0 }
+  const match = /^(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?$/u.exec(summary)
+  if (match === null) {
+    throw new WorkbenchHttpError(502, 'GIT_GRAPH_INVALID', 'Git 返回了无法识别的提交变更统计。')
+  }
+  const filesChanged = Number(match[1])
+  const additions = Number(match[2] ?? 0)
+  const deletions = Number(match[3] ?? 0)
+  if (![filesChanged, additions, deletions].every(Number.isSafeInteger)) {
+    throw new WorkbenchHttpError(502, 'GIT_GRAPH_INVALID', 'Git 返回了超出范围的提交变更统计。')
+  }
+  return { filesChanged, additions, deletions }
+}
+
+function parseGitGraphRecord(record: string): GitCommit {
+  const [hash, shortHash, parentList, author, authoredAt, subject, decorations, ...extra] = record.split('\0')
+  if (hash === undefined || shortHash === undefined || author === undefined
+    || parentList === undefined || authoredAt === undefined || subject === undefined || decorations === undefined || extra.length > 0
+    || !REVISION_PATTERN.test(hash)) {
+    throw new WorkbenchHttpError(502, 'GIT_GRAPH_INVALID', 'Git 返回了无法识别的提交图数据。')
+  }
+  const parents = parentList === '' ? [] : parentList.split(' ')
+  if (parents.some(parent => !REVISION_PATTERN.test(parent))) {
+    throw new WorkbenchHttpError(502, 'GIT_GRAPH_INVALID', 'Git 返回了无法识别的提交图父节点。')
+  }
+  return { hash, shortHash, parents, author, authoredAt, subject, references: parseGitReferences(decorations) }
 }
 
 /** 解析本地与远程分支；符号引用（例如 origin/HEAD）不会成为可切换项。 */
@@ -293,11 +332,12 @@ export class GitBackend {
     const limit = 40
     const result = await this.run(cwd, [
       'log', '--all', '--topo-order', '-n', String(limit + 1), '--date=iso-strict', '--decorate=full',
-      '--format=%H%x00%h%x00%P%x00%an%x00%aI%x00%s%x00%D',
-    ])
-    const commits = parseGitGraph(result.stdout)
+      '--shortstat', '--diff-merges=first-parent',
+      '--format=%x1e%H%x00%h%x00%P%x00%an%x00%aI%x00%s%x00%D%x00',
+    ], [0], { LC_ALL: 'C', LANG: 'C' })
+    const commits = parseGitGraphWithStats(result.stdout)
     const graph = { commits: commits.slice(0, limit), truncated: commits.length > limit }
-    this.ctx.logger.info(`workbench-layout: loaded Git graph with ${graph.commits.length} visible commits`)
+    this.ctx.logger.info(`workbench-layout: loaded Git graph with ${graph.commits.length} visible commits and change statistics`)
     return graph
   }
 
@@ -566,11 +606,16 @@ export class GitBackend {
     return result.exitCode === 0 && result.stdout.trim() !== ''
   }
 
-  private async run(cwd: string, args: string[], acceptedExitCodes: readonly number[] = [0]): Promise<GitRunResult> {
+  private async run(
+    cwd: string,
+    args: string[],
+    acceptedExitCodes: readonly number[] = [0],
+    environment: NodeJS.ProcessEnv = {},
+  ): Promise<GitRunResult> {
     try {
       const result = await execFileAsync('git', ['-C', cwd, ...args], {
         encoding: 'utf8',
-        env: nonInteractiveGitEnvironment(),
+        env: { ...nonInteractiveGitEnvironment(), ...environment },
         maxBuffer: this.limits.maxOutputBytes,
         timeout: this.limits.timeoutMs,
         windowsHide: true,

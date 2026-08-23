@@ -505,7 +505,7 @@
 
 .commitEntry {
   position: relative;
-  min-width: calc(var(--git-graph-width) + 210px);
+  min-width: calc(var(--git-row-graph-width) + 210px);
   border-radius: 6px;
 }
 
@@ -571,7 +571,7 @@
 
 .gitGraphSpacer {
   flex: none;
-  width: var(--git-graph-width);
+  width: var(--git-row-graph-width);
   height: 28px;
 }
 
@@ -653,7 +653,7 @@
 }
 
 .commitFiles {
-  margin: 1px 0 4px calc(var(--git-graph-width) + 3px);
+  margin: 1px 0 4px calc(var(--git-row-graph-width) + 3px);
   border-left: 1px solid var(--dsw-alias-border-l1);
   padding: 2px 0 2px 5px;
 }

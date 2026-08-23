@@ -41,10 +41,8 @@ interface GitGraphViewProps {
 /** 带真实父节点拓扑的提交图；提交详情仍在当前行下方展开。 */
 export function GitGraphView(props: GitGraphViewProps) {
   const layout = buildGitGraph(props.graph?.commits ?? [])
-  const graphWidth = graphWidthFor(layout.laneCount)
-  const graphStyle = { '--git-graph-width': `${graphWidth}px` } as CSSProperties
   return (
-    <div className={css.gitGraph} style={graphStyle} data-git-graph="">
+    <div className={css.gitGraph} data-git-graph="">
       {props.graph === null
         ? <div className={css.gitSectionEmpty}>{props.t('git.graphLoading')}</div>
         : layout.rows.length === 0
@@ -53,7 +51,7 @@ export function GitGraphView(props: GitGraphViewProps) {
             <CommitEntry
               key={row.commit.hash}
               row={row}
-              graphWidth={graphWidth}
+              graphWidth={graphWidthFor(row.visibleLaneCount)}
               expanded={props.expandedCommit === row.commit.hash}
               files={props.commitFiles[row.commit.hash]}
               selectedRevision={props.selectedRevision}
@@ -80,10 +78,16 @@ function CommitEntry(props: {
   t: TranslateNS<'workbench'>
 }) {
   const commit = props.row.commit
+  const graphStyle = { '--git-row-graph-width': `${props.graphWidth}px` } as CSSProperties
   return (
-    <div className={css.commitEntry} data-expanded={props.expanded || undefined}>
+    <div
+      className={css.commitEntry}
+      data-expanded={props.expanded || undefined}
+      data-graph-lanes={props.row.visibleLaneCount}
+      style={graphStyle}
+    >
       <GraphLayer row={props.row} width={props.graphWidth} />
-      <Tooltip label={() => commitTooltip(commit)} side="right" delayMs={450} maxWidth={380}>
+      <Tooltip label={() => commitTooltip(commit, props.t)} side="right" delayMs={450} maxWidth={380}>
         <button type="button" className={css.commitRow} aria-expanded={props.expanded} onClick={props.onToggle}>
           <span className={css.gitGraphSpacer} aria-hidden="true" />
           <span className={css.commitSubject} data-commit-subject="">{commit.subject}</span>
@@ -225,12 +229,18 @@ function graphColor(index: number): string {
   return GRAPH_COLORS[index % GRAPH_COLORS.length]!
 }
 
-function commitTooltip(commit: GitCommit): string {
+function commitTooltip(commit: GitCommit, t: TranslateNS<'workbench'>): string {
   const references = commit.references.map(reference => reference.name).join(' · ')
+  const stats = commit.stats === undefined ? '' : t('git.commitStats', {
+    files: commit.stats.filesChanged,
+    additions: commit.stats.additions,
+    deletions: commit.stats.deletions,
+  })
   return [
     commit.subject,
     `${commit.author} · ${formatCommitTime(commit.authoredAt)}`,
-    commit.hash,
+    commit.shortHash,
+    stats,
     references,
   ].filter(line => line !== '').join('\n')
 }
