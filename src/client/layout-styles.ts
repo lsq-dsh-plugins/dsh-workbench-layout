@@ -2,6 +2,14 @@
 
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import {
+  CONVERSATION_NARROW_ATTRIBUTE,
+  createConversationLayout,
+  FLOATING_MENU_LEFT_PROPERTY,
+  FLOATING_MENU_TOP_PROPERTY,
+  FLOATING_MODEL_MENU_ATTRIBUTE,
+  type ConversationLayout,
+} from './conversation-layout.ts'
+import {
   createFallbackDetailsTrack,
   FALLBACK_DETAILS_ATTRIBUTE,
   FALLBACK_DETAILS_WIDTH,
@@ -59,6 +67,72 @@ const CSS = `
 [${FRAME_ATTRIBUTE}] > [data-side='details']::after {
   display: none !important;
 }
+
+/* The native failure row reserves its code as a full auto-sized third column.
+   Once conversation moves into the narrow right track that leaves only a few
+   words per line for the actual message, so the code moves below the copy. */
+[${FRAME_ATTRIBUTE}] > :nth-child(2)[${CONVERSATION_NARROW_ATTRIBUTE}] [role='status']:has(> code) {
+  grid-template-columns: 10px minmax(0, 1fr);
+  column-gap: 8px;
+  row-gap: 2px;
+}
+
+[${FRAME_ATTRIBUTE}] > :nth-child(2)[${CONVERSATION_NARROW_ATTRIBUTE}] [role='status']:has(> code) > code {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+/* Keep the official composer toolbar on one row. Fixed actions retain their
+   hit targets; gaps, effort text, and the flexible model label concede. */
+[${FRAME_ATTRIBUTE}] > :nth-child(2)[${CONVERSATION_NARROW_ATTRIBUTE}] [data-input-scroll] + div {
+  gap: 4px;
+}
+
+[${FRAME_ATTRIBUTE}] > :nth-child(2)[${CONVERSATION_NARROW_ATTRIBUTE}] [data-input-scroll] + div > div:first-child {
+  flex: 0 1 auto;
+  gap: 8px;
+}
+
+[${FRAME_ATTRIBUTE}] > :nth-child(2)[${CONVERSATION_NARROW_ATTRIBUTE}] [data-input-scroll] + div > div:first-child > div {
+  gap: 6px;
+}
+
+[${FRAME_ATTRIBUTE}] > :nth-child(2)[${CONVERSATION_NARROW_ATTRIBUTE}] [data-input-scroll] + div > div:last-child {
+  flex: 1 1 0;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+[${FRAME_ATTRIBUTE}] > :nth-child(2)[${CONVERSATION_NARROW_ATTRIBUTE}] [data-slot='conversation.input.model'] > div {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 100%;
+}
+
+[${FRAME_ATTRIBUTE}] > :nth-child(2)[${CONVERSATION_NARROW_ATTRIBUTE}] [data-slot='conversation.input.model'] button[aria-haspopup='menu'] {
+  width: 100%;
+  max-width: 100%;
+}
+
+[${FRAME_ATTRIBUTE}] > :nth-child(2)[${CONVERSATION_NARROW_ATTRIBUTE}] [data-slot='conversation.input.model'] button[aria-haspopup='menu'] > span:nth-of-type(2) {
+  display: none;
+}
+
+/* Fixed positioning escapes the native conversation scroll/root clipping
+   chain while the node remains in its official React tree for focus, outside
+   click, keyboard navigation, and unmount ownership. */
+[${FRAME_ATTRIBUTE}] [${FLOATING_MODEL_MENU_ATTRIBUTE}] {
+  position: fixed !important;
+  top: var(${FLOATING_MENU_TOP_PROPERTY}, 12px) !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: var(${FLOATING_MENU_LEFT_PROPERTY}, 12px) !important;
+  z-index: 1000 !important;
+}
 `
 
 /** 安装列顺序样式，并仅为空会话补足 AppFrame 主动隐藏的详情轨道。 */
@@ -71,9 +145,12 @@ export function installWorkbenchLayout(ctx: ClientContext): void {
 
     let frame: HTMLElement | null = null
     let fallbackTrack: FallbackDetailsTrack | undefined
+    let conversationLayout: ConversationLayout | undefined
     const attach = (): void => {
       const next = document.querySelector<HTMLElement>('[data-shell-overlay]')?.parentElement ?? null
       if (next === frame) return
+      conversationLayout?.dispose()
+      conversationLayout = undefined
       fallbackTrack?.dispose()
       fallbackTrack = undefined
       frame?.removeAttribute(FRAME_ATTRIBUTE)
@@ -81,13 +158,18 @@ export function installWorkbenchLayout(ctx: ClientContext): void {
       if (frame === null) return
       frame.setAttribute(FRAME_ATTRIBUTE, '')
       fallbackTrack = createFallbackDetailsTrack(frame, ctx.logger)
+      const conversationColumn = frame.children.item(1)
+      if (conversationColumn instanceof HTMLElement) {
+        conversationLayout = createConversationLayout(conversationColumn, ctx.logger)
+      }
     }
     attach()
     const documentObserver = new MutationObserver(attach)
     documentObserver.observe(document.body, { childList: true, subtree: true })
-    ctx.logger.info('workbench-layout: native AppFrame tracks and drag handles adopted for workbench columns')
+    ctx.logger.info('workbench-layout: native AppFrame tracks, drag handles, and narrow conversation presentation adopted')
     return () => {
       documentObserver.disconnect()
+      conversationLayout?.dispose()
       fallbackTrack?.dispose()
       frame?.removeAttribute(FRAME_ATTRIBUTE)
       style.remove()

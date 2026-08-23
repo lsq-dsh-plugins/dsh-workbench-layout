@@ -19,7 +19,7 @@
 - 中栏使用 CodeMirror MergeView 渲染只读 Diff，默认左右对照，包含行号、红绿变更块、未修改区域折叠和增删统计；可手动切换行内模式，窄列下会自动采用行内模式。普通文件与 Diff 两侧都默认对长行自动换行。
 - 通过 xterm.js 与宿主 PTY 提供真正可交互的工作区终端。多个终端与文件共用中栏标签，切到其他文件时仍保持进程、ANSI 颜色和交互按键，尺寸会随中栏变化，启动目录固定为所选工作区根目录。关闭终端标签、切换工作区、连接断开或插件停止都会终止对应 PTY。
 - 支持暂存、取消暂存以及显式提交；提交后提交图会立即刷新。
-- 右栏继续使用 DSH 原生聊天、输入框、任务状态与交互流程。
+- 右栏继续使用 DSH 原生聊天、输入框、任务状态与交互流程；窄栏下错误码会移到完整宽度的错误正文下方，输入工具栏仍保持单行，仅收紧间距、隐藏推理等级文字并省略过长模型名。官方模型菜单打开时仍由原 React 组件持有，但使用视口浮层坐标，避免被中栏裁切。
 - 布局、文字、边框、按钮、图标、Markdown 和明暗主题尽量复用 DSH 官方组件与设计变量；Git 模块入口和分支选择器统一使用三节点源码管理图形。
 
 ## 安装
@@ -89,3 +89,4 @@ npm run test:bundle
 - `src/client/TerminalPanel.tsx`、`TerminalSurface.tsx`、`TerminalIcon.tsx`：终端实例列表、xterm.js 中栏标签和 DSH 风格终端入口图标。
 - `src/client/GitDiffEditor.tsx`、`DiffSurface.tsx`、`git-diff-labels.ts`：标签内单文件 Diff 工具栏、自适应布局、统一类型标签、自动换行和 CodeMirror 差异渲染。
 - `src/client/layout-styles.ts`：官方 AppFrame 列顺序与原生分隔线视觉适配。
+- `src/client/conversation-layout.ts`：右侧原生会话窄栏状态与防裁切模型菜单几何。

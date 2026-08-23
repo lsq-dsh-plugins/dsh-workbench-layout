@@ -41,6 +41,13 @@ describe('workbench layout presentation', () => {
     expect(style).not.toBeNull()
     expect(style?.textContent).toContain(':not([data-details-collapsed])')
     expect(style?.textContent).toContain("[data-side='details']::after")
+    expect(style?.textContent).toContain('data-dsh-workbench-conversation-narrow')
+    expect(style?.textContent).toContain("[role='status']:has(> code) > code")
+    expect(style?.textContent).toContain('[data-input-scroll] + div')
+    expect(style?.textContent).toContain("[data-slot='conversation.input.model']")
+    expect(style?.textContent).toContain('data-dsh-workbench-floating-model-menu')
+    expect(style?.textContent).toContain('position: fixed !important')
+    expect(style?.textContent).not.toContain('flex-direction: column')
 
     dispose?.()
     expect(frame.hasAttribute('data-dsh-workbench-frame')).toBe(false)

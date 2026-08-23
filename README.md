@@ -19,7 +19,7 @@ An independent DeepSeek Harness Web plugin that keeps the official AppFrame and 
 - Render read-only diffs with CodeMirror MergeView: side-by-side by default, with line numbers, red/green change blocks, collapsed unchanged regions, and change counts. Inline mode is selectable and becomes automatic in a narrow editor column. Regular files and both Diff sides wrap long lines by default.
 - Run real interactive Workspace terminals with xterm.js and a host PTY. Multiple terminals share the normal editor tab strip, retain ANSI colors and interactive key handling while another file is selected, resize with the middle column, and start in the selected Workspace root. Closing a terminal tab, switching Workspace, losing its socket, or stopping the plugin terminates the PTY.
 - Stage, unstage, and commit through explicit actions; a successful commit refreshes the Graph immediately.
-- Keep the original DSH conversation, composer, task status, and interaction flows in the right column.
+- Keep the original DSH conversation, composer, task status, and interaction flows in the right column. At narrow widths, failure codes move below their full-width message while the composer toolbar remains one row by tightening gaps, hiding only the reasoning-effort text, and ellipsizing the model name. The official model menu keeps its React ownership but uses viewport-fixed geometry while open, so the middle column cannot clip it.
 - Reuse DSH components, icons, typography, tokens, spacing, borders, and light/dark themes wherever possible. The Git module entry and branch picker consistently use the three-node source-control glyph.
 
 ## Install
@@ -89,3 +89,4 @@ npm run test:bundle
 - `src/client/TerminalPanel.tsx`, `TerminalSurface.tsx`, `TerminalIcon.tsx`: terminal instance list, xterm.js editor tab, and DSH-style terminal entry glyph.
 - `src/client/GitDiffEditor.tsx`, `DiffSurface.tsx`, `git-diff-labels.ts`: in-tab per-file Diff toolbar, adaptive layout, shared kind labels, wrapping, and CodeMirror diff renderer.
 - `src/client/layout-styles.ts`: official AppFrame column-order and native-divider presentation adaptation.
+- `src/client/conversation-layout.ts`: narrow native-conversation state and clipping-safe model-menu geometry.
