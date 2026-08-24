@@ -42,6 +42,38 @@ describe('WorkbenchController', () => {
     expect(activeTab(controller)).toMatchObject({ dirty: false, saving: false, file: { version: 'v2' } })
   })
 
+  it('resolves a native conversation file reference before opening its Workspace tab', async () => {
+    const api = {
+      relativePath: vi.fn(() => Promise.resolve({ path: 'src/view.tsx' })),
+      readFile: vi.fn(() => Promise.resolve(file('src/view.tsx', 'export {}', 'v1'))),
+    }
+    const controller = createController(api)
+    controller.setWorkspace('workspace-1')
+
+    await controller.openConversationFile('workspace-1', 'src/view.tsx')
+
+    expect(api.relativePath).toHaveBeenCalledWith('workspace-1', 'src/view.tsx')
+    expect(api.readFile).toHaveBeenCalledWith('workspace-1', 'src/view.tsx')
+    expect(activeTab(controller)?.path).toBe('src/view.tsx')
+  })
+
+  it('does not reopen an old Workspace when file-reference resolution finishes late', async () => {
+    let resolvePath: ((value: { path: string }) => void) | undefined
+    const api = {
+      relativePath: vi.fn(() => new Promise<{ path: string }>(resolve => { resolvePath = resolve })),
+      readFile: vi.fn(),
+    }
+    const controller = createController(api)
+    controller.setWorkspace('workspace-1')
+    const request = controller.openConversationFile('workspace-1', 'src/old.ts')
+    controller.setWorkspace('workspace-2')
+    resolvePath?.({ path: 'src/old.ts' })
+    await request
+
+    expect(api.readFile).not.toHaveBeenCalled()
+    expect(controller.store.getSnapshot().workspaceId).toBe('workspace-2')
+  })
+
   it('opens multiple files and switches tabs without blocking an unsaved draft', async () => {
     const api = {
       readFile: vi.fn()

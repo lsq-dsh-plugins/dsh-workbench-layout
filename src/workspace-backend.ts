@@ -1,6 +1,7 @@
 /** Host-side workspace operations over DSH's filesystem service. */
 
 import { mkdir, rename as renamePath, rm } from 'node:fs/promises'
+import { posix, win32 } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { FsTarget, FsVersion } from '@deepseek-ai/dsh-fs'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace'
@@ -13,6 +14,7 @@ import type {
   WorkspaceEntry,
   WorkspaceAbsolutePath,
   WorkspaceFile,
+  WorkspaceRelativePath,
 } from './contracts.ts'
 import { WorkbenchHttpError } from './http.ts'
 import { childWorkspacePath, normalizeWorkspacePath, WorkbenchInputError } from './path-policy.ts'
@@ -225,6 +227,37 @@ export class WorkspaceBackend {
     return { path: workspace.path, absolutePath: this.ctx.fs.processPath(workspace.target) }
   }
 
+  /** Resolve an official conversation file reference back into this Workspace. */
+  async relativePath(workspaceIdValue: unknown, pathValue: unknown): Promise<WorkspaceRelativePath> {
+    if (typeof pathValue !== 'string' || pathValue === '' || pathValue.includes('\0')) {
+      throw new WorkbenchHttpError(400, 'FILE_REFERENCE_REQUIRED', '文件索引路径无效。')
+    }
+
+    try {
+      const path = normalizeWorkspacePath(pathValue)
+      if (path === '') throw new WorkbenchHttpError(400, 'FILE_REFERENCE_REQUIRED', '文件索引路径无效。')
+      const workspace = await this.resolve(workspaceIdValue, path)
+      await this.requireType(workspace, 'file')
+      return { path: workspace.path }
+    } catch (error: unknown) {
+      if (!(error instanceof WorkbenchInputError)) throw error
+    }
+
+    const workspace = await this.resolve(workspaceIdValue, '')
+    const target = await this.ctx.fs.resolve(pathValue, { cwd: workspace.cwd })
+    if (!this.ctx.fs.contains(workspace.root, target)) {
+      throw new WorkbenchHttpError(403, 'WORKSPACE_ESCAPE', '不能访问工作区外的路径。')
+    }
+    const path = relativeProcessPath(
+      this.ctx.fs.processPath(workspace.root),
+      this.ctx.fs.processPath(target),
+    )
+    if (path === '') throw new WorkbenchHttpError(400, 'FILE_REFERENCE_REQUIRED', '文件索引路径无效。')
+    const resolved = await this.resolve(workspace.workspaceId, normalizeWorkspacePath(path))
+    await this.requireType(resolved, 'file')
+    return { path: resolved.path }
+  }
+
   async rootProcessPath(workspaceIdValue: unknown): Promise<{ cwd: string; workspaceId: WorkspaceId }> {
     const workspace = await this.resolve(workspaceIdValue, '')
     await this.requireType(workspace, 'directory')
@@ -331,6 +364,12 @@ function requireEntryName(value: unknown): string {
   const name = value.trim()
   childWorkspacePath('', name)
   return name
+}
+
+/** Select path semantics from the filesystem provider's canonical process path. */
+function relativeProcessPath(root: string, target: string): string {
+  const pathApi = win32.isAbsolute(root) ? win32 : posix
+  return pathApi.relative(root, target).split(pathApi.sep).join('/')
 }
 
 function assertMutableWorkspacePath(path: string): void {

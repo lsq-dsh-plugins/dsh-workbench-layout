@@ -45,7 +45,7 @@ describe('workbench layout presentation', () => {
     const ctx = contextWithDispose(value => { dispose = value })
     const visibility = editorVisibility()
 
-    installWorkbenchLayout(ctx, visibility)
+    installWorkbenchLayout(ctx, visibility, fileController())
     expect(frame.hasAttribute('data-dsh-workbench-frame')).toBe(true)
     expect(frame.querySelector(`[${CONVERSATION_ROOT_ATTRIBUTE}]`)).not.toBeNull()
     expect(frame.style.gridTemplateColumns).toBe('312px minmax(0, 1fr) 0px')
@@ -112,7 +112,7 @@ describe('workbench layout presentation', () => {
     let dispose: (() => void) | undefined
 
     try {
-      installWorkbenchLayout(contextWithDispose(value => { dispose = value }), editorVisibility())
+      installWorkbenchLayout(contextWithDispose(value => { dispose = value }), editorVisibility(), fileController())
       conversationColumn.setAttribute(CONVERSATION_NARROW_ATTRIBUTE, '')
 
       expect(actions.hasAttribute(ASSISTANT_ACTIONS_ATTRIBUTE)).toBe(true)
@@ -133,7 +133,7 @@ describe('workbench layout presentation', () => {
     const ctx = contextWithDispose(value => { dispose = value })
     const visibility = editorVisibility()
 
-    installWorkbenchLayout(ctx, visibility)
+    installWorkbenchLayout(ctx, visibility, fileController())
     expect(frame.hasAttribute('data-dsh-workbench-fallback-details')).toBe(true)
     expect(frame.style.getPropertyValue('--dsh-workbench-fallback-sidebar-width')).toBe('280px')
     expect(frame.style.getPropertyValue('--dsh-workbench-fallback-details-width')).toBe('360px')
@@ -165,7 +165,7 @@ describe('workbench layout presentation', () => {
     let dispose: (() => void) | undefined
     const ctx = contextWithDispose(value => { dispose = value })
 
-    installWorkbenchLayout(ctx, editorVisibility())
+    installWorkbenchLayout(ctx, editorVisibility(), fileController())
     expect(frame.style.getPropertyValue('--dsh-workbench-fallback-sidebar-width')).toBe('280px')
 
     frame.style.gridTemplateColumns = '56px minmax(0, 1fr) 0px'
@@ -237,6 +237,13 @@ function editorVisibility(initial = true) {
       editorExpanded = next
       listeners.forEach(listener => { listener() })
     },
+  }
+}
+
+function fileController() {
+  return {
+    store: { getSnapshot: () => ({ workspaceId: 'workspace-1' }) },
+    openConversationFile: vi.fn(() => Promise.resolve()),
   }
 }
 

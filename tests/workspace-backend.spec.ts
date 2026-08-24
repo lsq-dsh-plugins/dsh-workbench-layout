@@ -146,6 +146,31 @@ describe('WorkspaceBackend', () => {
     }
   })
 
+  it('normalizes native conversation file references to Workspace-relative paths', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'dsh-workbench-reference-'))
+    try {
+      const target = join(directory, 'src', 'view.tsx')
+      const { backend } = harness({
+        resolve: vi.fn((path: string, options?: { cwd?: string }) => Promise.resolve({
+          targetKey: path === directory || path === target ? path : join(options?.cwd ?? directory, path),
+          displayPath: path,
+        })),
+        contains: vi.fn((root: { targetKey: string }, candidate: { targetKey: string }) => (
+          candidate.targetKey === root.targetKey || candidate.targetKey.startsWith(`${root.targetKey}${sep}`)
+        )),
+        processPath: vi.fn((value: { targetKey: string }) => value.targetKey),
+        stat: vi.fn((value: { targetKey: string }) => Promise.resolve({
+          type: value.targetKey === directory ? 'directory' : 'file', version: 'v1', size: 3,
+        })),
+      }, directory)
+
+      await expect(backend.relativePath('workspace-1', 'src/view.tsx')).resolves.toEqual({ path: 'src/view.tsx' })
+      await expect(backend.relativePath('workspace-1', target)).resolves.toEqual({ path: 'src/view.tsx' })
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it('protects the Workspace root and Git metadata from file-menu mutations', async () => {
     const { backend } = harness({
       lstat: vi.fn(() => Promise.resolve({ type: 'directory' })),

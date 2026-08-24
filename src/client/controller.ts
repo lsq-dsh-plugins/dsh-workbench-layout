@@ -244,6 +244,21 @@ export class WorkbenchController {
     }
   }
 
+  /** Route DSH's native conversation file control through the current Workspace editor. */
+  async openConversationFile(workspaceId: string, path: string): Promise<void> {
+    try {
+      const resolved = await this.api.relativePath(workspaceId, path)
+      if (this.store.getSnapshot().workspaceId !== workspaceId) {
+        this.logger.info('workbench-layout: ignored a stale conversation file reference after Workspace changed')
+        return
+      }
+      this.logger.info(`workbench-layout: routed native conversation file reference to ${JSON.stringify(resolved.path)}`)
+      await this.openFile(workspaceId, resolved.path)
+    } catch {
+      this.logger.warn('workbench-layout: failed to resolve native conversation file reference inside the current Workspace')
+    }
+  }
+
   openTerminal(workspaceId = this.store.getSnapshot().workspaceId): string | undefined {
     if (workspaceId === undefined) return undefined
     this.setWorkspace(workspaceId)

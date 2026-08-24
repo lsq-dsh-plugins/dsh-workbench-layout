@@ -23,6 +23,7 @@ import type {
   WorkbenchErrorBody,
   WorkspaceFile,
   WorkspaceAbsolutePath,
+  WorkspaceRelativePath,
 } from '../contracts.ts'
 import { WORKBENCH_API_PREFIX } from '../contracts.ts'
 
@@ -65,6 +66,10 @@ export class WorkbenchApi {
 
   async absolutePath(workspaceId: string, path: string): Promise<WorkspaceAbsolutePath> {
     return this.post('/path/absolute', { workspaceId, path })
+  }
+
+  async relativePath(workspaceId: string, path: string): Promise<WorkspaceRelativePath> {
+    return this.post('/path/relative', { workspaceId, path })
   }
 
   async gitStatus(workspaceId: string): Promise<GitStatus> {

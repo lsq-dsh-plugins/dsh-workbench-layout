@@ -110,6 +110,8 @@ async function dispatch(
       return workspace.deleteEntry(body.workspaceId, body.path)
     case `${WORKBENCH_API_PREFIX}/path/absolute`:
       return workspace.absolutePath(body.workspaceId, body.path)
+    case `${WORKBENCH_API_PREFIX}/path/relative`:
+      return workspace.relativePath(body.workspaceId, body.path)
     case `${WORKBENCH_API_PREFIX}/git/status`:
       return git.status(body.workspaceId)
     case `${WORKBENCH_API_PREFIX}/git/diff`:

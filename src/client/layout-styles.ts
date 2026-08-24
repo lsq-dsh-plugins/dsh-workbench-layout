@@ -14,6 +14,11 @@ import {
   type ConversationLayout,
 } from './conversation-layout.ts'
 import {
+  createConversationFileRouting,
+  type ConversationFileController,
+  type ConversationFileRouting,
+} from './conversation-file-routing.ts'
+import {
   createEditorTrackTransition,
   type EditorTrackTransition,
 } from './editor-track-transition.ts'
@@ -277,7 +282,11 @@ const CSS = `
 `
 
 /** 安装可收起的列顺序样式，并仅为空会话补足 AppFrame 主动隐藏的详情轨道。 */
-export function installWorkbenchLayout(ctx: ClientContext, visibility: WorkbenchEditorVisibilityStore): void {
+export function installWorkbenchLayout(
+  ctx: ClientContext,
+  visibility: WorkbenchEditorVisibilityStore,
+  fileController: ConversationFileController,
+): void {
   ctx.effect(() => {
     const style = document.createElement('style')
     style.dataset.dshWorkbenchLayout = ''
@@ -287,6 +296,7 @@ export function installWorkbenchLayout(ctx: ClientContext, visibility: Workbench
     let frame: HTMLElement | null = null
     let fallbackTrack: FallbackDetailsTrack | undefined
     let conversationLayout: ConversationLayout | undefined
+    let conversationFileRouting: ConversationFileRouting | undefined
     let editorTransition: EditorTrackTransition | undefined
     let editorExpanded = visibility.getSnapshot().editorExpanded
     const synchronizeVisibility = (): void => {
@@ -301,6 +311,8 @@ export function installWorkbenchLayout(ctx: ClientContext, visibility: Workbench
       if (next === frame) return
       conversationLayout?.dispose()
       conversationLayout = undefined
+      conversationFileRouting?.dispose()
+      conversationFileRouting = undefined
       editorTransition?.dispose()
       editorTransition = undefined
       fallbackTrack?.dispose()
@@ -316,6 +328,7 @@ export function installWorkbenchLayout(ctx: ClientContext, visibility: Workbench
       const conversationColumn = frame.children.item(1)
       if (conversationColumn instanceof HTMLElement) {
         conversationLayout = createConversationLayout(conversationColumn, ctx.logger)
+        conversationFileRouting = createConversationFileRouting(conversationColumn, fileController, ctx.logger)
       }
     }
     attach()
@@ -327,6 +340,7 @@ export function installWorkbenchLayout(ctx: ClientContext, visibility: Workbench
       documentObserver.disconnect()
       unsubscribeVisibility()
       conversationLayout?.dispose()
+      conversationFileRouting?.dispose()
       editorTransition?.dispose()
       fallbackTrack?.dispose()
       frame?.removeAttribute(FRAME_ATTRIBUTE)

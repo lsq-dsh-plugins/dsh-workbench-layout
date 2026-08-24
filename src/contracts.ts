@@ -55,6 +55,10 @@ export interface WorkspaceAbsolutePath {
   absolutePath: string
 }
 
+export interface WorkspaceRelativePath {
+  path: string
+}
+
 export interface GitFileStatus {
   path: string
   originalPath?: string
