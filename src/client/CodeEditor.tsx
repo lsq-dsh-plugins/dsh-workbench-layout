@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { basicSetup } from 'codemirror'
+import css from './Workbench.module.css'
 
 export interface CodeEditorProps {
   value: string
@@ -73,5 +74,5 @@ export function CodeEditor({ value, onChange, ariaLabel }: CodeEditorProps) {
     editor.dispatch({ changes: { from: 0, to: current.length, insert: value } })
   }, [value])
 
-  return <div ref={parent} style={{ height: '100%', minHeight: 0 }} />
+  return <div ref={parent} className={css.codeEditorHost} />
 }
