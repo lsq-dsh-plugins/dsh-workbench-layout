@@ -4,6 +4,7 @@ import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import {
   ASSISTANT_ACTIONS_ATTRIBUTE,
   ASSISTANT_METRICS_ATTRIBUTE,
+  ASSISTANT_METRICS_WRAP_ATTRIBUTE,
   CONVERSATION_NARROW_ATTRIBUTE,
   CONVERSATION_ROOT_ATTRIBUTE,
   createConversationLayout,
@@ -176,11 +177,11 @@ const CSS = `
 }
 
 /* The official assistant footer keeps its metrics in one nowrap span and its
-   action row at a fixed 28px height. In the narrow workbench conversation this
-   pushes hover-revealed timing beyond the clipped column. Keep the native icon
-   row, then give only its trailing metrics span a full-width wrapping line. */
-[${FRAME_ATTRIBUTE}] > :nth-child(2)[${CONVERSATION_NARROW_ATTRIBUTE}]
-  [${ASSISTANT_ACTIONS_ATTRIBUTE}] {
+   action row at a fixed 28px height. Only rows whose real rendered contents
+   exceed their available width receive a second wrapping line, regardless of
+   the conversation column's coarse responsive breakpoint. */
+[${FRAME_ATTRIBUTE}] > :nth-child(2)
+  [${ASSISTANT_ACTIONS_ATTRIBUTE}][${ASSISTANT_METRICS_WRAP_ATTRIBUTE}] {
   flex-wrap: wrap;
   align-content: flex-start;
   height: auto;
@@ -189,7 +190,8 @@ const CSS = `
   row-gap: 2px;
 }
 
-[${FRAME_ATTRIBUTE}] > :nth-child(2)[${CONVERSATION_NARROW_ATTRIBUTE}]
+[${FRAME_ATTRIBUTE}] > :nth-child(2)
+  [${ASSISTANT_ACTIONS_ATTRIBUTE}][${ASSISTANT_METRICS_WRAP_ATTRIBUTE}]
   [${ASSISTANT_METRICS_ATTRIBUTE}] {
   flex: 1 0 100%;
   box-sizing: border-box;

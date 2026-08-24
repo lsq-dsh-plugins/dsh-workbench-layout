@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   ASSISTANT_ACTIONS_ATTRIBUTE,
   ASSISTANT_METRICS_ATTRIBUTE,
+  ASSISTANT_METRICS_WRAP_ATTRIBUTE,
   CONVERSATION_NARROW_ATTRIBUTE,
   CONVERSATION_ROOT_ATTRIBUTE,
   createConversationLayout,
@@ -91,7 +92,7 @@ describe('右侧原生会话窄栏适配', () => {
     expect(sessionLogButton.title).toBe('下载')
   })
 
-  it('只标记助手按钮行末尾的统计信息并在释放时清理', () => {
+  it('只在助手统计信息真实溢出时换行，并随栏宽和内容变化恢复官方布局', async () => {
     const { column, conversationRoot } = conversationFixture()
     const tail = document.createElement('div')
     tail.dataset.turnTail = 'turn-1'
@@ -101,6 +102,10 @@ describe('右侧原生会话窄栏适配', () => {
     const metrics = document.createElement('span')
     metrics.textContent = '8月22日 23:39 · 用时 2秒 · 首 token 2.1秒 · 250 tok/s'
     actions.appendChild(metrics)
+    let availableWidth = 320
+    Object.defineProperty(actions, 'clientWidth', { configurable: true, get: () => availableWidth })
+    let contentWidth = 460
+    Object.defineProperty(actions, 'scrollWidth', { configurable: true, get: () => contentWidth })
     tail.appendChild(actions)
     conversationRoot.appendChild(tail)
     vi.spyOn(column, 'getBoundingClientRect').mockReturnValue(rect(0, 0, 360, 800))
@@ -109,11 +114,35 @@ describe('右侧原生会话窄栏适配', () => {
 
     expect(actions.hasAttribute(ASSISTANT_ACTIONS_ATTRIBUTE)).toBe(true)
     expect(metrics.hasAttribute(ASSISTANT_METRICS_ATTRIBUTE)).toBe(true)
+    await vi.waitFor(() => {
+      expect(actions.hasAttribute(ASSISTANT_METRICS_WRAP_ATTRIBUTE)).toBe(true)
+    })
     expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('assistant action metrics'))
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('overflow wrapping active for 1 row'))
+
+    availableWidth = 500
+    layout.reconcile()
+    await vi.waitFor(() => {
+      expect(actions.hasAttribute(ASSISTANT_METRICS_WRAP_ATTRIBUTE)).toBe(false)
+    })
+
+    contentWidth = 560
+    metrics.firstChild!.nodeValue = '8月22日 23:39 · 用时 17秒 · 首 token 1.4秒 · 250 tok/s'
+    await vi.waitFor(() => {
+      expect(actions.hasAttribute(ASSISTANT_METRICS_WRAP_ATTRIBUTE)).toBe(true)
+    })
+
+    contentWidth = 280
+    metrics.firstChild!.nodeValue = '22:02 · 用时 2秒'
+    await vi.waitFor(() => {
+      expect(actions.hasAttribute(ASSISTANT_METRICS_WRAP_ATTRIBUTE)).toBe(false)
+    })
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('overflow wrapping active for 0 row'))
 
     layout.dispose()
     expect(actions.hasAttribute(ASSISTANT_ACTIONS_ATTRIBUTE)).toBe(false)
     expect(metrics.hasAttribute(ASSISTANT_METRICS_ATTRIBUTE)).toBe(false)
+    expect(actions.hasAttribute(ASSISTANT_METRICS_WRAP_ATTRIBUTE)).toBe(false)
   })
 })
 

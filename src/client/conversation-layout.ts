@@ -4,6 +4,7 @@ export const CONVERSATION_NARROW_ATTRIBUTE = 'data-dsh-workbench-conversation-na
 export const CONVERSATION_ROOT_ATTRIBUTE = 'data-dsh-workbench-conversation-root'
 export const ASSISTANT_ACTIONS_ATTRIBUTE = 'data-dsh-workbench-assistant-actions'
 export const ASSISTANT_METRICS_ATTRIBUTE = 'data-dsh-workbench-assistant-metrics'
+export const ASSISTANT_METRICS_WRAP_ATTRIBUTE = 'data-dsh-workbench-assistant-metrics-wrap'
 export const FLOATING_MODEL_MENU_ATTRIBUTE = 'data-dsh-workbench-floating-model-menu'
 export const SESSION_LOG_BUTTON_ATTRIBUTE = 'data-dsh-workbench-session-log-button'
 export const FLOATING_MENU_LEFT_PROPERTY = '--dsh-workbench-floating-menu-left'
@@ -47,6 +48,8 @@ export function createConversationLayout(
   let conversationRoot: HTMLElement | null = null
   let assistantActionRows = new Set<HTMLElement>()
   let assistantMetrics = new Set<HTMLElement>()
+  let assistantMetricsMeasureFrame: number | null = null
+  let wrappedAssistantMetricsCount = 0
   let reportedAssistantMetrics = false
 
   const reconcileConversationRoot = (): void => {
@@ -180,18 +183,48 @@ export function createConversationLayout(
     }
 
     for (const actions of assistantActionRows) {
-      if (!nextActionRows.has(actions)) actions.removeAttribute(ASSISTANT_ACTIONS_ATTRIBUTE)
+      if (!nextActionRows.has(actions)) {
+        actions.removeAttribute(ASSISTANT_ACTIONS_ATTRIBUTE)
+        actions.removeAttribute(ASSISTANT_METRICS_WRAP_ATTRIBUTE)
+      }
     }
     for (const metrics of assistantMetrics) {
       if (!nextMetrics.has(metrics)) metrics.removeAttribute(ASSISTANT_METRICS_ATTRIBUTE)
     }
     assistantActionRows = nextActionRows
     assistantMetrics = nextMetrics
+    scheduleAssistantMetricsMeasurement()
 
     if (!reportedAssistantMetrics && nextMetrics.size > 0) {
       reportedAssistantMetrics = true
       logger.info('workbench-layout: adopted native assistant action metrics for narrow wrapping')
     }
+  }
+
+  const measureAssistantMetrics = (): void => {
+    assistantMetricsMeasureFrame = null
+    let nextWrappedCount = 0
+
+    for (const actions of assistantActionRows) {
+      if (!actions.isConnected) continue
+      // Measure the official unwrapped row, then restore the necessary state
+      // in the same animation frame so an already wrapped row never flashes.
+      actions.removeAttribute(ASSISTANT_METRICS_WRAP_ATTRIBUTE)
+      const availableWidth = actions.clientWidth
+      const shouldWrap = availableWidth > 0 && actions.scrollWidth > availableWidth + 1
+      actions.toggleAttribute(ASSISTANT_METRICS_WRAP_ATTRIBUTE, shouldWrap)
+      if (shouldWrap) nextWrappedCount += 1
+    }
+
+    if (nextWrappedCount !== wrappedAssistantMetricsCount) {
+      wrappedAssistantMetricsCount = nextWrappedCount
+      logger.info(`workbench-layout: assistant metrics overflow wrapping active for ${nextWrappedCount} row(s)`)
+    }
+  }
+
+  function scheduleAssistantMetricsMeasurement(): void {
+    if (assistantMetricsMeasureFrame !== null || assistantActionRows.size === 0) return
+    assistantMetricsMeasureFrame = window.requestAnimationFrame(measureAssistantMetrics)
   }
 
   const reconcileDynamicControls = (): void => {
@@ -205,13 +238,23 @@ export function createConversationLayout(
     applyWidth()
     reconcileDynamicControls()
   }
-  const mutationObserver = new MutationObserver(reconcileDynamicControls)
-  mutationObserver.observe(column, { childList: true, subtree: true })
+  const mutationObserver = new MutationObserver((records) => {
+    if (records.some(record => record.type === 'childList')) {
+      reconcileDynamicControls()
+      return
+    }
+    if (records.some(record =>
+      (record.target.parentElement?.closest(`[${ASSISTANT_METRICS_ATTRIBUTE}]`) ?? null) !== null)) {
+      scheduleAssistantMetricsMeasurement()
+    }
+  })
+  mutationObserver.observe(column, { childList: true, subtree: true, characterData: true })
   const columnResizeObserver = typeof ResizeObserver === 'undefined'
     ? undefined
     : new ResizeObserver(() => {
         applyWidth()
         schedulePosition()
+        scheduleAssistantMetricsMeasurement()
       })
   columnResizeObserver?.observe(column)
   window.addEventListener('resize', schedulePosition)
@@ -223,11 +266,16 @@ export function createConversationLayout(
     dispose: () => {
       mutationObserver.disconnect()
       columnResizeObserver?.disconnect()
+      if (assistantMetricsMeasureFrame !== null) window.cancelAnimationFrame(assistantMetricsMeasureFrame)
+      assistantMetricsMeasureFrame = null
       window.removeEventListener('resize', schedulePosition)
       window.removeEventListener('scroll', schedulePosition, true)
       releaseMenu()
       releaseSessionLogButton()
-      for (const actions of assistantActionRows) actions.removeAttribute(ASSISTANT_ACTIONS_ATTRIBUTE)
+      for (const actions of assistantActionRows) {
+        actions.removeAttribute(ASSISTANT_ACTIONS_ATTRIBUTE)
+        actions.removeAttribute(ASSISTANT_METRICS_WRAP_ATTRIBUTE)
+      }
       for (const metrics of assistantMetrics) metrics.removeAttribute(ASSISTANT_METRICS_ATTRIBUTE)
       assistantActionRows.clear()
       assistantMetrics.clear()

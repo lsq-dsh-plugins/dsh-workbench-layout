@@ -5,6 +5,7 @@ import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import {
   ASSISTANT_ACTIONS_ATTRIBUTE,
   ASSISTANT_METRICS_ATTRIBUTE,
+  ASSISTANT_METRICS_WRAP_ATTRIBUTE,
   CONVERSATION_NARROW_ATTRIBUTE,
   CONVERSATION_ROOT_ATTRIBUTE,
 } from '../src/client/conversation-layout.ts'
@@ -95,9 +96,8 @@ describe('workbench layout presentation', () => {
     expect(document.head.querySelector('[data-dsh-workbench-layout]')).toBeNull()
   })
 
-  it('gives narrow assistant metrics a wrapping line below the native action icons', () => {
+  it('gives overflowing assistant metrics a wrapping line below the native action icons', () => {
     const { frame, conversation } = appFrameFixture('active', 312)
-    const conversationColumn = frame.children.item(1) as HTMLElement
     const tail = document.createElement('div')
     tail.dataset.turnTail = 'turn-1'
     tail.dataset.timeHoverRoot = ''
@@ -113,7 +113,7 @@ describe('workbench layout presentation', () => {
 
     try {
       installWorkbenchLayout(contextWithDispose(value => { dispose = value }), editorVisibility(), fileController())
-      conversationColumn.setAttribute(CONVERSATION_NARROW_ATTRIBUTE, '')
+      actions.setAttribute(ASSISTANT_METRICS_WRAP_ATTRIBUTE, '')
 
       expect(actions.hasAttribute(ASSISTANT_ACTIONS_ATTRIBUTE)).toBe(true)
       expect(metrics.hasAttribute(ASSISTANT_METRICS_ATTRIBUTE)).toBe(true)
