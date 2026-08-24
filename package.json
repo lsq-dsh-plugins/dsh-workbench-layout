@@ -1,6 +1,6 @@
 {
   "name": "@lsq64737/dsh-workbench-layout",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "DSH-styled three-column workspace with file editing, Markdown preview, Git controls, terminals, and native conversation",
   "author": "lsq64737",
   "license": "MIT",
