@@ -215,6 +215,7 @@ function ChangeRow(props: ChangeRowProps) {
   return (
     <div
       className={css.gitChangeRow}
+      data-git-change-row=""
       data-selected={props.selected || undefined}
       data-tree={props.depth === undefined ? undefined : ''}
       style={props.depth === undefined ? undefined : { '--git-tree-depth': props.depth } as CSSProperties}
@@ -227,18 +228,20 @@ function ChangeRow(props: ChangeRowProps) {
         </span>
         <span className={css.statusBadge} data-status={props.status}>{props.status}</span>
       </button>
-      <Tooltip label={props.actionLabel} delayMs={400}>
-        <button type="button" className={css.gitRowAction} aria-label={`${props.actionLabel} ${props.file.path}`} disabled={props.busy} onClick={props.onAction}>
-          {props.actionIcon}
-        </button>
-      </Tooltip>
-      {props.secondaryAction !== undefined && props.secondaryActionLabel !== undefined && (
-        <Tooltip label={props.secondaryActionLabel} delayMs={400}>
-          <button type="button" className={css.gitRowAction} aria-label={`${props.secondaryActionLabel} ${props.file.path}`} disabled={props.busy} onClick={props.secondaryAction}>
-            {props.secondaryActionIcon}
+      <div className={css.gitRowActions} data-git-row-actions="">
+        <Tooltip label={props.actionLabel} delayMs={400}>
+          <button type="button" className={css.gitRowAction} aria-label={`${props.actionLabel} ${props.file.path}`} disabled={props.busy} onClick={props.onAction}>
+            {props.actionIcon}
           </button>
         </Tooltip>
-      )}
+        {props.secondaryAction !== undefined && props.secondaryActionLabel !== undefined && (
+          <Tooltip label={props.secondaryActionLabel} delayMs={400}>
+            <button type="button" className={css.gitRowAction} aria-label={`${props.secondaryActionLabel} ${props.file.path}`} disabled={props.busy} onClick={props.secondaryAction}>
+              {props.secondaryActionIcon}
+            </button>
+          </Tooltip>
+        )}
+      </div>
     </div>
   )
 }

@@ -120,6 +120,26 @@ describe('Git panel', () => {
     expect(successRule).not.toContain('state-success-secondary')
   })
 
+  it('overlays per-file Git actions before the fixed status without reserving row width', async () => {
+    const { controller } = harness()
+    const view = renderPanel(controller)
+
+    const stageButton = await view.findByRole('button', { name: '暂存 src/nested/a.ts' })
+    const actionOverlay = stageButton.closest('[data-git-row-actions]')
+    const changeRow = actionOverlay?.closest('[data-git-change-row]')
+    const openButton = changeRow?.querySelector<HTMLButtonElement>('button[title="src/nested/a.ts"]')
+
+    expect(actionOverlay).not.toBeNull()
+    expect(changeRow?.querySelector('[data-status]')?.textContent).toBe('M')
+    expect(openButton?.contains(actionOverlay ?? null)).toBe(false)
+
+    const stylesheet = readFileSync(resolve(process.cwd(), 'src/client/Workbench.module.css'), 'utf8')
+    const overlayRule = stylesheet.match(/\.gitRowActions\s*\{[^}]+\}/u)?.[0]
+    expect(overlayRule).toContain('position: absolute')
+    expect(overlayRule).toContain('right: 24px')
+    expect(overlayRule).toContain('pointer-events: none')
+  })
+
   it('switches list/tree layouts and opens only the selected change', async () => {
     const { controller } = harness()
     const view = renderPanel(controller)

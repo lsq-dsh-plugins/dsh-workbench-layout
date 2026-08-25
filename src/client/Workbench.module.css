@@ -769,6 +769,7 @@
 }
 
 .gitChangeRow {
+  position: relative;
   display: flex;
   align-items: center;
   min-width: 0;
@@ -880,26 +881,40 @@
   color: var(--dsw-alias-brand-text);
 }
 
+.gitRowActions {
+  position: absolute;
+  z-index: 1;
+  top: 3px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: 10px;
+  background: linear-gradient(to right, transparent, var(--dsw-alias-interactive-bg-hover-solid) 10px);
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
 .gitRowAction {
   display: inline-flex;
-  flex: none;
   align-items: center;
   justify-content: center;
   width: 26px;
   height: 26px;
-  margin-right: 2px;
   padding: 0;
   border: none;
   border-radius: 7px;
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
   cursor: pointer;
-  opacity: 0;
 }
 
-.gitChangeRow:hover .gitRowAction,
-.gitRowAction:focus-visible {
+.gitChangeRow:hover .gitRowActions,
+.gitChangeRow:focus-within .gitRowActions {
   opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
 }
 
 .gitRowAction:hover {
@@ -1660,8 +1675,10 @@
 }
 
 @media (hover: none) {
-  .gitRowAction {
+  .gitRowActions {
     opacity: 1;
+    pointer-events: auto;
+    visibility: visible;
   }
 }
 
