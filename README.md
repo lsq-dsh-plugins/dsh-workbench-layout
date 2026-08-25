@@ -25,7 +25,7 @@ The layout, icons, colors, menus, dialogs, tooltips, and responsive behavior reu
 ### Files and Markdown
 
 - Browse directories lazily and create, rename, or delete files and folders.
-- Color file-tree entries and middle-editor tabs from Workspace Git state: untracked, deleted, or conflicted files are red; added files are green; modified files are blue; renamed files use the warning color. Untracked state decorates only the file itself; directories aggregate the highest-priority remaining descendant state.
+- Color file-tree entries and middle-editor tabs from Workspace Git state: untracked, deleted, or conflicted files are red; added files are green; modified and renamed files use the warning color. Untracked state decorates only the file itself; directories aggregate the highest-priority remaining descendant state.
 - Open multiple files in one tab strip; use the mouse wheel over overflowing tabs to scroll horizontally.
 - Save the active file with `Ctrl/Cmd + S`. Writes use DSH version tokens so an externally changed file is not silently overwritten.
 - While the page is visible, open files are checked in one batch about once a second, with an immediate check when focus returns. Clean tabs update automatically; a dirty draft receives explicit Reload or Keep Current choices after an external change.

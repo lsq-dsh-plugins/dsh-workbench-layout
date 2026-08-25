@@ -617,7 +617,7 @@
 }
 
 .treeRow[data-git-decoration='modified'] {
-  color: var(--dsw-alias-state-business-primary);
+  color: var(--dsw-alias-state-warn-label);
 }
 
 .treeRow[data-git-decoration='renamed'] {
@@ -1327,7 +1327,7 @@
 }
 
 .editorTab[data-git-decoration='modified'] .editorTabName {
-  color: var(--dsw-alias-state-business-primary);
+  color: var(--dsw-alias-state-warn-label);
 }
 
 .editorTab[data-git-decoration='renamed'] .editorTabName {
