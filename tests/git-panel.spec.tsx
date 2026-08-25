@@ -120,7 +120,7 @@ describe('Git panel', () => {
     expect(successRule).not.toContain('state-success-secondary')
   })
 
-  it('overlays per-file Git actions before the fixed status without reserving row width', async () => {
+  it('uses native bare icons to overlay per-file Git actions before the fixed status', async () => {
     const { controller } = harness()
     const view = renderPanel(controller)
 
@@ -135,9 +135,17 @@ describe('Git panel', () => {
 
     const stylesheet = readFileSync(resolve(process.cwd(), 'src/client/Workbench.module.css'), 'utf8')
     const overlayRule = stylesheet.match(/\.gitRowActions\s*\{[^}]+\}/u)?.[0]
+    const actionRule = stylesheet.match(/\.gitRowAction\s*\{[^}]+\}/u)?.[0]
+    const actionHoverRule = stylesheet.match(/\.gitRowAction:hover\s*\{[^}]+\}/u)?.[0]
     expect(overlayRule).toContain('position: absolute')
-    expect(overlayRule).toContain('right: 24px')
+    expect(overlayRule).toContain('right: 28px')
+    expect(overlayRule).toContain('gap: 12px')
     expect(overlayRule).toContain('pointer-events: none')
+    expect(actionRule).toContain('width: 16px')
+    expect(actionRule).toContain('height: 16px')
+    expect(actionRule).not.toContain('border-radius')
+    expect(actionHoverRule).toContain('color: var(--dsw-alias-label-primary)')
+    expect(actionHoverRule).not.toContain('background:')
   })
 
   it('switches list/tree layouts and opens only the selected change', async () => {

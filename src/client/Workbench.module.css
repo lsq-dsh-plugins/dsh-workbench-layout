@@ -884,11 +884,11 @@
 .gitRowActions {
   position: absolute;
   z-index: 1;
-  top: 3px;
-  right: 24px;
+  top: 8px;
+  right: 28px;
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 12px;
   padding-left: 10px;
   background: linear-gradient(to right, transparent, var(--dsw-alias-interactive-bg-hover-solid) 10px);
   opacity: 0;
@@ -900,11 +900,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 16px;
+  height: 16px;
   padding: 0;
   border: none;
-  border-radius: 7px;
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
   cursor: pointer;
@@ -918,8 +917,7 @@
 }
 
 .gitRowAction:hover {
-  background: var(--dsw-alias-interactive-bg-active);
-  color: var(--dsw-alias-brand-text);
+  color: var(--dsw-alias-label-primary);
 }
 
 .gitRowAction:disabled {
