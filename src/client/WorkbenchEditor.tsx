@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Button, FishLogo, MarkdownText, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { WorkbenchController } from './controller.ts'
@@ -31,6 +31,18 @@ export function WorkbenchEditor({ sessionId, useWorkspaces, controller, activate
   const baselineTabId = tab?.kind === 'file' && tab.file !== null && !tab.preview ? tab.id : undefined
   const baselineFileVersion = tab?.kind === 'file' ? tab.file?.version : undefined
   const baselineLineVersion = tab?.kind === 'file' ? state.gitLineVersions?.[tab.path] : undefined
+  const gitLineLabels = useMemo(() => ({
+    added: t('editor.gitAddedChange'),
+    modified: t('editor.gitModifiedChange'),
+    deleted: t('editor.gitDeletedChange'),
+    before: t('editor.gitHeadVersion'),
+    current: t('editor.gitCurrentVersion'),
+    empty: t('editor.gitEmptyVersion'),
+    previous: t('editor.gitPreviousChange'),
+    next: t('editor.gitNextChange'),
+    revert: t('editor.gitRevertChange'),
+    close: t('editor.gitClosePeek'),
+  }), [t])
 
   useEffect(() => { activateWorkspace(workspaceId) }, [activateWorkspace, workspaceId])
   useEffect(() => {
@@ -169,10 +181,11 @@ export function WorkbenchEditor({ sessionId, useWorkspaces, controller, activate
                     key={tab.id}
                     value={tab.draft}
                     ariaLabel={tab.path}
-                    onChange={value => { controller.setDraft(value) }}
+                    onChange={(value, source) => { controller.setDraft(value, source) }}
                     {...tab.gitBaseline?.available === true && !tab.gitBaseline.binary
                       ? { gitOriginal: tab.gitBaseline.original }
                       : {}}
+                    gitLabels={gitLineLabels}
                   />
                 ))}
       </div>

@@ -10,8 +10,12 @@ const workbenchState = vi.hoisted(() => ({ current: {} as WorkbenchState }))
 
 vi.mock('../src/client/use-workbench.ts', () => ({ useWorkbench: () => workbenchState.current }))
 vi.mock('../src/client/CodeEditor.tsx', () => ({
-  CodeEditor: ({ ariaLabel, gitOriginal }: { ariaLabel: string; gitOriginal?: string }) => (
-    <textarea aria-label={ariaLabel} data-git-original={gitOriginal} />
+  CodeEditor: ({ ariaLabel, gitOriginal, gitLabels }: {
+    ariaLabel: string
+    gitOriginal?: string
+    gitLabels?: { modified: string }
+  }) => (
+    <textarea aria-label={ariaLabel} data-git-original={gitOriginal} data-git-modified-label={gitLabels?.modified} />
   ),
 }))
 vi.mock('../src/client/GitDiffEditor.tsx', () => ({ GitDiffEditor: () => <div>diff</div> }))
@@ -68,7 +72,9 @@ describe('WorkbenchEditor multi-file tabs', () => {
     const view = renderEditor(controller)
 
     expect(controller.ensureGitBaseline).toHaveBeenCalledWith('file:src/a.ts')
-    expect(view.getByRole('textbox', { name: 'src/a.ts' }).dataset.gitOriginal).toBe('const a = 0')
+    const editor = view.getByRole('textbox', { name: 'src/a.ts' })
+    expect(editor.dataset.gitOriginal).toBe('const a = 0')
+    expect(editor.dataset.gitModifiedLabel).toBe('修改变更')
   })
 
   it('uses a DSH modal before discarding an unsaved tab', () => {

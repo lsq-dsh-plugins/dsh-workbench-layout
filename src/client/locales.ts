@@ -218,6 +218,16 @@ export const zh = {
   'editor.diffHead': 'HEAD',
   'editor.diffIndex': '暂存区',
   'editor.diffWorkingTree': '工作区',
+  'editor.gitAddedChange': '新增变更',
+  'editor.gitModifiedChange': '修改变更',
+  'editor.gitDeletedChange': '删除变更',
+  'editor.gitHeadVersion': 'HEAD',
+  'editor.gitCurrentVersion': '当前',
+  'editor.gitEmptyVersion': '（空）',
+  'editor.gitPreviousChange': '上一处',
+  'editor.gitNextChange': '下一处',
+  'editor.gitRevertChange': '还原',
+  'editor.gitClosePeek': '关闭',
 } as const
 
 export const en: Record<keyof typeof zh, string> = {
@@ -440,6 +450,16 @@ export const en: Record<keyof typeof zh, string> = {
   'editor.diffHead': 'HEAD',
   'editor.diffIndex': 'Index',
   'editor.diffWorkingTree': 'Working tree',
+  'editor.gitAddedChange': 'Added change',
+  'editor.gitModifiedChange': 'Modified change',
+  'editor.gitDeletedChange': 'Deleted change',
+  'editor.gitHeadVersion': 'HEAD',
+  'editor.gitCurrentVersion': 'Current',
+  'editor.gitEmptyVersion': '(empty)',
+  'editor.gitPreviousChange': 'Previous',
+  'editor.gitNextChange': 'Next',
+  'editor.gitRevertChange': 'Revert',
+  'editor.gitClosePeek': 'Close',
 }
 
 export type WorkbenchKey = keyof typeof zh

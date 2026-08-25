@@ -42,6 +42,23 @@ describe('WorkbenchController', () => {
     expect(activeTab(controller)).toMatchObject({ dirty: false, saving: false, file: { version: 'v2' } })
   })
 
+  it('logs an explicit single-block Git revert without logging normal typing', async () => {
+    const logger = { info: vi.fn(), warn: vi.fn() }
+    const controller = new WorkbenchController({
+      readFile: vi.fn(() => Promise.resolve(file('src/a.ts', 'before', 'v1'))),
+    } as never, logger)
+    await controller.openFile('workspace-1', 'src/a.ts')
+    logger.info.mockClear()
+
+    controller.setDraft('typed', 'input')
+    expect(logger.info).not.toHaveBeenCalled()
+    controller.setDraft('before', 'git-revert')
+
+    expect(logger.info).toHaveBeenCalledWith(
+      'workbench-layout: reverted one Git change block in "src/a.ts"',
+    )
+  })
+
   it('resolves a native conversation file reference before opening its Workspace tab', async () => {
     const api = {
       relativePath: vi.fn(() => Promise.resolve({ path: 'src/view.tsx' })),

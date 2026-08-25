@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Compartment, EditorState } from '@codemirror/state'
+import { Compartment, EditorState, Transaction } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { basicSetup } from 'codemirror'
 import {
@@ -9,17 +9,24 @@ import {
   type EditorLineEnding,
 } from './editor-line-endings.ts'
 import css from './Workbench.module.css'
-import { gitLineDecorations } from './git-line-decorations.ts'
+import {
+  DEFAULT_GIT_LINE_LABELS,
+  gitLineDecorations,
+  type GitLineDecorationLabels,
+} from './git-line-decorations.ts'
 
 export interface CodeEditorProps {
   value: string
-  onChange: (value: string) => void
+  onChange: (value: string, source: CodeEditorChangeSource) => void
   ariaLabel: string
   gitOriginal?: string
+  gitLabels?: GitLineDecorationLabels
 }
 
+export type CodeEditorChangeSource = 'input' | 'git-revert'
+
 /** CodeMirror surface themed entirely through DSH design tokens. */
-export function CodeEditor({ value, onChange, ariaLabel, gitOriginal }: CodeEditorProps) {
+export function CodeEditor({ value, onChange, ariaLabel, gitOriginal, gitLabels }: CodeEditorProps) {
   const parent = useRef<HTMLDivElement>(null)
   const view = useRef<EditorView | null>(null)
   const onChangeRef = useRef(onChange)
@@ -41,7 +48,13 @@ export function CodeEditor({ value, onChange, ariaLabel, gitOriginal }: CodeEdit
           EditorView.contentAttributes.of({ 'aria-label': ariaLabel }),
           EditorView.updateListener.of((update) => {
             if (update.docChanged && !syncingRef.current) {
-              onChangeRef.current(restoreEditorLineEndings(update.state.doc.toString(), lineEndingRef.current))
+              const source = update.transactions.some(transaction => (
+                transaction.annotation(Transaction.userEvent) === 'input.git-revert'
+              )) ? 'git-revert' : 'input'
+              onChangeRef.current(
+                restoreEditorLineEndings(update.state.doc.toString(), lineEndingRef.current),
+                source,
+              )
             }
           }),
           EditorView.theme({
@@ -70,7 +83,7 @@ export function CodeEditor({ value, onChange, ariaLabel, gitOriginal }: CodeEdit
             '&.cm-focused': { outline: 'none' },
             '.cm-cursor': { borderLeftColor: 'var(--dsw-alias-label-primary)' },
           }),
-          gitChanges.current.of(gitLineDecorations(gitOriginal ?? null)),
+          gitChanges.current.of(gitLineDecorations(gitOriginal ?? null, gitLabels ?? DEFAULT_GIT_LINE_LABELS)),
         ],
       }),
     })
@@ -99,9 +112,12 @@ export function CodeEditor({ value, onChange, ariaLabel, gitOriginal }: CodeEdit
     const editor = view.current
     if (editor === null) return
     editor.dispatch({
-      effects: gitChanges.current.reconfigure(gitLineDecorations(gitOriginal ?? null)),
+      effects: gitChanges.current.reconfigure(gitLineDecorations(
+        gitOriginal ?? null,
+        gitLabels ?? DEFAULT_GIT_LINE_LABELS,
+      )),
     })
-  }, [gitOriginal])
+  }, [gitLabels, gitOriginal])
 
   return <div ref={parent} className={css.codeEditorHost} />
 }

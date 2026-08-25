@@ -10,6 +10,7 @@ export type SidebarMode = 'sessions' | 'files' | 'git' | 'terminal'
 export type DiffViewMode = 'split' | 'inline'
 export type GitView = 'changes' | 'graph'
 export type TerminalStatus = 'connecting' | 'running' | 'exited' | 'error'
+export type DraftChangeSource = 'input' | 'git-revert'
 export type WorkbenchSidebarAction =
   | 'files.newFile'
   | 'files.newDirectory'
@@ -442,12 +443,14 @@ export class WorkbenchController {
     return true
   }
 
-  setDraft(value: string): void {
+  setDraft(value: string, source: DraftChangeSource = 'input'): void {
     const tabId = this.store.getSnapshot().activeTabId
     if (tabId === undefined) return
+    let path: string | undefined
     this.store.update((state) => {
       const tab = state.tabs.find(candidate => candidate.id === tabId)
       if (tab?.kind !== 'file' || tab.file === null) return
+      path = tab.path
       tab.draft = value
       if (tab.externalChange?.kind === 'changed' && value === tab.externalChange.file.content) {
         tab.file = tab.externalChange.file
@@ -459,6 +462,9 @@ export class WorkbenchController {
       tab.dirty = value !== tab.file.content
       tab.error = null
     })
+    if (source === 'git-revert' && path !== undefined) {
+      this.logger.info(`workbench-layout: reverted one Git change block in ${JSON.stringify(path)}`)
+    }
   }
 
   revert(tabId = this.store.getSnapshot().activeTabId): void {
