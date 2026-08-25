@@ -4,7 +4,7 @@ import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client
 import type { GitCommit, GitEditorBaseline, GitFileDiff, GitStatus, WorkspaceFile } from '../contracts.ts'
 import { WorkbenchApi } from './api.ts'
 import { buildGitDecorations, type GitDecorationMap } from './git-decorations.ts'
-import type { GitHunkPeekSize, GitHunkPeekStorageOperation } from './git-hunk-peek-resize.ts'
+import type { GitHunkPeekStorageOperation } from './git-hunk-peek-resize.ts'
 import type { GitFileLayout } from './git-tree.ts'
 
 export type SidebarMode = 'sessions' | 'files' | 'git' | 'terminal'
@@ -472,14 +472,18 @@ export class WorkbenchController {
     this.logger.info(`workbench-layout: opened local Git Diff hunk for ${JSON.stringify(path)}`)
   }
 
-  logGitHunkResize(path: string, size: GitHunkPeekSize): void {
+  logGitHunkResize(path: string, width: number): void {
     this.logger.info(
-      `workbench-layout: resized local Git Diff hunk for ${JSON.stringify(path)} to ${size.width}x${size.height}px`,
+      `workbench-layout: resized local Git Diff hunk for ${JSON.stringify(path)} to ${width}px wide`,
     )
   }
 
   logGitHunkResizeStorageError(operation: GitHunkPeekStorageOperation): void {
-    this.logger.warn(`workbench-layout: could not ${operation} local Git Diff hunk size preference`)
+    this.logger.warn(`workbench-layout: could not ${operation} local Git Diff hunk width preference`)
+  }
+
+  logGitHunkDismissOutside(path: string): void {
+    this.logger.info(`workbench-layout: dismissed local Git Diff hunk outside ${JSON.stringify(path)}`)
   }
 
   revert(tabId = this.store.getSnapshot().activeTabId): void {

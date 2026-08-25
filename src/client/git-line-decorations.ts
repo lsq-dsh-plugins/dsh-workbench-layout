@@ -12,7 +12,6 @@ import { normalizeEditorText } from './editor-line-endings.ts'
 import { buildGitHunkDiff, type GitHunkDiffRow } from './git-hunk-diff.ts'
 import {
   makeGitHunkPeekResizable,
-  type GitHunkPeekSize,
   type GitHunkPeekStorageOperation,
 } from './git-hunk-peek-resize.ts'
 
@@ -29,14 +28,13 @@ export interface GitLineDecorationLabels {
   revert: string
   close: string
   resizeWidth: string
-  resizeHeight: string
-  resizeBoth: string
 }
 
 export interface GitLineDecorationCallbacks {
   onHunkOpen?: () => void
-  onHunkResize?: (size: GitHunkPeekSize) => void
+  onHunkResize?: (width: number) => void
   onHunkResizeStorageError?: (operation: GitHunkPeekStorageOperation) => void
+  onHunkDismissOutside?: () => void
 }
 
 interface GitLineChange {
@@ -68,8 +66,6 @@ export const DEFAULT_GIT_LINE_LABELS: GitLineDecorationLabels = {
   revert: 'Revert',
   close: 'Close',
   resizeWidth: 'Resize change width',
-  resizeHeight: 'Resize change height',
-  resizeBoth: 'Resize change width and height',
 }
 
 class GitLineMarker extends GutterMarker {
@@ -340,11 +336,7 @@ function changeTooltip(
       )
       dom.append(header, body)
       const resize = makeGitHunkPeekResizable(dom, {
-        labels: {
-          width: labels.resizeWidth,
-          height: labels.resizeHeight,
-          both: labels.resizeBoth,
-        },
+        label: labels.resizeWidth,
         requestMeasure: () => { view.requestMeasure() },
         ...(callbacks.onHunkResize === undefined ? {} : { onCommit: callbacks.onHunkResize }),
         ...(callbacks.onHunkResizeStorageError === undefined
@@ -366,6 +358,13 @@ function changeTooltip(
         }
       }
       dom.addEventListener('click', onClick)
+      const onDocumentPointerDown = (event: PointerEvent): void => {
+        const target = event.target
+        if (!(target instanceof Node) || dom.contains(target)) return
+        view.dispatch({ effects: setGitChangePeek.of(null) })
+        callbacks.onHunkDismissOutside?.()
+      }
+      dom.ownerDocument.addEventListener('pointerdown', onDocumentPointerDown, true)
       return {
         dom,
         getCoords() {
@@ -375,6 +374,7 @@ function changeTooltip(
         },
         destroy() {
           resize.destroy()
+          dom.ownerDocument.removeEventListener('pointerdown', onDocumentPointerDown, true)
           dom.removeEventListener('click', onClick)
         },
       }
@@ -547,8 +547,6 @@ const gitLineTheme = EditorView.theme({
     outlineOffset: '-1px',
   },
   '.cm-tooltip.cm-gitChangePeek': {
-    display: 'flex',
-    flexDirection: 'column',
     boxSizing: 'border-box',
     overflow: 'hidden',
     border: '1px solid var(--dsw-alias-border-inverted)',
@@ -559,7 +557,6 @@ const gitLineTheme = EditorView.theme({
   },
   '.cm-gitChangePeekHeader': {
     display: 'flex',
-    flex: '0 0 auto',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: '10px',
@@ -619,16 +616,11 @@ const gitLineTheme = EditorView.theme({
     outline: 'none',
   },
   '.cm-gitChangePeekBody': {
-    display: 'flex',
-    flex: '1 1 auto',
-    flexDirection: 'column',
     minWidth: '0',
-    minHeight: '0',
     background: 'var(--dsw-alias-markdown-code-block)',
   },
   '.cm-gitChangePeekHunkHeader': {
     display: 'flex',
-    flex: '0 0 auto',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: '12px',
@@ -644,8 +636,7 @@ const gitLineTheme = EditorView.theme({
     font: 'var(--dsw-font-markdown-code-block)',
   },
   '.cm-gitChangePeekRows': {
-    flex: '1 1 auto',
-    minHeight: '0',
+    maxHeight: '260px',
     overflow: 'auto',
     paddingBlock: '5px',
     font: 'var(--dsw-font-markdown-code-block)',
@@ -701,7 +692,7 @@ const gitLineTheme = EditorView.theme({
     borderRadius: '2px',
     background: 'color-mix(in srgb, var(--dsw-alias-state-success-primary) 23%, transparent)',
   },
-  '.cm-gitChangePeekResizeHandle': {
+  '.cm-tooltip.cm-gitChangePeek > .cm-gitChangePeekResizeHandle': {
     position: 'absolute',
     zIndex: '3',
     boxSizing: 'border-box',
@@ -711,33 +702,20 @@ const gitLineTheme = EditorView.theme({
     touchAction: 'none',
     userSelect: 'none',
   },
-  '.cm-gitChangePeekResizeHandle[data-resize-axis="width"]': {
+  '.cm-gitChangePeekResizeHandle': {
     insetBlock: '38px 10px',
     insetInlineEnd: '0',
     width: '8px',
     cursor: 'col-resize',
   },
-  '.cm-gitChangePeekResizeHandle[data-resize-axis="height"]': {
-    insetInline: '0 10px',
-    insetBlockEnd: '0',
-    height: '8px',
-    cursor: 'row-resize',
-  },
-  '.cm-gitChangePeekResizeHandle[data-resize-axis="both"]': {
-    insetInlineEnd: '0',
-    insetBlockEnd: '0',
-    width: '14px',
-    height: '14px',
-    cursor: 'nwse-resize',
-  },
-  '.cm-gitChangePeekResizeHandle::after': {
+  '.cm-tooltip.cm-gitChangePeek > .cm-gitChangePeekResizeHandle::after': {
     content: '""',
     position: 'absolute',
     boxSizing: 'border-box',
     opacity: '0',
     transition: 'opacity var(--ds-transition-duration-slow) var(--ds-ease-in-out)',
   },
-  '.cm-gitChangePeekResizeHandle[data-resize-axis="width"]::after': {
+  '.cm-gitChangePeekResizeHandle::after': {
     insetBlockStart: '50%',
     insetInlineEnd: '2px',
     width: '2px',
@@ -745,24 +723,6 @@ const gitLineTheme = EditorView.theme({
     borderRadius: '2px',
     background: 'var(--dsw-alias-label-tertiary)',
     transform: 'translateY(-50%)',
-  },
-  '.cm-gitChangePeekResizeHandle[data-resize-axis="height"]::after': {
-    insetInlineStart: '50%',
-    insetBlockEnd: '2px',
-    width: '28px',
-    height: '2px',
-    borderRadius: '2px',
-    background: 'var(--dsw-alias-label-tertiary)',
-    transform: 'translateX(-50%)',
-  },
-  '.cm-gitChangePeekResizeHandle[data-resize-axis="both"]::after': {
-    insetInlineEnd: '3px',
-    insetBlockEnd: '3px',
-    width: '7px',
-    height: '7px',
-    borderInlineEnd: '2px solid var(--dsw-alias-label-tertiary)',
-    borderBlockEnd: '2px solid var(--dsw-alias-label-tertiary)',
-    borderRadius: '0 0 2px',
   },
   '.cm-gitChangePeek:hover .cm-gitChangePeekResizeHandle::after': {
     opacity: '0.45',

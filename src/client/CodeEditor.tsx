@@ -15,7 +15,7 @@ import {
   type GitLineDecorationCallbacks,
   type GitLineDecorationLabels,
 } from './git-line-decorations.ts'
-import type { GitHunkPeekSize, GitHunkPeekStorageOperation } from './git-hunk-peek-resize.ts'
+import type { GitHunkPeekStorageOperation } from './git-hunk-peek-resize.ts'
 
 export interface CodeEditorProps {
   value: string
@@ -24,8 +24,9 @@ export interface CodeEditorProps {
   gitOriginal?: string
   gitLabels?: GitLineDecorationLabels
   onGitHunkOpen?: () => void
-  onGitHunkResize?: (size: GitHunkPeekSize) => void
+  onGitHunkResize?: (width: number) => void
   onGitHunkResizeStorageError?: (operation: GitHunkPeekStorageOperation) => void
+  onGitHunkDismissOutside?: () => void
 }
 
 export type CodeEditorChangeSource = 'input' | 'git-revert'
@@ -40,6 +41,7 @@ export function CodeEditor({
   onGitHunkOpen,
   onGitHunkResize,
   onGitHunkResizeStorageError,
+  onGitHunkDismissOutside,
 }: CodeEditorProps) {
   const parent = useRef<HTMLDivElement>(null)
   const view = useRef<EditorView | null>(null)
@@ -50,15 +52,18 @@ export function CodeEditor({
   const onGitHunkOpenRef = useRef(onGitHunkOpen)
   const onGitHunkResizeRef = useRef(onGitHunkResize)
   const onGitHunkResizeStorageErrorRef = useRef(onGitHunkResizeStorageError)
+  const onGitHunkDismissOutsideRef = useRef(onGitHunkDismissOutside)
   const gitCallbacks = useRef<GitLineDecorationCallbacks>({
     onHunkOpen: () => { onGitHunkOpenRef.current?.() },
-    onHunkResize: size => { onGitHunkResizeRef.current?.(size) },
+    onHunkResize: width => { onGitHunkResizeRef.current?.(width) },
     onHunkResizeStorageError: operation => { onGitHunkResizeStorageErrorRef.current?.(operation) },
+    onHunkDismissOutside: () => { onGitHunkDismissOutsideRef.current?.() },
   })
   onChangeRef.current = onChange
   onGitHunkOpenRef.current = onGitHunkOpen
   onGitHunkResizeRef.current = onGitHunkResize
   onGitHunkResizeStorageErrorRef.current = onGitHunkResizeStorageError
+  onGitHunkDismissOutsideRef.current = onGitHunkDismissOutside
   lineEndingRef.current = detectEditorLineEnding(value)
 
   useEffect(() => {

@@ -42,8 +42,6 @@ export function WorkbenchEditor({ sessionId, useWorkspaces, controller, activate
     revert: t('editor.gitRevertChange'),
     close: t('editor.gitClosePeek'),
     resizeWidth: t('editor.gitResizePeekWidth'),
-    resizeHeight: t('editor.gitResizePeekHeight'),
-    resizeBoth: t('editor.gitResizePeekBoth'),
   }), [t])
 
   useEffect(() => { activateWorkspace(workspaceId) }, [activateWorkspace, workspaceId])
@@ -185,8 +183,9 @@ export function WorkbenchEditor({ sessionId, useWorkspaces, controller, activate
                     ariaLabel={tab.path}
                     onChange={(value, source) => { controller.setDraft(value, source) }}
                     onGitHunkOpen={() => { controller.logGitHunkOpen(tab.path) }}
-                    onGitHunkResize={size => { controller.logGitHunkResize(tab.path, size) }}
+                    onGitHunkResize={width => { controller.logGitHunkResize(tab.path, width) }}
                     onGitHunkResizeStorageError={operation => { controller.logGitHunkResizeStorageError(operation) }}
+                    onGitHunkDismissOutside={() => { controller.logGitHunkDismissOutside(tab.path) }}
                     {...tab.gitBaseline?.available === true && !tab.gitBaseline.binary
                       ? { gitOriginal: tab.gitBaseline.original }
                       : {}}

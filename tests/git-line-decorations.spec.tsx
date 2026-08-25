@@ -171,7 +171,7 @@ describe('editable Git line decorations', () => {
     expect(view.queryByRole('dialog')).toBeNull()
   })
 
-  it('resizes the local Diff with keyboard or pointer handles and restores that size', () => {
+  it('resizes only the local Diff width with keyboard or pointer input and restores it', () => {
     const onGitHunkResize = vi.fn()
     const view = render(
       <CodeEditor
@@ -185,29 +185,52 @@ describe('editable Git line decorations', () => {
     fireEvent.click(gitMarker(view.container, 'modified', 0))
     const firstDialog = view.getByRole('dialog')
     expect(firstDialog.style.inlineSize).toBe('480px')
-    expect(firstDialog.style.blockSize).toBe('320px')
+    expect(firstDialog.style.blockSize).toBe('')
 
     fireEvent.keyDown(within(firstDialog).getByRole('separator', { name: 'Resize change width' }), {
       key: 'ArrowRight',
     })
     expect(firstDialog.style.inlineSize).toBe('488px')
-    expect(firstDialog.style.blockSize).toBe('320px')
-    expect(onGitHunkResize).toHaveBeenLastCalledWith({ width: 488, height: 320 })
+    expect(firstDialog.style.blockSize).toBe('')
+    expect(onGitHunkResize).toHaveBeenLastCalledWith(488)
 
-    const corner = firstDialog.querySelector<HTMLElement>('[data-resize-axis="both"]')
-    expect(corner).toBeInstanceOf(HTMLElement)
-    fireEvent.pointerDown(corner as HTMLElement, { button: 0, pointerId: 7, clientX: 100, clientY: 100 })
-    fireEvent.pointerMove(corner as HTMLElement, { pointerId: 7, clientX: 124, clientY: 140 })
-    fireEvent.pointerUp(corner as HTMLElement, { pointerId: 7, clientX: 124, clientY: 140 })
+    const widthHandle = within(firstDialog).getByRole('separator', { name: 'Resize change width' })
+    fireEvent.pointerDown(widthHandle, { button: 0, pointerId: 7, clientX: 100 })
+    fireEvent.pointerMove(widthHandle, { pointerId: 7, clientX: 124 })
+    fireEvent.pointerUp(widthHandle, { pointerId: 7, clientX: 124 })
     expect(firstDialog.style.inlineSize).toBe('512px')
-    expect(firstDialog.style.blockSize).toBe('360px')
-    expect(onGitHunkResize).toHaveBeenLastCalledWith({ width: 512, height: 360 })
-    expect(window.localStorage.getItem(GIT_HUNK_PEEK_STORAGE_KEY)).toBe('{"width":512,"height":360}')
+    expect(firstDialog.style.blockSize).toBe('')
+    expect(onGitHunkResize).toHaveBeenLastCalledWith(512)
+    expect(window.localStorage.getItem(GIT_HUNK_PEEK_STORAGE_KEY)).toBe('{"width":512}')
 
     fireEvent.click(within(firstDialog).getByRole('button', { name: 'Next' }))
     const nextDialog = view.getByRole('dialog')
     expect(nextDialog.style.inlineSize).toBe('512px')
-    expect(nextDialog.style.blockSize).toBe('360px')
+    expect(nextDialog.style.blockSize).toBe('')
+    expect(nextDialog.querySelectorAll('.cm-gitChangePeekResizeHandle')).toHaveLength(1)
+  })
+
+  it('dismisses the local Diff on an outside pointer press but keeps inside interactions open', () => {
+    const onGitHunkDismissOutside = vi.fn()
+    const view = render(
+      <CodeEditor
+        value={'first\nchanged\n'}
+        gitOriginal={'first\nsecond\n'}
+        onChange={() => {}}
+        onGitHunkDismissOutside={onGitHunkDismissOutside}
+        ariaLabel="dismiss.txt"
+      />,
+    )
+    fireEvent.click(gitMarker(view.container, 'modified'))
+    const dialog = view.getByRole('dialog')
+
+    fireEvent.pointerDown(dialog)
+    expect(view.getByRole('dialog')).toBe(dialog)
+    expect(onGitHunkDismissOutside).not.toHaveBeenCalled()
+
+    fireEvent.pointerDown(document.body)
+    expect(view.queryByRole('dialog')).toBeNull()
+    expect(onGitHunkDismissOutside).toHaveBeenCalledOnce()
   })
 
   it('reverts one change in the draft and keeps the edit undoable', () => {
