@@ -769,12 +769,17 @@
 }
 
 .gitChangeRow {
+  --git-row-action-reserve: 18px;
   position: relative;
   display: flex;
   align-items: center;
   min-width: 0;
   height: 28px;
   border-radius: 8px;
+}
+
+.gitChangeRow[data-has-secondary-action] {
+  --git-row-action-reserve: 40px;
 }
 
 .gitChangeRow[data-tree] {
@@ -909,6 +914,11 @@
   opacity: 1;
   pointer-events: auto;
   visibility: visible;
+}
+
+.gitChangeRow:hover .gitFileText,
+.gitChangeRow:focus-within .gitFileText {
+  margin-right: var(--git-row-action-reserve);
 }
 
 .gitGraph {
@@ -1663,6 +1673,10 @@
     opacity: 1;
     pointer-events: auto;
     visibility: visible;
+  }
+
+  .gitFileText {
+    margin-right: var(--git-row-action-reserve);
   }
 }
 

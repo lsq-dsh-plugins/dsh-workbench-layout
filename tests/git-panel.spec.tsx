@@ -134,6 +134,7 @@ describe('Git panel', () => {
     const rootFileText = rootOpenButton?.querySelector('[data-git-file-text]')
 
     expect(actionOverlay).not.toBeNull()
+    expect(changeRow?.hasAttribute('data-has-secondary-action')).toBe(true)
     expect(changeRow?.querySelector('[data-status]')?.textContent).toBe('M')
     expect(openButton?.contains(actionOverlay ?? null)).toBe(false)
     for (const className of stageAllButton.classList) expect(stageButton.classList.contains(className)).toBe(true)
@@ -146,6 +147,7 @@ describe('Git panel', () => {
     const overlayRule = stylesheet.match(/\.gitRowActions\s*\{[^}]+\}/u)?.[0]
     const rowActionRule = stylesheet.match(/\.gitRowAction\s*\{[^}]+\}/u)?.[0]
     const sharedActionHoverRule = stylesheet.match(/\.gitSectionAction:hover:not\(:disabled\)\s*\{[^}]+\}/u)?.[0]
+    const hoveredTextRule = stylesheet.match(/\.gitChangeRow:hover \.gitFileText,[\s\S]*?\{[^}]+\}/u)?.[0]
     expect(changeRowRule).toContain('height: 28px')
     expect(rootNameRule).toContain('flex: 1 1 auto')
     expect(rootNameRule).toContain('max-width: 100%')
@@ -157,6 +159,7 @@ describe('Git panel', () => {
     expect(rowActionRule).toContain('height: 20px')
     expect(rowActionRule).not.toContain('background:')
     expect(sharedActionHoverRule).toContain('background: var(--dsw-alias-interactive-bg-active)')
+    expect(hoveredTextRule).toContain('margin-right: var(--git-row-action-reserve)')
   })
 
   it('switches list/tree layouts and opens only the selected change', async () => {

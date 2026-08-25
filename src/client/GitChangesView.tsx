@@ -217,6 +217,7 @@ function ChangeRow(props: ChangeRowProps) {
     <div
       className={css.gitChangeRow}
       data-git-change-row=""
+      data-has-secondary-action={props.secondaryAction === undefined ? undefined : ''}
       data-selected={props.selected || undefined}
       data-tree={props.depth === undefined ? undefined : ''}
       style={props.depth === undefined ? undefined : { '--git-tree-depth': props.depth } as CSSProperties}
