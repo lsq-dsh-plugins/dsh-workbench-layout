@@ -47,7 +47,7 @@ export function GitChangesView(props: GitChangesViewProps) {
         onOpen={file => { props.onOpen(file, true) }}
         onAction={props.onUnstage}
         actionLabel={props.t('git.unstage')}
-        actionIcon={<IconCloseOutline16 size={12} />}
+        actionIcon={<IconCloseOutline16 size={14} />}
         headerActions={[{ label: props.t('git.unstageAll'), icon: <IconCloseOutline16 size={14} />, action: props.onUnstageAll }]}
         busy={props.busy}
       />
@@ -61,10 +61,10 @@ export function GitChangesView(props: GitChangesViewProps) {
         onOpen={file => { props.onOpen(file, false) }}
         onAction={props.onStage}
         actionLabel={props.t('git.stage')}
-        actionIcon={<IconPlusOutline16 size={12} />}
+        actionIcon={<IconPlusOutline16 size={14} />}
         secondaryAction={props.onDiscard}
         secondaryActionLabel={props.t('git.discard')}
-        secondaryActionIcon={<IconTrashOutline16 size={12} />}
+        secondaryActionIcon={<IconTrashOutline16 size={14} />}
         headerActions={[
           { label: props.t('git.stageAll'), icon: <IconPlusOutline16 size={14} />, action: props.onStageAll },
           { label: props.t('git.discardAll'), icon: <IconTrashOutline16 size={14} />, action: props.onDiscardAll },

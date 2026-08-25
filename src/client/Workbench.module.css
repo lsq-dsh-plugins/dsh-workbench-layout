@@ -773,7 +773,7 @@
   display: flex;
   align-items: center;
   min-width: 0;
-  height: 32px;
+  height: 28px;
   border-radius: 8px;
 }
 
@@ -884,7 +884,7 @@
 .gitRowActions {
   position: absolute;
   z-index: 1;
-  top: 6px;
+  top: 4px;
   right: 24px;
   display: flex;
   align-items: center;
@@ -897,7 +897,11 @@
 .gitRowAction {
   width: 20px;
   height: 20px;
-  background: var(--dsw-alias-interactive-bg-hover-solid);
+}
+
+.gitRowAction:hover:not(:disabled) {
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
 }
 
 .gitChangeRow:hover .gitRowActions,
