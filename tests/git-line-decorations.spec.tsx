@@ -116,20 +116,35 @@ describe('editable Git line decorations', () => {
     expect(marker.dataset.kind).toBe('modified')
   })
 
-  it('opens and toggles a local HEAD/current Diff from a gutter marker', () => {
+  it('opens and toggles a local Unified Diff hunk from a gutter marker', () => {
+    const onGitHunkOpen = vi.fn()
     const view = render(
-      <CodeEditor value={'first\nchanged\n'} gitOriginal={'first\nsecond\n'} onChange={() => {}} ariaLabel="peek.txt" />,
+      <CodeEditor
+        value={'first\nchanged\n'}
+        gitOriginal={'first\nsecond\n'}
+        onChange={() => {}}
+        onGitHunkOpen={onGitHunkOpen}
+        ariaLabel="peek.txt"
+      />,
     )
     const marker = gitMarker(view.container, 'modified')
     fireEvent.click(marker)
 
     const dialog = view.getByRole('dialog', { name: 'Modified change 1/1' })
+    expect(dialog.querySelector('[data-git-local-diff]')).not.toBeNull()
+    expect(dialog.querySelector('.cm-gitChangePeekVersion')).toBeNull()
+    expect(within(dialog).getByText('@@ -1,2 +1,2 @@')).toBeTruthy()
+    expect(dialog.querySelectorAll('[data-diff-kind="context"]')).toHaveLength(1)
+    expect(dialog.querySelectorAll('[data-diff-kind="removed"]')).toHaveLength(1)
+    expect(dialog.querySelectorAll('[data-diff-kind="added"]')).toHaveLength(1)
     expect(within(dialog).getByText('second')).toBeTruthy()
     expect(within(dialog).getByText('changed')).toBeTruthy()
     expect(gitMarker(view.container, 'modified').dataset.selected).toBe('true')
+    expect(onGitHunkOpen).toHaveBeenCalledOnce()
 
     fireEvent.click(gitMarker(view.container, 'modified'))
     expect(view.queryByRole('dialog')).toBeNull()
+    expect(onGitHunkOpen).toHaveBeenCalledOnce()
   })
 
   it('navigates between change blocks and closes the peek', () => {

@@ -9,6 +9,7 @@ import {
   type Tooltip,
 } from '@codemirror/view'
 import { normalizeEditorText } from './editor-line-endings.ts'
+import { buildGitHunkDiff, type GitHunkDiffRow } from './git-hunk-diff.ts'
 
 export type GitLineChangeKind = 'added' | 'modified' | 'deleted'
 
@@ -18,7 +19,6 @@ export interface GitLineDecorationLabels {
   deleted: string
   before: string
   current: string
-  empty: string
   previous: string
   next: string
   revert: string
@@ -30,8 +30,6 @@ interface GitLineChange {
   chunk: Chunk
   anchorPosition: number
   markerPositions: number[]
-  originalText: string
-  currentText: string
 }
 
 interface GitLineDecorationState {
@@ -51,7 +49,6 @@ export const DEFAULT_GIT_LINE_LABELS: GitLineDecorationLabels = {
   deleted: 'Deleted change',
   before: 'HEAD',
   current: 'Current',
-  empty: '(empty)',
   previous: 'Previous',
   next: 'Next',
   revert: 'Revert',
@@ -93,6 +90,7 @@ class GitLineMarker extends GutterMarker {
 export function gitLineDecorations(
   original: string | null,
   labels: GitLineDecorationLabels = DEFAULT_GIT_LINE_LABELS,
+  onHunkOpen?: () => void,
 ): Extension {
   const originalDocument = original === null
     ? null
@@ -133,8 +131,10 @@ export function gitLineDecorations(
           const anchor = Number(marker.dataset.anchor)
           if (!Number.isInteger(anchor)) return false
           const state = view.state.field(field)
+          const opening = state.selectedAnchor !== anchor
           event.preventDefault()
-          view.dispatch({ effects: setGitChangePeek.of(state.selectedAnchor === anchor ? null : anchor) })
+          view.dispatch({ effects: setGitChangePeek.of(opening ? anchor : null) })
+          if (opening) onHunkOpen?.()
           return true
         },
       },
@@ -188,7 +188,17 @@ function decorationState(
     selectedAnchor,
     tooltip: selectedChange === undefined
       ? null
-      : changeTooltip(selectedChange, selectedIndex, changes.length, labels, field, original),
+      : changeTooltip(
+        selectedChange,
+        selectedIndex,
+        changes.length,
+        labels,
+        field,
+        original,
+        current,
+        changes[selectedIndex - 1]?.chunk,
+        changes[selectedIndex + 1]?.chunk,
+      ),
   }
 }
 
@@ -212,8 +222,6 @@ function lineChange(chunk: Chunk, original: Text, current: Text): GitLineChange 
     chunk,
     anchorPosition: markerPositions[0] ?? deletionMarkerPosition(current, chunk.fromB),
     markerPositions,
-    originalText: displayChunkText(original, chunk.fromA, chunk.toA),
-    currentText: displayChunkText(current, chunk.fromB, chunk.toB),
   }
 }
 
@@ -246,11 +254,6 @@ function deletionMarkerPosition(document: Text, position: number): number {
   return document.lineAt(Math.min(position, document.length)).from
 }
 
-function displayChunkText(document: Text, from: number, to: number): string {
-  const text = document.sliceString(Math.min(from, document.length), Math.min(to, document.length))
-  return text.endsWith('\n') ? text.slice(0, -1) : text
-}
-
 function markerPriority(kind: GitLineChangeKind): number {
   switch (kind) {
     case 'modified': return 1
@@ -274,6 +277,9 @@ function changeTooltip(
   labels: GitLineDecorationLabels,
   field: StateField<GitLineDecorationState>,
   original: Text,
+  current: Text,
+  previous: Chunk | undefined,
+  next: Chunk | undefined,
 ): Tooltip {
   return {
     pos: change.anchorPosition,
@@ -309,11 +315,9 @@ function changeTooltip(
       )
       header.append(identity, actions)
 
-      const body = document.createElement('div')
-      body.className = 'cm-gitChangePeekBody'
-      body.append(
-        peekVersion(labels.before, change.originalText, labels.empty, 'before'),
-        peekVersion(labels.current, change.currentText, labels.empty, 'current'),
+      const body = gitHunkDiffDom(
+        buildGitHunkDiff(original, current, change.chunk, previous, next),
+        labels,
       )
       dom.append(header, body)
 
@@ -352,16 +356,64 @@ function peekButton(action: 'previous' | 'next' | 'revert' | 'close', label: str
   return button
 }
 
-function peekVersion(label: string, text: string, empty: string, kind: 'before' | 'current'): HTMLElement {
-  const section = document.createElement('section')
-  section.className = 'cm-gitChangePeekVersion'
-  section.dataset.version = kind
-  const heading = document.createElement('span')
-  heading.textContent = label
-  const content = document.createElement('pre')
-  content.textContent = text === '' ? empty : text
-  section.append(heading, content)
-  return section
+function gitHunkDiffDom(
+  diff: ReturnType<typeof buildGitHunkDiff>,
+  labels: GitLineDecorationLabels,
+): HTMLElement {
+  const body = document.createElement('div')
+  body.className = 'cm-gitChangePeekBody'
+  body.dataset.gitLocalDiff = ''
+  const largestLineNumber = diff.rows.reduce((largest, row) => (
+    Math.max(largest, row.oldLine ?? 0, row.newLine ?? 0)
+  ), 0)
+  body.style.setProperty('--dsw-git-diff-line-number-width', `${Math.max(4, String(largestLineNumber).length + 1)}ch`)
+  const metadata = document.createElement('div')
+  metadata.className = 'cm-gitChangePeekHunkHeader'
+  const sides = document.createElement('span')
+  sides.textContent = `${labels.before} ↔ ${labels.current}`
+  const header = document.createElement('code')
+  header.textContent = diff.header
+  metadata.append(sides, header)
+  const rows = document.createElement('div')
+  rows.className = 'cm-gitChangePeekRows'
+  rows.setAttribute('role', 'list')
+  rows.setAttribute('aria-label', `${labels.before} / ${labels.current}`)
+  for (const row of diff.rows) rows.append(gitHunkDiffRowDom(row, labels))
+  body.append(metadata, rows)
+  return body
+}
+
+function gitHunkDiffRowDom(row: GitHunkDiffRow, labels: GitLineDecorationLabels): HTMLElement {
+  const element = document.createElement('div')
+  element.className = 'cm-gitChangePeekRow'
+  element.dataset.diffKind = row.kind
+  element.setAttribute('role', 'listitem')
+  element.setAttribute('aria-label', diffRowLabel(row, labels))
+  const oldLine = document.createElement('span')
+  oldLine.className = 'cm-gitChangePeekLineNumber'
+  oldLine.dataset.side = 'old'
+  oldLine.textContent = row.oldLine?.toString() ?? ''
+  const newLine = document.createElement('span')
+  newLine.className = 'cm-gitChangePeekLineNumber'
+  newLine.dataset.side = 'new'
+  newLine.textContent = row.newLine?.toString() ?? ''
+  const prefix = document.createElement('span')
+  prefix.className = 'cm-gitChangePeekPrefix'
+  prefix.setAttribute('aria-hidden', 'true')
+  prefix.textContent = row.kind === 'removed' ? '-' : row.kind === 'added' ? '+' : ' '
+  const content = document.createElement('code')
+  content.className = 'cm-gitChangePeekCode'
+  content.textContent = row.text
+  element.append(oldLine, newLine, prefix, content)
+  return element
+}
+
+function diffRowLabel(row: GitHunkDiffRow, labels: GitLineDecorationLabels): string {
+  switch (row.kind) {
+    case 'removed': return `${labels.before} ${row.oldLine ?? ''}: ${row.text}`
+    case 'added': return `${labels.current} ${row.newLine ?? ''}: ${row.text}`
+    case 'context': return `${labels.before} ${row.oldLine ?? ''}, ${labels.current} ${row.newLine ?? ''}: ${row.text}`
+  }
 }
 
 function navigateChange(view: EditorView, field: StateField<GitLineDecorationState>, direction: -1 | 1): void {
@@ -526,40 +578,66 @@ const gitLineTheme = EditorView.theme({
     outline: 'none',
   },
   '.cm-gitChangePeekBody': {
-    display: 'grid',
-    gap: '1px',
-    background: 'var(--dsw-alias-border-l1)',
-  },
-  '.cm-gitChangePeekVersion': {
-    display: 'grid',
-    gridTemplateColumns: '58px minmax(0, 1fr)',
     minWidth: '0',
-    background: 'var(--dsw-alias-bg-base)',
+    background: 'var(--dsw-alias-markdown-code-block)',
   },
-  '.cm-gitChangePeekVersion > span': {
-    padding: '9px 8px',
+  '.cm-gitChangePeekHunkHeader': {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '12px',
+    padding: '7px 10px',
+    borderBottom: '1px solid var(--dsw-alias-border-l1)',
     color: 'var(--dsw-alias-label-tertiary)',
     font: 'var(--dsw-font-xxs-12)',
-    textAlign: 'end',
+  },
+  '.cm-gitChangePeekHunkHeader code': {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    font: 'var(--dsw-font-markdown-code-block)',
+  },
+  '.cm-gitChangePeekRows': {
+    maxHeight: '260px',
+    overflow: 'auto',
+    paddingBlock: '5px',
+    font: 'var(--dsw-font-markdown-code-block)',
+  },
+  '.cm-gitChangePeekRow': {
+    display: 'grid',
+    gridTemplateColumns: 'var(--dsw-git-diff-line-number-width) var(--dsw-git-diff-line-number-width) 14px minmax(0, 1fr)',
+    alignItems: 'start',
+    minHeight: '20px',
+    color: 'var(--dsw-alias-label-primary)',
+  },
+  '.cm-gitChangePeekLineNumber': {
+    boxSizing: 'border-box',
+    minHeight: '20px',
+    paddingInlineEnd: '5px',
+    color: 'var(--dsw-alias-label-tertiary)',
+    textAlign: 'right',
+    userSelect: 'none',
+  },
+  '.cm-gitChangePeekLineNumber[data-side="new"]': {
     borderInlineEnd: '1px solid var(--dsw-alias-border-l1)',
   },
-  '.cm-gitChangePeekVersion[data-version="before"] > span': {
-    color: 'var(--dsw-alias-state-error-primary)',
+  '.cm-gitChangePeekPrefix': {
+    minHeight: '20px',
+    textAlign: 'center',
+    userSelect: 'none',
   },
-  '.cm-gitChangePeekVersion[data-version="current"] > span': {
-    color: 'var(--dsw-alias-state-success-primary)',
-  },
-  '.cm-gitChangePeekVersion pre': {
-    boxSizing: 'border-box',
+  '.cm-gitChangePeekCode': {
     minWidth: '0',
-    maxHeight: '150px',
-    margin: '0',
-    padding: '8px 10px',
-    overflow: 'auto',
-    color: 'var(--dsw-alias-label-primary)',
-    font: 'var(--dsw-font-markdown-code-block)',
-    lineHeight: '1.55',
+    minHeight: '20px',
+    paddingInlineEnd: '10px',
     whiteSpace: 'pre-wrap',
     overflowWrap: 'anywhere',
+    font: 'inherit',
+  },
+  '.cm-gitChangePeekRow[data-diff-kind="removed"] .cm-gitChangePeekPrefix, .cm-gitChangePeekRow[data-diff-kind="removed"] .cm-gitChangePeekCode': {
+    color: 'var(--dsw-alias-state-error-primary)',
+  },
+  '.cm-gitChangePeekRow[data-diff-kind="added"] .cm-gitChangePeekPrefix, .cm-gitChangePeekRow[data-diff-kind="added"] .cm-gitChangePeekCode': {
+    color: 'var(--dsw-alias-state-success-primary)',
   },
 })

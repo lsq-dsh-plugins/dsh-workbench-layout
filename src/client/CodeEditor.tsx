@@ -21,19 +21,23 @@ export interface CodeEditorProps {
   ariaLabel: string
   gitOriginal?: string
   gitLabels?: GitLineDecorationLabels
+  onGitHunkOpen?: () => void
 }
 
 export type CodeEditorChangeSource = 'input' | 'git-revert'
 
 /** CodeMirror surface themed entirely through DSH design tokens. */
-export function CodeEditor({ value, onChange, ariaLabel, gitOriginal, gitLabels }: CodeEditorProps) {
+export function CodeEditor({ value, onChange, ariaLabel, gitOriginal, gitLabels, onGitHunkOpen }: CodeEditorProps) {
   const parent = useRef<HTMLDivElement>(null)
   const view = useRef<EditorView | null>(null)
   const onChangeRef = useRef(onChange)
   const lineEndingRef = useRef<EditorLineEnding>(detectEditorLineEnding(value))
   const syncingRef = useRef(false)
   const gitChanges = useRef(new Compartment())
+  const onGitHunkOpenRef = useRef(onGitHunkOpen)
+  const notifyGitHunkOpen = useRef(() => { onGitHunkOpenRef.current?.() })
   onChangeRef.current = onChange
+  onGitHunkOpenRef.current = onGitHunkOpen
   lineEndingRef.current = detectEditorLineEnding(value)
 
   useEffect(() => {
@@ -83,7 +87,11 @@ export function CodeEditor({ value, onChange, ariaLabel, gitOriginal, gitLabels 
             '&.cm-focused': { outline: 'none' },
             '.cm-cursor': { borderLeftColor: 'var(--dsw-alias-label-primary)' },
           }),
-          gitChanges.current.of(gitLineDecorations(gitOriginal ?? null, gitLabels ?? DEFAULT_GIT_LINE_LABELS)),
+          gitChanges.current.of(gitLineDecorations(
+            gitOriginal ?? null,
+            gitLabels ?? DEFAULT_GIT_LINE_LABELS,
+            notifyGitHunkOpen.current,
+          )),
         ],
       }),
     })
@@ -115,6 +123,7 @@ export function CodeEditor({ value, onChange, ariaLabel, gitOriginal, gitLabels 
       effects: gitChanges.current.reconfigure(gitLineDecorations(
         gitOriginal ?? null,
         gitLabels ?? DEFAULT_GIT_LINE_LABELS,
+        notifyGitHunkOpen.current,
       )),
     })
   }, [gitLabels, gitOriginal])

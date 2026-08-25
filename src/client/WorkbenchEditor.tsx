@@ -37,7 +37,6 @@ export function WorkbenchEditor({ sessionId, useWorkspaces, controller, activate
     deleted: t('editor.gitDeletedChange'),
     before: t('editor.gitHeadVersion'),
     current: t('editor.gitCurrentVersion'),
-    empty: t('editor.gitEmptyVersion'),
     previous: t('editor.gitPreviousChange'),
     next: t('editor.gitNextChange'),
     revert: t('editor.gitRevertChange'),
@@ -182,6 +181,7 @@ export function WorkbenchEditor({ sessionId, useWorkspaces, controller, activate
                     value={tab.draft}
                     ariaLabel={tab.path}
                     onChange={(value, source) => { controller.setDraft(value, source) }}
+                    onGitHunkOpen={() => { controller.logGitHunkOpen(tab.path) }}
                     {...tab.gitBaseline?.available === true && !tab.gitBaseline.binary
                       ? { gitOriginal: tab.gitBaseline.original }
                       : {}}

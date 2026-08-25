@@ -42,7 +42,7 @@ describe('WorkbenchController', () => {
     expect(activeTab(controller)).toMatchObject({ dirty: false, saving: false, file: { version: 'v2' } })
   })
 
-  it('logs an explicit single-block Git revert without logging normal typing', async () => {
+  it('logs local Git hunk interactions without logging normal typing', async () => {
     const logger = { info: vi.fn(), warn: vi.fn() }
     const controller = new WorkbenchController({
       readFile: vi.fn(() => Promise.resolve(file('src/a.ts', 'before', 'v1'))),
@@ -52,6 +52,10 @@ describe('WorkbenchController', () => {
 
     controller.setDraft('typed', 'input')
     expect(logger.info).not.toHaveBeenCalled()
+    controller.logGitHunkOpen('src/a.ts')
+    expect(logger.info).toHaveBeenLastCalledWith(
+      'workbench-layout: opened local Git Diff hunk for "src/a.ts"',
+    )
     controller.setDraft('before', 'git-revert')
 
     expect(logger.info).toHaveBeenCalledWith(

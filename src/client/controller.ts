@@ -467,6 +467,10 @@ export class WorkbenchController {
     }
   }
 
+  logGitHunkOpen(path: string): void {
+    this.logger.info(`workbench-layout: opened local Git Diff hunk for ${JSON.stringify(path)}`)
+  }
+
   revert(tabId = this.store.getSnapshot().activeTabId): void {
     if (tabId === undefined) return
     const selected = this.store.getSnapshot().tabs.find(tab => tab.id === tabId)
