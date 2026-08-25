@@ -25,6 +25,20 @@ export interface WorkspaceFile {
   markdown: boolean
 }
 
+export interface WorkspaceFileObservation {
+  path: string
+  version: string
+}
+
+export type WorkspaceFileRefresh =
+  | { path: string; status: 'unchanged' }
+  | { path: string; status: 'changed'; file: WorkspaceFile }
+  | { path: string; status: 'deleted' }
+
+export interface WorkspaceFilesRefresh {
+  files: WorkspaceFileRefresh[]
+}
+
 export interface SavedWorkspaceFile {
   path: string
   version: string

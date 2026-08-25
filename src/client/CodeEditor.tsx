@@ -2,6 +2,12 @@ import { useEffect, useRef } from 'react'
 import { EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { basicSetup } from 'codemirror'
+import {
+  detectEditorLineEnding,
+  normalizeEditorText,
+  restoreEditorLineEndings,
+  type EditorLineEnding,
+} from './editor-line-endings.ts'
 import css from './Workbench.module.css'
 
 export interface CodeEditorProps {
@@ -15,20 +21,25 @@ export function CodeEditor({ value, onChange, ariaLabel }: CodeEditorProps) {
   const parent = useRef<HTMLDivElement>(null)
   const view = useRef<EditorView | null>(null)
   const onChangeRef = useRef(onChange)
+  const lineEndingRef = useRef<EditorLineEnding>(detectEditorLineEnding(value))
+  const syncingRef = useRef(false)
   onChangeRef.current = onChange
+  lineEndingRef.current = detectEditorLineEnding(value)
 
   useEffect(() => {
     if (parent.current === null) return
     const editor = new EditorView({
       parent: parent.current,
       state: EditorState.create({
-        doc: value,
+        doc: normalizeEditorText(value),
         extensions: [
           basicSetup,
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({ 'aria-label': ariaLabel }),
           EditorView.updateListener.of((update) => {
-            if (update.docChanged) onChangeRef.current(update.state.doc.toString())
+            if (update.docChanged && !syncingRef.current) {
+              onChangeRef.current(restoreEditorLineEndings(update.state.doc.toString(), lineEndingRef.current))
+            }
           }),
           EditorView.theme({
             '&': {
@@ -70,8 +81,14 @@ export function CodeEditor({ value, onChange, ariaLabel }: CodeEditorProps) {
     const editor = view.current
     if (editor === null) return
     const current = editor.state.doc.toString()
-    if (current === value) return
-    editor.dispatch({ changes: { from: 0, to: current.length, insert: value } })
+    const normalized = normalizeEditorText(value)
+    if (current === normalized) return
+    syncingRef.current = true
+    try {
+      editor.dispatch({ changes: { from: 0, to: current.length, insert: normalized } })
+    } finally {
+      syncingRef.current = false
+    }
   }, [value])
 
   return <div ref={parent} className={css.codeEditorHost} />

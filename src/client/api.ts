@@ -22,6 +22,8 @@ import type {
   RenamedWorkspaceEntry,
   WorkbenchErrorBody,
   WorkspaceFile,
+  WorkspaceFileObservation,
+  WorkspaceFilesRefresh,
   WorkspaceAbsolutePath,
   WorkspaceRelativePath,
 } from '../contracts.ts'
@@ -42,6 +44,10 @@ export class WorkbenchApi {
 
   async readFile(workspaceId: string, path: string): Promise<WorkspaceFile> {
     return this.post('/file/read', { workspaceId, path })
+  }
+
+  async refreshFiles(workspaceId: string, files: WorkspaceFileObservation[]): Promise<WorkspaceFilesRefresh> {
+    return this.post('/files/refresh', { workspaceId, files })
   }
 
   async saveFile(workspaceId: string, path: string, content: string, version: string): Promise<SavedWorkspaceFile> {

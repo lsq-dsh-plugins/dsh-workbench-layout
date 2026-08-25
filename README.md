@@ -27,6 +27,8 @@ The layout, icons, colors, menus, dialogs, tooltips, and responsive behavior reu
 - Browse directories lazily and create, rename, or delete files and folders.
 - Open multiple files in one tab strip; use the mouse wheel over overflowing tabs to scroll horizontally.
 - Save the active file with `Ctrl/Cmd + S`. Writes use DSH version tokens so an externally changed file is not silently overwritten.
+- While the page is visible, open files are checked in one batch about once a second, with an immediate check when focus returns. Clean tabs update automatically; a dirty draft receives explicit Reload or Keep Current choices after an external change.
+- The editor compares CodeMirror's canonical text and preserves the file's existing CRLF, LF, or CR style when saving, preventing line-ending normalization from creating a false yellow dirty marker.
 - Open Markdown in rendered Preview mode by default and switch to Source when editing.
 - Copy workspace-relative or absolute paths from the file context menu.
 - Open file references produced by DSH tools directly in the middle editor.
@@ -92,6 +94,7 @@ Git features require the selected Workspace root to be a Git repository. Remote 
 - Host APIs resolve an official Workspace id and workspace-relative path; browser-provided absolute paths are not accepted as file targets.
 - Traversal outside the Workspace and symbolic-link access are rejected.
 - File creation is atomic, saves use version checks, and rename does not intentionally replace an existing entry.
+- External refreshes compare versions through the official DSH filesystem in one batch and never replace an unsaved draft automatically.
 - Recursive folder deletion and destructive Git actions require confirmation. File and folder deletion is permanent.
 - Pull and Sync are fast-forward only. Cherry-pick and Revert require a clean worktree and abort automatically when Git reports a conflict.
 - Git commands use fixed arguments without a shell, and terminal credential prompts are disabled for Git operations.

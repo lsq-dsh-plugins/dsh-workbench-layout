@@ -204,6 +204,38 @@ describe('WorkspaceBackend', () => {
     await expect(backend.readGitText('workspace-1', 'image.png')).resolves.toEqual({ text: '', binary: true })
   })
 
+  it('refreshes only changed open files and reports removed files in one request', async () => {
+    const readText = vi.fn((target: { displayPath: string }) => Promise.resolve(`current:${target.displayPath}`))
+    const { backend } = harness({
+      lstat: vi.fn((path: string) => Promise.resolve(path === 'removed.txt'
+        ? undefined
+        : { type: 'file' })),
+      stat: vi.fn((target: { displayPath: string }) => Promise.resolve(target.displayPath === 'removed.txt'
+        ? undefined
+        : {
+            type: 'file',
+            version: target.displayPath === 'same.txt' ? 'v1' : 'v2',
+            size: 16,
+          })),
+      readText,
+    })
+
+    await expect(backend.refreshFiles('workspace-1', [
+      { path: 'same.txt', version: 'v1' },
+      { path: 'changed.txt', version: 'v1' },
+      { path: 'removed.txt', version: 'v1' },
+    ])).resolves.toEqual({ files: [
+      { path: 'same.txt', status: 'unchanged' },
+      {
+        path: 'changed.txt',
+        status: 'changed',
+        file: expect.objectContaining({ path: 'changed.txt', version: 'v2' }),
+      },
+      { path: 'removed.txt', status: 'deleted' },
+    ] })
+    expect(readText).toHaveBeenCalledOnce()
+  })
+
   it('enforces the file limit before reading Git content', async () => {
     const readText = vi.fn(() => Promise.resolve('too large'))
     const { backend } = harness({

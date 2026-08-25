@@ -10,6 +10,7 @@ import { WorkbenchController } from './controller.ts'
 import { installWorkbenchLayout } from './layout-styles.ts'
 import { en, zh } from './locales.ts'
 import { ModeSwitch } from './ModeSwitch.tsx'
+import { installOpenFileRefresh } from './open-file-refresh.ts'
 import { createWorkbenchWorkspaceActivator } from './workspace-layout.ts'
 import { WorkbenchEditor } from './WorkbenchEditor.tsx'
 import { WorkbenchSidebar } from './WorkbenchSidebar.tsx'
@@ -24,6 +25,7 @@ export function apply(ctx: ClientContext): void {
   }, ctx.layout)
   const activateWorkspace = createWorkbenchWorkspaceActivator(controller, ctx.logger)
   ctx.effect(() => ctx.locale.register('workbench', { zh, en }), 'workbench-layout: dictionaries')
+  ctx.effect(() => installOpenFileRefresh(controller), 'workbench-layout: open file refresh')
 
   ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
     name: 'sidebar.footer.action',

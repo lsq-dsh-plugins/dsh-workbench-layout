@@ -98,6 +98,31 @@ export function WorkbenchEditor({ sessionId, useWorkspaces, controller, activate
         )}
       </header>
       {tab.kind !== 'terminal' && tab.error !== null && <div className={css.editorError} role="alert">{tab.error}</div>}
+      {tab.kind === 'file' && tab.externalChange !== null && (
+        <div className={css.editorExternalChange} role="status">
+          <span>{tab.externalChange.kind === 'changed'
+            ? t('editor.externalChanged')
+            : t('editor.externalDeleted')}</span>
+          <div className={css.editorExternalActions}>
+            {tab.externalChange.kind === 'changed'
+              ? (
+                <>
+                  <Button size="sm" variant="toolbar" onClick={() => { controller.reloadExternalFile(tab.id) }}>
+                    {t('editor.reloadExternal')}
+                  </Button>
+                  <Button size="sm" variant="toolbar" onClick={() => { controller.keepCurrentDraft(tab.id) }}>
+                    {t('editor.keepCurrent')}
+                  </Button>
+                </>
+              )
+              : (
+                <Button size="sm" variant="toolbar" onClick={() => { requestClose(tab.id) }}>
+                  {t('editor.closeDeleted')}
+                </Button>
+              )}
+          </div>
+        </div>
+      )}
       <div className={css.editorBody}>
         {terminalTabs.map(terminal => (
           <div

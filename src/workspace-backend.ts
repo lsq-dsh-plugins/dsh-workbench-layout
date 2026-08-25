@@ -14,6 +14,9 @@ import type {
   WorkspaceEntry,
   WorkspaceAbsolutePath,
   WorkspaceFile,
+  WorkspaceFileObservation,
+  WorkspaceFileRefresh,
+  WorkspaceFilesRefresh,
   WorkspaceRelativePath,
 } from './contracts.ts'
 import { WorkbenchHttpError } from './http.ts'
@@ -99,6 +102,56 @@ export class WorkspaceBackend {
       size,
       markdown: /\.(?:md|markdown)$/iu.test(workspace.path),
     }
+  }
+
+  /** Check every open file by its DSH filesystem version and read content only when it changed. */
+  async refreshFiles(workspaceIdValue: unknown, observationsValue: unknown): Promise<WorkspaceFilesRefresh> {
+    const observations = requireFileObservations(observationsValue)
+    if (observations.length > 100) {
+      throw new WorkbenchHttpError(400, 'TOO_MANY_OPEN_FILES', '一次最多刷新 100 个已打开文件。')
+    }
+    const files: WorkspaceFileRefresh[] = []
+    let changed = 0
+    for (const observation of observations) {
+      const workspace = await this.resolve(workspaceIdValue, observation.path, false)
+      if (workspace.path === '') throw new WorkbenchHttpError(400, 'FILE_REQUIRED', '请选择文件。')
+      const info = await this.ctx.fs.stat(workspace.target)
+      if (info === undefined || info.type !== 'file') {
+        files.push({ path: workspace.path, status: 'deleted' })
+        changed += 1
+        continue
+      }
+      if (info.version === observation.version) {
+        files.push({ path: workspace.path, status: 'unchanged' })
+        continue
+      }
+      if (info.size !== undefined && info.size > this.limits.maxFileBytes) {
+        throw new WorkbenchHttpError(413, 'FS_TOO_LARGE', '文件超过工作台允许的大小。')
+      }
+      const content = await this.ctx.fs.readText(workspace.target)
+      const size = new TextEncoder().encode(content).byteLength
+      if (size > this.limits.maxFileBytes) {
+        throw new WorkbenchHttpError(413, 'FS_TOO_LARGE', '文件超过工作台允许的大小。')
+      }
+      files.push({
+        path: workspace.path,
+        status: 'changed',
+        file: {
+          path: workspace.path,
+          content,
+          version: info.version,
+          size,
+          markdown: /\.(?:md|markdown)$/iu.test(workspace.path),
+        },
+      })
+      changed += 1
+    }
+    if (changed > 0) {
+      this.ctx.logger.info(
+        `workbench-layout: detected ${changed} external workspace file change(s) in ${JSON.stringify(workspaceIdValue)}`,
+      )
+    }
+    return { files }
   }
 
   async save(
@@ -355,6 +408,22 @@ export class WorkspaceBackend {
     }
     return info
   }
+}
+
+function requireFileObservations(value: unknown): WorkspaceFileObservation[] {
+  if (!Array.isArray(value)) {
+    throw new WorkbenchHttpError(400, 'FILE_OBSERVATIONS_REQUIRED', '缺少已打开文件版本。')
+  }
+  return value.map((item) => {
+    if (item === null || typeof item !== 'object') {
+      throw new WorkbenchHttpError(400, 'FILE_OBSERVATION_INVALID', '已打开文件版本无效。')
+    }
+    const { path, version } = item as Record<string, unknown>
+    if (typeof path !== 'string' || path === '' || typeof version !== 'string' || version === '') {
+      throw new WorkbenchHttpError(400, 'FILE_OBSERVATION_INVALID', '已打开文件版本无效。')
+    }
+    return { path, version }
+  })
 }
 
 function requireEntryName(value: unknown): string {

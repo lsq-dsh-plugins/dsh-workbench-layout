@@ -204,6 +204,79 @@ describe('WorkbenchController', () => {
     })
   })
 
+  it('updates clean tabs after an external file change without creating a dirty marker', async () => {
+    const api = {
+      readFile: vi.fn(() => Promise.resolve(file('draft.txt', 'before', '1'))),
+      refreshFiles: vi.fn(() => Promise.resolve({ files: [{
+        path: 'draft.txt', status: 'changed', file: file('draft.txt', 'outside', '2'),
+      }] })),
+    }
+    const controller = createController(api)
+    await controller.openFile('workspace-1', 'draft.txt')
+    await controller.refreshOpenFiles()
+
+    expect(api.refreshFiles).toHaveBeenCalledWith('workspace-1', [{ path: 'draft.txt', version: '1' }])
+    expect(activeTab(controller)).toMatchObject({
+      draft: 'outside', dirty: false, file: { content: 'outside', version: '2' }, externalChange: null,
+    })
+  })
+
+  it('protects a dirty draft when an external file change arrives and lets the user choose the version', async () => {
+    const api = {
+      readFile: vi.fn(() => Promise.resolve(file('draft.txt', 'before', '1'))),
+      refreshFiles: vi.fn(() => Promise.resolve({ files: [{
+        path: 'draft.txt', status: 'changed', file: file('draft.txt', 'outside', '2'),
+      }] })),
+    }
+    const controller = createController(api)
+    await controller.openFile('workspace-1', 'draft.txt')
+    controller.setDraft('inside')
+    await controller.refreshOpenFiles()
+
+    expect(activeTab(controller)).toMatchObject({
+      draft: 'inside', dirty: true,
+      externalChange: { kind: 'changed', file: { content: 'outside', version: '2' } },
+    })
+    expect(await controller.save()).toBe(false)
+    controller.keepCurrentDraft()
+    expect(activeTab(controller)).toMatchObject({
+      draft: 'inside', dirty: true, file: { content: 'outside', version: '2' }, externalChange: null,
+    })
+  })
+
+  it('reports an externally deleted open file without erasing its current contents', async () => {
+    const api = {
+      readFile: vi.fn(() => Promise.resolve(file('draft.txt', 'visible', '1'))),
+      refreshFiles: vi.fn(() => Promise.resolve({
+        files: [{ path: 'draft.txt', status: 'deleted' }],
+      })),
+    }
+    const controller = createController(api)
+    await controller.openFile('workspace-1', 'draft.txt')
+    await controller.refreshOpenFiles()
+
+    expect(activeTab(controller)).toMatchObject({
+      draft: 'visible', dirty: false, externalChange: { kind: 'deleted' },
+    })
+  })
+
+  it('coalesces overlapping foreground refresh requests', async () => {
+    let finishRefresh: ((value: { files: never[] }) => void) | undefined
+    const api = {
+      readFile: vi.fn(() => Promise.resolve(file('draft.txt', 'visible', '1'))),
+      refreshFiles: vi.fn(() => new Promise<{ files: never[] }>(resolve => { finishRefresh = resolve })),
+    }
+    const controller = createController(api)
+    await controller.openFile('workspace-1', 'draft.txt')
+    const first = controller.refreshOpenFiles()
+    const second = controller.refreshOpenFiles()
+
+    expect(first).toBe(second)
+    expect(api.refreshFiles).toHaveBeenCalledOnce()
+    finishRefresh?.({ files: [] })
+    await first
+  })
+
   it('saves the requested inactive tab without switching the active tab', async () => {
     const api = {
       readFile: vi.fn()

@@ -98,6 +98,8 @@ async function dispatch(
       return workspace.list(body.workspaceId, body.path)
     case `${WORKBENCH_API_PREFIX}/file/read`:
       return workspace.read(body.workspaceId, body.path)
+    case `${WORKBENCH_API_PREFIX}/files/refresh`:
+      return workspace.refreshFiles(body.workspaceId, body.files)
     case `${WORKBENCH_API_PREFIX}/file/save`:
       return workspace.save(body.workspaceId, body.path, body.content, body.version)
     case `${WORKBENCH_API_PREFIX}/file/create`:

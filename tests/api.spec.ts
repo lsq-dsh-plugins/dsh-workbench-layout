@@ -13,6 +13,7 @@ describe('Workbench browser API', () => {
     const api = new WorkbenchApi()
 
     await api.listDirectory('workspace-1', 'src')
+    await api.refreshFiles('workspace-1', [{ path: 'src/a.ts', version: 'v1' }])
     await api.createFile('workspace-1', 'src/new.ts')
     await api.createDirectory('workspace-1', 'docs')
     await api.renameEntry('workspace-1', 'docs', 'notes')
@@ -23,21 +24,26 @@ describe('Workbench browser API', () => {
     await api.gitGraph('workspace-1')
 
     const fileRequest = fetch.mock.calls[0]?.[1] as RequestInit
-    const createFileRequest = fetch.mock.calls[1]?.[1] as RequestInit
-    const createDirectoryRequest = fetch.mock.calls[2]?.[1] as RequestInit
-    const renameRequest = fetch.mock.calls[3]?.[1] as RequestInit
-    const deleteRequest = fetch.mock.calls[4]?.[1] as RequestInit
-    const absoluteRequest = fetch.mock.calls[5]?.[1] as RequestInit
-    const relativeRequest = fetch.mock.calls[6]?.[1] as RequestInit
-    const gitRequest = fetch.mock.calls[7]?.[1] as RequestInit
-    expect(fetch.mock.calls[1]?.[0]).toBe('/dsh-workbench-layout/file/create')
-    expect(fetch.mock.calls[2]?.[0]).toBe('/dsh-workbench-layout/directory/create')
-    expect(fetch.mock.calls[3]?.[0]).toBe('/dsh-workbench-layout/entry/rename')
-    expect(fetch.mock.calls[4]?.[0]).toBe('/dsh-workbench-layout/entry/delete')
-    expect(fetch.mock.calls[5]?.[0]).toBe('/dsh-workbench-layout/path/absolute')
-    expect(fetch.mock.calls[6]?.[0]).toBe('/dsh-workbench-layout/path/relative')
-    expect(fetch.mock.calls[8]?.[0]).toBe('/dsh-workbench-layout/git/graph')
+    const refreshRequest = fetch.mock.calls[1]?.[1] as RequestInit
+    const createFileRequest = fetch.mock.calls[2]?.[1] as RequestInit
+    const createDirectoryRequest = fetch.mock.calls[3]?.[1] as RequestInit
+    const renameRequest = fetch.mock.calls[4]?.[1] as RequestInit
+    const deleteRequest = fetch.mock.calls[5]?.[1] as RequestInit
+    const absoluteRequest = fetch.mock.calls[6]?.[1] as RequestInit
+    const relativeRequest = fetch.mock.calls[7]?.[1] as RequestInit
+    const gitRequest = fetch.mock.calls[8]?.[1] as RequestInit
+    expect(fetch.mock.calls[1]?.[0]).toBe('/dsh-workbench-layout/files/refresh')
+    expect(fetch.mock.calls[2]?.[0]).toBe('/dsh-workbench-layout/file/create')
+    expect(fetch.mock.calls[3]?.[0]).toBe('/dsh-workbench-layout/directory/create')
+    expect(fetch.mock.calls[4]?.[0]).toBe('/dsh-workbench-layout/entry/rename')
+    expect(fetch.mock.calls[5]?.[0]).toBe('/dsh-workbench-layout/entry/delete')
+    expect(fetch.mock.calls[6]?.[0]).toBe('/dsh-workbench-layout/path/absolute')
+    expect(fetch.mock.calls[7]?.[0]).toBe('/dsh-workbench-layout/path/relative')
+    expect(fetch.mock.calls[9]?.[0]).toBe('/dsh-workbench-layout/git/graph')
     expect(JSON.parse(String(fileRequest.body))).toEqual({ workspaceId: 'workspace-1', path: 'src' })
+    expect(JSON.parse(String(refreshRequest.body))).toEqual({
+      workspaceId: 'workspace-1', files: [{ path: 'src/a.ts', version: 'v1' }],
+    })
     expect(JSON.parse(String(createFileRequest.body))).toEqual({ workspaceId: 'workspace-1', path: 'src/new.ts' })
     expect(JSON.parse(String(createDirectoryRequest.body))).toEqual({ workspaceId: 'workspace-1', path: 'docs' })
     expect(JSON.parse(String(renameRequest.body))).toEqual({ workspaceId: 'workspace-1', path: 'docs', name: 'notes' })

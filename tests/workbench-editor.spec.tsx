@@ -90,6 +90,25 @@ describe('WorkbenchEditor multi-file tabs', () => {
     fireEvent.click(view.getByRole('button', { name: '关闭 终端 1' }))
     expect(controller.closeTab).toHaveBeenCalledWith('terminal:1')
   })
+
+  it('offers explicit choices instead of overwriting a draft changed by another program', () => {
+    workbenchState.current.tabs[1] = {
+      ...workbenchState.current.tabs[1]!,
+      dirty: true,
+      externalChange: {
+        kind: 'changed',
+        file: { path: 'README.md', content: '# Outside', version: '2', size: 9, markdown: true },
+      },
+    }
+    const controller = controllerFake()
+    const view = renderEditor(controller)
+
+    expect(view.getByText('文件已在其他程序中修改。请选择要保留的内容。')).toBeTruthy()
+    fireEvent.click(view.getByRole('button', { name: '重新加载' }))
+    expect(controller.reloadExternalFile).toHaveBeenCalledWith('file:README.md')
+    fireEvent.click(view.getByRole('button', { name: '保留当前内容' }))
+    expect(controller.keepCurrentDraft).toHaveBeenCalledWith('file:README.md')
+  })
 })
 
 function renderEditor(controller: ReturnType<typeof controllerFake>) {
@@ -117,6 +136,8 @@ function controllerFake() {
     closeTab: vi.fn(() => true),
     setPreview: vi.fn(),
     revert: vi.fn(),
+    reloadExternalFile: vi.fn(),
+    keepCurrentDraft: vi.fn(),
     setDraft: vi.fn(),
     setDiffViewMode: vi.fn(),
     restartTerminal: vi.fn(),
@@ -151,6 +172,7 @@ function tab(path: string, content: string, markdown: boolean) {
     preview: markdown,
     loading: false,
     saving: false,
+    externalChange: null,
     error: null,
   }
 }

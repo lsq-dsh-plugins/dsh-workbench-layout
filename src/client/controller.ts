@@ -29,8 +29,13 @@ export interface WorkbenchFileTab {
   preview: boolean
   loading: boolean
   saving: boolean
+  externalChange: ExternalFileChange | null
   error: string | null
 }
+
+export type ExternalFileChange =
+  | { kind: 'changed'; file: WorkspaceFile }
+  | { kind: 'deleted' }
 
 export interface WorkbenchDiffTab {
   id: string
@@ -102,6 +107,8 @@ export class WorkbenchController {
   private terminalId = 0
   private setSidebarShadow: ((active: boolean) => void) | undefined
   private readonly workspaceStates = new Map<string, WorkbenchState>()
+  private refreshPromise: Promise<void> | undefined
+  private refreshFailureActive = false
 
   constructor(
     api: WorkbenchApi = new WorkbenchApi(),
@@ -229,6 +236,7 @@ export class WorkbenchController {
         tab.file = file
         tab.draft = file.content
         tab.dirty = false
+        tab.externalChange = null
         tab.preview = file.markdown
         tab.loading = false
         tab.error = null
@@ -354,6 +362,13 @@ export class WorkbenchController {
       const tab = state.tabs.find(candidate => candidate.id === tabId)
       if (tab?.kind !== 'file' || tab.file === null) return
       tab.draft = value
+      if (tab.externalChange?.kind === 'changed' && value === tab.externalChange.file.content) {
+        tab.file = tab.externalChange.file
+        tab.externalChange = null
+        tab.dirty = false
+        tab.error = null
+        return
+      }
       tab.dirty = value !== tab.file.content
       tab.error = null
     })
@@ -363,6 +378,10 @@ export class WorkbenchController {
     if (tabId === undefined) return
     const selected = this.store.getSnapshot().tabs.find(tab => tab.id === tabId)
     if (selected?.kind !== 'file') return
+    if (selected.externalChange?.kind === 'changed') {
+      this.reloadExternalFile(tabId)
+      return
+    }
     this.store.update((state) => {
       const tab = state.tabs.find(candidate => candidate.id === tabId)
       if (tab?.kind !== 'file' || tab.file === null) return
@@ -371,6 +390,49 @@ export class WorkbenchController {
       tab.error = null
     })
     this.logger.info(`workbench-layout: reverted file tab ${JSON.stringify(selected.path)}`)
+  }
+
+  /** Replace the draft with the externally changed version after explicit user confirmation. */
+  reloadExternalFile(tabId = this.store.getSnapshot().activeTabId): void {
+    if (tabId === undefined) return
+    const selected = this.store.getSnapshot().tabs.find(tab => tab.id === tabId)
+    if (selected?.kind !== 'file' || selected.externalChange?.kind !== 'changed') return
+    this.store.update((state) => {
+      const tab = state.tabs.find(candidate => candidate.id === tabId)
+      if (tab?.kind !== 'file' || tab.externalChange?.kind !== 'changed') return
+      tab.file = tab.externalChange.file
+      tab.draft = tab.externalChange.file.content
+      tab.dirty = false
+      tab.externalChange = null
+      tab.error = null
+    })
+    this.logger.info(`workbench-layout: reloaded externally changed file tab ${JSON.stringify(selected.path)}`)
+  }
+
+  /** Keep the current draft while adopting the external version as the next guarded save base. */
+  keepCurrentDraft(tabId = this.store.getSnapshot().activeTabId): void {
+    if (tabId === undefined) return
+    const selected = this.store.getSnapshot().tabs.find(tab => tab.id === tabId)
+    if (selected?.kind !== 'file' || selected.externalChange?.kind !== 'changed') return
+    this.store.update((state) => {
+      const tab = state.tabs.find(candidate => candidate.id === tabId)
+      if (tab?.kind !== 'file' || tab.externalChange?.kind !== 'changed') return
+      tab.file = tab.externalChange.file
+      tab.dirty = tab.draft !== tab.externalChange.file.content
+      tab.externalChange = null
+      tab.error = null
+    })
+    this.logger.info(`workbench-layout: kept current draft over external file change ${JSON.stringify(selected.path)}`)
+  }
+
+  /** Refresh all loaded file tabs in one request; concurrent visibility/focus triggers share the same run. */
+  refreshOpenFiles(): Promise<void> {
+    if (this.refreshPromise !== undefined) return this.refreshPromise
+    const refresh = this.refreshOpenFilesOnce().finally(() => {
+      if (this.refreshPromise === refresh) this.refreshPromise = undefined
+    })
+    this.refreshPromise = refresh
+    return refresh
   }
 
   setPreview(preview: boolean): void {
@@ -389,6 +451,10 @@ export class WorkbenchController {
     if (tab.file === null || current.workspaceId === undefined || tab.saving || !tab.dirty) {
       return !tab.dirty
     }
+    if (tab.externalChange !== null) {
+      this.logger.warn(`workbench-layout: blocked save for externally changed file tab ${JSON.stringify(tab.path)}`)
+      return false
+    }
     const workspaceId = current.workspaceId
     const savedContent = tab.draft
     const version = tab.file.version
@@ -403,6 +469,7 @@ export class WorkbenchController {
         draft.file = { ...draft.file, content: savedContent, version: saved.version, size: saved.size }
         draft.dirty = draft.draft !== savedContent
         draft.saving = false
+        draft.externalChange = null
         draft.error = null
       })
       this.logger.info(`workbench-layout: saved file tab ${JSON.stringify(tab.path)}`)
@@ -557,6 +624,73 @@ export class WorkbenchController {
     }
   }
 
+  private async refreshOpenFilesOnce(): Promise<void> {
+    const snapshot = this.store.getSnapshot()
+    if (snapshot.workspaceId === undefined) return
+    const workspaceId = snapshot.workspaceId
+    const observations = snapshot.tabs.flatMap(tab => tab.kind === 'file'
+      && tab.file !== null && !tab.loading && !tab.saving
+      ? [{
+          path: tab.path,
+          version: tab.externalChange?.kind === 'changed' ? tab.externalChange.file.version : tab.file.version,
+        }]
+      : [])
+    if (observations.length === 0) return
+    const requestedVersions = new Map(observations.map(item => [item.path, item.version]))
+    try {
+      const refreshed = await this.api.refreshFiles(workspaceId, observations)
+      let updated = 0
+      let conflicted = 0
+      this.updateWorkspaceState(workspaceId, (state) => {
+        for (const result of refreshed.files) {
+          if (result.status === 'unchanged') continue
+          const requestedVersion = requestedVersions.get(result.path)
+          const tab = state.tabs.find(candidate => candidate.kind === 'file' && candidate.path === result.path)
+          if (requestedVersion === undefined || tab?.kind !== 'file' || tab.file === null || tab.saving) continue
+          const currentVersion = tab.externalChange?.kind === 'changed'
+            ? tab.externalChange.file.version
+            : tab.file.version
+          if (currentVersion !== requestedVersion) continue
+          if (result.status === 'deleted') {
+            if (tab.externalChange?.kind !== 'deleted') {
+              tab.externalChange = { kind: 'deleted' }
+              conflicted += 1
+            }
+            continue
+          }
+          if (!tab.dirty || tab.draft === result.file.content) {
+            tab.file = result.file
+            tab.draft = result.file.content
+            tab.dirty = false
+            tab.externalChange = null
+            tab.error = null
+            updated += 1
+            continue
+          }
+          const alreadyObserved = tab.externalChange?.kind === 'changed'
+            && tab.externalChange.file.version === result.file.version
+          tab.externalChange = { kind: 'changed', file: result.file }
+          if (!alreadyObserved) conflicted += 1
+        }
+      })
+      if (updated > 0) {
+        this.logger.info(`workbench-layout: refreshed ${updated} clean file tab(s) after external changes`)
+      }
+      if (conflicted > 0) {
+        this.logger.warn(`workbench-layout: protected ${conflicted} file tab(s) from external overwrite`)
+      }
+      if (this.refreshFailureActive) {
+        this.refreshFailureActive = false
+        this.logger.info('workbench-layout: open file refresh recovered')
+      }
+    } catch {
+      if (!this.refreshFailureActive) {
+        this.refreshFailureActive = true
+        this.logger.warn('workbench-layout: failed to refresh open file versions')
+      }
+    }
+  }
+
   /** Apply an async result only to the Workspace that started the operation. */
   private updateWorkspaceState(workspaceId: string, update: (state: WorkbenchState) => void): void {
     if (this.store.getSnapshot().workspaceId === workspaceId) {
@@ -618,6 +752,7 @@ function emptyFileTab(path: string): WorkbenchFileTab {
     preview: false,
     loading: true,
     saving: false,
+    externalChange: null,
     error: null,
   }
 }
@@ -638,7 +773,13 @@ function cloneState(state: WorkbenchState): WorkbenchState {
   return {
     ...state,
     tabs: state.tabs.map((tab) => {
-      if (tab.kind === 'file') return { ...tab, file: tab.file === null ? null : { ...tab.file } }
+      if (tab.kind === 'file') return {
+        ...tab,
+        file: tab.file === null ? null : { ...tab.file },
+        externalChange: tab.externalChange?.kind === 'changed'
+          ? { kind: 'changed', file: { ...tab.externalChange.file } }
+          : tab.externalChange,
+      }
       if (tab.kind === 'diff') return { ...tab, diff: tab.diff === null ? null : { ...tab.diff } }
       return { ...tab }
     }),
