@@ -1479,11 +1479,6 @@
   box-shadow: 0 1px 3px var(--dsw-alias-bg-mask-1);
 }
 
-.diffViewSwitch button:disabled {
-  cursor: default;
-  opacity: 0.45;
-}
-
 .editorError {
   margin: 8px 12px 0;
 }
@@ -1639,7 +1634,8 @@
   font: var(--dsw-font-xxs-12);
 }
 
-.diffPaneLabels[data-mode='inline'] {
+.diffPaneLabels[data-mode='inline'],
+.diffPaneLabels[data-mode='unified'] {
   grid-template-columns: minmax(0, 1fr);
 }
 

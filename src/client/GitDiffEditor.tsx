@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from 'react'
 import {
   FishLogo,
   Pill,
@@ -10,8 +9,6 @@ import { DiffSurface } from './DiffSurface.tsx'
 import { diffKindText } from './git-diff-labels.ts'
 import css from './Workbench.module.css'
 
-const INLINE_THRESHOLD = 720
-
 export interface GitDiffEditorProps {
   diff: GitFileDiff
   viewMode: DiffViewMode
@@ -19,28 +16,15 @@ export interface GitDiffEditorProps {
   t: TranslateNS<'workbench'>
 }
 
-/** 类似 VS Code Diff Editor 的单文件只读审阅界面。 */
+/** 类似 VS Code Diff Editor 的三模式单文件只读审阅界面。 */
 export function GitDiffEditor(props: GitDiffEditorProps) {
-  const root = useRef<HTMLElement>(null)
-  const [narrow, setNarrow] = useState(false)
-
-  useEffect(() => {
-    if (root.current === null) return
-    const observer = new ResizeObserver((entries) => {
-      const width = entries[0]?.contentRect.width
-      if (width !== undefined) setNarrow(width < INLINE_THRESHOLD)
-    })
-    observer.observe(root.current)
-    return () => { observer.disconnect() }
-  }, [])
-
-  const effectiveMode: DiffViewMode = narrow ? 'inline' : props.viewMode
+  const effectiveMode = props.viewMode
   const labels = diffLabels(props.diff, props.t)
   const renamed = props.diff.originalPath !== undefined && props.diff.originalPath !== props.diff.path
   const noChanges = !props.diff.binary && props.diff.original === props.diff.modified
   const showPaneLabels = props.diff.kind === 'worktree' || props.diff.kind === 'staged'
   return (
-    <section ref={root} className={css.diffDocument} data-diff-effective-mode={effectiveMode}>
+    <section className={css.diffDocument} data-diff-effective-mode={effectiveMode}>
       <div className={css.diffMetadata}>
         <span title={props.diff.path}>{renamed ? `${props.diff.originalPath} → ${props.diff.path}` : props.diff.path}</span>
         <span className={css.diffFileStatus} data-status={props.diff.status}>{props.diff.status}</span>
@@ -56,10 +40,16 @@ export function GitDiffEditor(props: GitDiffEditorProps) {
           <button
             type="button"
             data-active={effectiveMode === 'split' || undefined}
-            disabled={narrow}
             onClick={() => { props.onViewModeChange('split') }}
           >
             {props.t('editor.diffSplit')}
+          </button>
+          <button
+            type="button"
+            data-active={effectiveMode === 'unified' || undefined}
+            onClick={() => { props.onViewModeChange('unified') }}
+          >
+            {props.t('editor.diffUnified')}
           </button>
           <button
             type="button"

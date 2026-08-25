@@ -7,7 +7,7 @@ import { buildGitDecorations, type GitDecorationMap } from './git-decorations.ts
 import type { GitFileLayout } from './git-tree.ts'
 
 export type SidebarMode = 'sessions' | 'files' | 'git' | 'terminal'
-export type DiffViewMode = 'split' | 'inline'
+export type DiffViewMode = 'split' | 'unified' | 'inline'
 export type GitView = 'changes' | 'graph'
 export type TerminalStatus = 'connecting' | 'running' | 'exited' | 'error'
 export type DraftChangeSource = 'input' | 'git-revert'

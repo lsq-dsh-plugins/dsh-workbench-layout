@@ -26,7 +26,7 @@ The layout, icons, colors, menus, dialogs, tooltips, and responsive behavior reu
 
 - Browse directories lazily and create, rename, or delete files and folders.
 - Color file-tree entries and middle-editor tabs from Workspace Git state: untracked, deleted, or conflicted files are red; added files are green; modified and renamed files use the warning color. Untracked state decorates only the file itself; directories aggregate the highest-priority remaining descendant state.
-- Compare the editable source buffer with Git `HEAD` and show additions in green, modifications in blue, and deletion positions in red in a clickable change gutter without tinting code content. Click a marker to open a local Unified Diff with context, paired old/new line numbers, and `-`/`+` rows, navigate between changes, or revert only that block; a revert changes the draft and remains undoable. Staged, unstaged, and unsaved edits are combined, then refreshed while typing, after saves or external changes, and across branch switches. Rendered Markdown Preview stays clean; the markers appear in Source mode.
+- Compare the editable source buffer with Git `HEAD` and show additions in green, modifications in blue, and deletion positions in red in a clickable change gutter without tinting code content. Click a marker to open a local Unified Diff with context, paired old/new line numbers, `-`/`+` rows, and character-level change emphasis, navigate between changes, or revert only that block; a revert changes the draft and remains undoable. Staged, unstaged, and unsaved edits are combined, then refreshed while typing, after saves or external changes, and across branch switches. Rendered Markdown Preview stays clean; the markers appear in Source mode.
 - Open multiple files in one tab strip; use the mouse wheel over overflowing tabs to scroll horizontally.
 - Save the active file with `Ctrl/Cmd + S`. Writes use DSH version tokens so an externally changed file is not silently overwritten.
 - While the page is visible, open files are checked in one batch about once a second, with an immediate check when focus returns. Clean tabs update automatically; a dirty draft receives explicit Reload or Keep Current choices after an external change.
@@ -40,7 +40,7 @@ The layout, icons, colors, menus, dialogs, tooltips, and responsive behavior reu
 - View staged and unstaged changes as a list or directory tree.
 - Stage, unstage, discard, and commit through explicit actions. Long filenames use the full row at rest, then contract by the exact one- or two-button action width on row hover; direct button hover shows a circular fill.
 - Open each working-tree, staged, commit, or comparison Diff as its own editor tab.
-- Render text Diffs with CodeMirror MergeView, line numbers, change blocks, collapsed unchanged regions, side-by-side and inline modes, and long-line wrapping.
+- Render text Diffs with CodeMirror MergeView, line numbers, character-level changes, collapsed unchanged regions, always-available Side by side, Unified, and Inline modes, and long-line wrapping.
 - Explore local and remote refs as a lane-based Commit Graph with branches, merges, tags, authors, timestamps, and file statistics; older commits load automatically in 40-entry pages while scrolling.
 - Expand a commit in place, arrange its files as a list or tree, and open one file at a time.
 - Create, switch, rename, and safely delete local branches; create a branch from a selected ref or commit.

@@ -403,7 +403,12 @@ function gitHunkDiffRowDom(row: GitHunkDiffRow, labels: GitLineDecorationLabels)
   prefix.textContent = row.kind === 'removed' ? '-' : row.kind === 'added' ? '+' : ' '
   const content = document.createElement('code')
   content.className = 'cm-gitChangePeekCode'
-  content.textContent = row.text
+  for (const segment of row.segments) {
+    const span = document.createElement('span')
+    span.dataset.diffSegment = segment.kind
+    span.textContent = segment.text
+    content.append(span)
+  }
   element.append(oldLine, newLine, prefix, content)
   return element
 }
@@ -637,7 +642,21 @@ const gitLineTheme = EditorView.theme({
   '.cm-gitChangePeekRow[data-diff-kind="removed"] .cm-gitChangePeekPrefix, .cm-gitChangePeekRow[data-diff-kind="removed"] .cm-gitChangePeekCode': {
     color: 'var(--dsw-alias-state-error-primary)',
   },
+  '.cm-gitChangePeekRow[data-diff-kind="removed"]': {
+    background: 'color-mix(in srgb, var(--dsw-alias-state-error-primary) 11%, transparent)',
+  },
   '.cm-gitChangePeekRow[data-diff-kind="added"] .cm-gitChangePeekPrefix, .cm-gitChangePeekRow[data-diff-kind="added"] .cm-gitChangePeekCode': {
     color: 'var(--dsw-alias-state-success-primary)',
+  },
+  '.cm-gitChangePeekRow[data-diff-kind="added"]': {
+    background: 'color-mix(in srgb, var(--dsw-alias-state-success-primary) 11%, transparent)',
+  },
+  '.cm-gitChangePeekRow[data-diff-kind="removed"] [data-diff-segment="changed"]': {
+    borderRadius: '2px',
+    background: 'color-mix(in srgb, var(--dsw-alias-state-error-primary) 23%, transparent)',
+  },
+  '.cm-gitChangePeekRow[data-diff-kind="added"] [data-diff-segment="changed"]': {
+    borderRadius: '2px',
+    background: 'color-mix(in srgb, var(--dsw-alias-state-success-primary) 23%, transparent)',
   },
 })

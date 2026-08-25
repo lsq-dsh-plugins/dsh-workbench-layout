@@ -391,9 +391,9 @@ describe('WorkbenchController', () => {
     const logger = { info: vi.fn(), warn: vi.fn() }
     const controller = new WorkbenchController({} as never, logger)
     controller.setWorkspace('workspace-1')
-    controller.setDiffViewMode('inline')
-    expect(controller.store.getSnapshot().diffViewMode).toBe('inline')
-    expect(logger.info).toHaveBeenCalledWith('workbench-layout: Diff view mode changed to inline')
+    controller.setDiffViewMode('unified')
+    expect(controller.store.getSnapshot().diffViewMode).toBe('unified')
+    expect(logger.info).toHaveBeenCalledWith('workbench-layout: Diff view mode changed to unified')
   })
 
   it('binds Git presentation to each Workspace and exposes one-shot rail actions', () => {

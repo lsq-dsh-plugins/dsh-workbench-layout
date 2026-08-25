@@ -9,12 +9,25 @@ export interface DiffSurfaceProps {
   modified: string
   originalLabel: string
   modifiedLabel: string
-  mode: 'split' | 'inline'
+  mode: 'split' | 'unified' | 'inline'
 }
 
 const COLLAPSE_UNCHANGED = { margin: 3, minSize: 8 } as const
 
-/** 使用只读 CodeMirror MergeView 渲染一个文件的前后版本。 */
+export function unifiedDiffOptions(mode: 'unified' | 'inline', original: string) {
+  return {
+    original,
+    allowInlineDiffs: mode === 'inline',
+    collapseUnchanged: COLLAPSE_UNCHANGED,
+    diffConfig: { timeout: 800 },
+    gutter: true,
+    highlightChanges: true,
+    mergeControls: false,
+    syntaxHighlightDeletions: true,
+  }
+}
+
+/** 使用 CodeMirror 的左右、统一或字符行内模式渲染一个只读文件 Diff。 */
 export function DiffSurface(props: DiffSurfaceProps) {
   const parent = useRef<HTMLDivElement>(null)
 
@@ -50,16 +63,7 @@ export function DiffSurface(props: DiffSurfaceProps) {
         doc: props.modified,
         extensions: [
           ...extensions(`${props.originalLabel} / ${props.modifiedLabel}`),
-          unifiedMergeView({
-            original: props.original,
-            allowInlineDiffs: true,
-            collapseUnchanged: COLLAPSE_UNCHANGED,
-            diffConfig: { timeout: 800 },
-            gutter: true,
-            highlightChanges: true,
-            mergeControls: false,
-            syntaxHighlightDeletions: true,
-          }),
+          unifiedMergeView(unifiedDiffOptions(props.mode, props.original)),
         ],
       }),
     })

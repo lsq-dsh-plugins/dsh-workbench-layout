@@ -2,13 +2,11 @@
 
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { useState } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { GitFileDiff } from '../src/contracts.ts'
 import type { DiffViewMode } from '../src/client/controller.ts'
 import { GitDiffEditor } from '../src/client/GitDiffEditor.tsx'
 import { zh } from '../src/client/locales.ts'
-
-let observedWidth = 1000
 
 vi.mock('../src/client/DiffSurface.tsx', () => ({
   DiffSurface: ({ mode, original, modified }: { mode: string; original: string; modified: string }) => (
@@ -23,22 +21,10 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Pill: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
 }))
 
-beforeEach(() => {
-  observedWidth = 1000
-  vi.stubGlobal('ResizeObserver', class {
-    constructor(private readonly callback: ResizeObserverCallback) {}
-    observe(): void {
-      this.callback([{ contentRect: { width: observedWidth } } as ResizeObserverEntry], this as unknown as ResizeObserver)
-    }
-    disconnect(): void {}
-    unobserve(): void {}
-  })
-})
-
 afterEach(() => { cleanup() })
 
 describe('Git Diff editor', () => {
-  it('renders one file side by side and allows switching to inline mode', async () => {
+  it('renders one file and allows switching through all three Diff modes', async () => {
     const diff = sampleDiff()
     function Harness() {
       const [mode, setMode] = useState<DiffViewMode>('split')
@@ -57,12 +43,13 @@ describe('Git Diff editor', () => {
     expect(view.getByText('src/a.ts')).toBeTruthy()
     expect(view.getByText('+1')).toBeTruthy()
     expect(view.getByText('-1')).toBeTruthy()
+    fireEvent.click(view.getByRole('button', { name: '统一' }))
+    await waitFor(() => { expect(view.container.querySelector('[data-diff-surface="unified"]')).not.toBeNull() })
     fireEvent.click(view.getByRole('button', { name: '行内' }))
     await waitFor(() => { expect(view.container.querySelector('[data-diff-surface="inline"]')).not.toBeNull() })
   })
 
-  it('automatically uses inline mode when the editor column is narrow', async () => {
-    observedWidth = 600
+  it('keeps the selected mode available without a width-driven fallback', async () => {
     const view = render(
       <GitDiffEditor
         diff={sampleDiff()}
@@ -71,8 +58,8 @@ describe('Git Diff editor', () => {
         t={(key: keyof typeof zh) => zh[key]}
       />,
     )
-    await waitFor(() => { expect(view.container.querySelector('[data-diff-effective-mode="inline"]')).not.toBeNull() })
-    expect(view.getByRole('button', { name: '左右对照' }).hasAttribute('disabled')).toBe(true)
+    await waitFor(() => { expect(view.container.querySelector('[data-diff-effective-mode="split"]')).not.toBeNull() })
+    expect(view.getAllByRole('button').every(button => !button.hasAttribute('disabled'))).toBe(true)
   })
 
   it('shows a binary notice instead of constructing a text editor', () => {

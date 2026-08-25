@@ -2,12 +2,19 @@ import type { Text } from '@codemirror/state'
 import type { Chunk } from '@codemirror/merge'
 
 export type GitHunkDiffRowKind = 'context' | 'removed' | 'added'
+export type GitHunkDiffSegmentKind = 'plain' | 'changed'
+
+export interface GitHunkDiffSegment {
+  kind: GitHunkDiffSegmentKind
+  text: string
+}
 
 export interface GitHunkDiffRow {
   kind: GitHunkDiffRowKind
   oldLine: number | null
   newLine: number | null
   text: string
+  segments: GitHunkDiffSegment[]
 }
 
 export interface GitHunkDiff {
@@ -22,7 +29,12 @@ interface ChangedLineRange {
   count: number
 }
 
-/** Build one line-oriented Unified Diff hunk around a CodeMirror change chunk. */
+interface CharacterRange {
+  from: number
+  to: number
+}
+
+/** Build one Unified Diff hunk with context, paired line numbers, and character ranges. */
 export function buildGitHunkDiff(
   original: Text,
   current: Text,
@@ -39,6 +51,14 @@ export function buildGitHunkDiff(
   const previousNew = previous === undefined ? undefined : changedLineRange(current, previous.fromB, previous.toB)
   const nextOld = next === undefined ? undefined : changedLineRange(original, next.fromA, next.toA)
   const nextNew = next === undefined ? undefined : changedLineRange(current, next.fromB, next.toB)
+  const oldCharacterRanges = chunk.changes.map(change => ({
+    from: chunk.fromA + change.fromA,
+    to: chunk.fromA + change.toA,
+  }))
+  const newCharacterRanges = chunk.changes.map(change => ({
+    from: chunk.fromB + change.fromB,
+    to: chunk.fromB + change.toB,
+  }))
   const beforeCount = boundedContext(
     contextLines,
     oldRange.start - 1,
@@ -65,15 +85,16 @@ export function buildGitHunkDiff(
       oldLine,
       newLine,
       text: currentLines[newLine - 1] ?? originalLines[oldLine - 1] ?? '',
+      segments: [{ kind: 'plain', text: currentLines[newLine - 1] ?? originalLines[oldLine - 1] ?? '' }],
     })
   }
   for (let offset = 0; offset < oldRange.count; offset++) {
     const oldLine = oldRange.start + offset
-    rows.push({ kind: 'removed', oldLine, newLine: null, text: originalLines[oldLine - 1] ?? '' })
+    rows.push(changedRow('removed', original, oldLine, oldCharacterRanges))
   }
   for (let offset = 0; offset < newRange.count; offset++) {
     const newLine = newRange.start + offset
-    rows.push({ kind: 'added', oldLine: null, newLine, text: currentLines[newLine - 1] ?? '' })
+    rows.push(changedRow('added', current, newLine, newCharacterRanges))
   }
   for (let offset = 0; offset < afterCount; offset++) {
     const oldLine = oldAfter + offset
@@ -83,6 +104,7 @@ export function buildGitHunkDiff(
       oldLine,
       newLine,
       text: currentLines[newLine - 1] ?? originalLines[oldLine - 1] ?? '',
+      segments: [{ kind: 'plain', text: currentLines[newLine - 1] ?? originalLines[oldLine - 1] ?? '' }],
     })
   }
 
@@ -96,6 +118,49 @@ export function buildGitHunkDiff(
     additions: newRange.count,
     deletions: oldRange.count,
   }
+}
+
+function changedRow(
+  kind: 'removed' | 'added',
+  document: Text,
+  lineNumber: number,
+  characterRanges: readonly CharacterRange[],
+): GitHunkDiffRow {
+  const line = document.line(lineNumber)
+  return {
+    kind,
+    oldLine: kind === 'removed' ? lineNumber : null,
+    newLine: kind === 'added' ? lineNumber : null,
+    text: line.text,
+    segments: lineSegments(document, lineNumber, characterRanges),
+  }
+}
+
+function lineSegments(
+  document: Text,
+  lineNumber: number,
+  characterRanges: readonly CharacterRange[],
+): GitHunkDiffSegment[] {
+  const line = document.line(lineNumber)
+  const ranges = characterRanges
+    .map(range => ({ from: Math.max(line.from, range.from), to: Math.min(line.to, range.to) }))
+    .filter(range => range.from < range.to)
+    .sort((left, right) => left.from - right.from || left.to - right.to)
+  if (ranges.length === 0) return [{ kind: 'plain', text: line.text }]
+  const segments: GitHunkDiffSegment[] = []
+  let position = line.from
+  for (const range of ranges) {
+    if (range.from > position) {
+      segments.push({ kind: 'plain', text: document.sliceString(position, range.from) })
+    }
+    const changedFrom = Math.max(position, range.from)
+    if (range.to > changedFrom) {
+      segments.push({ kind: 'changed', text: document.sliceString(changedFrom, range.to) })
+    }
+    position = Math.max(position, range.to)
+  }
+  if (position < line.to) segments.push({ kind: 'plain', text: document.sliceString(position, line.to) })
+  return segments
 }
 
 function changedLineRange(document: Text, from: number, to: number): ChangedLineRange {

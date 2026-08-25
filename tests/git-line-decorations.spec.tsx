@@ -137,8 +137,10 @@ describe('editable Git line decorations', () => {
     expect(dialog.querySelectorAll('[data-diff-kind="context"]')).toHaveLength(1)
     expect(dialog.querySelectorAll('[data-diff-kind="removed"]')).toHaveLength(1)
     expect(dialog.querySelectorAll('[data-diff-kind="added"]')).toHaveLength(1)
-    expect(within(dialog).getByText('second')).toBeTruthy()
-    expect(within(dialog).getByText('changed')).toBeTruthy()
+    expect(dialog.querySelectorAll('[data-diff-kind="removed"] [data-diff-segment="changed"]')).toHaveLength(1)
+    expect(dialog.querySelectorAll('[data-diff-kind="added"] [data-diff-segment="changed"]')).toHaveLength(1)
+    expect(dialog.querySelector('[data-diff-kind="removed"] .cm-gitChangePeekCode')?.textContent).toBe('second')
+    expect(dialog.querySelector('[data-diff-kind="added"] .cm-gitChangePeekCode')?.textContent).toBe('changed')
     expect(gitMarker(view.container, 'modified').dataset.selected).toBe('true')
     expect(onGitHunkOpen).toHaveBeenCalledOnce()
 
