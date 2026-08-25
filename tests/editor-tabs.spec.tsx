@@ -67,6 +67,21 @@ describe('文件标签栏', () => {
     )
     expect(view.getByRole('tab', { name: '终端 1' }).getAttribute('aria-selected')).toBe('true')
   })
+
+  it('把工作区 Git 状态作为文件标签的颜色语义', () => {
+    const view = render(
+      <EditorTabs
+        tabs={[tab('src/added.ts'), tab('src/modified.ts')]}
+        activeTabId="file:src/modified.ts"
+        gitDecorations={{ 'src/added.ts': 'added', 'src/modified.ts': 'modified' }}
+        onSelect={vi.fn()}
+        onClose={vi.fn()}
+        t={(key: string) => key}
+      />,
+    )
+    expect(view.getByRole('tab', { name: 'added.ts' }).parentElement?.dataset.gitDecoration).toBe('added')
+    expect(view.getByRole('tab', { name: 'modified.ts' }).parentElement?.dataset.gitDecoration).toBe('modified')
+  })
 })
 
 function renderTabs() {
@@ -94,6 +109,7 @@ function tab(path: string) {
     preview: false,
     loading: false,
     saving: false,
+    externalChange: null,
     error: null,
   }
 }

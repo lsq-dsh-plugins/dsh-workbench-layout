@@ -1,8 +1,9 @@
 /** Shared browser state joining the root-scoped sidebar and Session-scoped editor. */
 
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
-import type { GitCommit, GitFileDiff, WorkspaceFile } from '../contracts.ts'
+import type { GitCommit, GitFileDiff, GitStatus, WorkspaceFile } from '../contracts.ts'
 import { WorkbenchApi } from './api.ts'
+import { buildGitDecorations, type GitDecorationMap } from './git-decorations.ts'
 import type { GitFileLayout } from './git-tree.ts'
 
 export type SidebarMode = 'sessions' | 'files' | 'git' | 'terminal'
@@ -72,6 +73,7 @@ export interface WorkbenchState {
   gitView: GitView
   gitChangeLayout: GitFileLayout
   gitGraphFileLayout: GitFileLayout
+  gitDecorations: GitDecorationMap
   sidebarAction?: WorkbenchSidebarActionRequest
 }
 
@@ -83,6 +85,7 @@ const INITIAL_STATE: WorkbenchState = {
   gitView: 'changes',
   gitChangeLayout: 'list',
   gitGraphFileLayout: 'list',
+  gitDecorations: {},
 }
 
 export interface WorkbenchLogger {
@@ -109,6 +112,9 @@ export class WorkbenchController {
   private readonly workspaceStates = new Map<string, WorkbenchState>()
   private refreshPromise: Promise<void> | undefined
   private refreshFailureActive = false
+  private readonly gitRefreshes = new Map<string, Promise<void>>()
+  private readonly gitRefreshFailures = new Set<string>()
+  private readonly gitStatusGenerations = new Map<string, number>()
 
   constructor(
     api: WorkbenchApi = new WorkbenchApi(),
@@ -172,6 +178,32 @@ export class WorkbenchController {
     this.logger.info(`workbench-layout: consumed collapsed sidebar action ${request.action}`)
   }
 
+  /** Store Git file decorations in the Workspace snapshot shared by the tree and editor tabs. */
+  acceptGitStatus(workspaceId: string, status: GitStatus): void {
+    this.gitStatusGenerations.set(workspaceId, (this.gitStatusGenerations.get(workspaceId) ?? 0) + 1)
+    const decorations = status.available ? buildGitDecorations(status.files) : {}
+    const current = this.store.getSnapshot().workspaceId === workspaceId
+      ? this.store.getSnapshot().gitDecorations
+      : this.workspaceStates.get(workspaceId)?.gitDecorations
+    if (current === undefined || sameDecorations(current, decorations)) return
+    this.updateWorkspaceState(workspaceId, (state) => { state.gitDecorations = decorations })
+    this.logger.info(
+      `workbench-layout: updated ${Object.keys(decorations).length} Git file decoration(s) in ${JSON.stringify(workspaceId)}`,
+    )
+  }
+
+  /** Coalesce background Git status checks independently for each Workspace. */
+  refreshGitDecorations(workspaceId = this.store.getSnapshot().workspaceId): Promise<void> {
+    if (workspaceId === undefined) return Promise.resolve()
+    const existing = this.gitRefreshes.get(workspaceId)
+    if (existing !== undefined) return existing
+    const refresh = this.refreshGitDecorationsOnce(workspaceId).finally(() => {
+      if (this.gitRefreshes.get(workspaceId) === refresh) this.gitRefreshes.delete(workspaceId)
+    })
+    this.gitRefreshes.set(workspaceId, refresh)
+    return refresh
+  }
+
   setWorkspace(workspaceId: string | undefined): void {
     const state = this.store.getSnapshot()
     if (state.workspaceId === workspaceId) return
@@ -189,6 +221,7 @@ export class WorkbenchController {
       ? { ...INITIAL_STATE, sidebarMode: state.sidebarMode, editorExpanded: state.editorExpanded, workspaceId }
       : { ...cloneState(restored), sidebarMode: state.sidebarMode, editorExpanded: state.editorExpanded, workspaceId })
     this.logger.info(`workbench-layout: activated workspace ${JSON.stringify(workspaceId)}`)
+    if (typeof this.api.gitStatus === 'function') void this.refreshGitDecorations(workspaceId)
   }
 
   /** Reapply the remembered middle-column state after AppFrame or Session remounts. */
@@ -473,6 +506,7 @@ export class WorkbenchController {
         draft.error = null
       })
       this.logger.info(`workbench-layout: saved file tab ${JSON.stringify(tab.path)}`)
+      if (typeof this.api.gitStatus === 'function') void this.refreshGitDecorations(workspaceId)
       return true
     } catch (error: unknown) {
       this.updateFileTabState(workspaceId, tab.id, (draft) => {
@@ -679,6 +713,9 @@ export class WorkbenchController {
       if (conflicted > 0) {
         this.logger.warn(`workbench-layout: protected ${conflicted} file tab(s) from external overwrite`)
       }
+      if (updated + conflicted > 0 && typeof this.api.gitStatus === 'function') {
+        void this.refreshGitDecorations(workspaceId)
+      }
       if (this.refreshFailureActive) {
         this.refreshFailureActive = false
         this.logger.info('workbench-layout: open file refresh recovered')
@@ -687,6 +724,23 @@ export class WorkbenchController {
       if (!this.refreshFailureActive) {
         this.refreshFailureActive = true
         this.logger.warn('workbench-layout: failed to refresh open file versions')
+      }
+    }
+  }
+
+  private async refreshGitDecorationsOnce(workspaceId: string): Promise<void> {
+    const generation = this.gitStatusGenerations.get(workspaceId) ?? 0
+    try {
+      const status = await this.api.gitStatus(workspaceId)
+      if ((this.gitStatusGenerations.get(workspaceId) ?? 0) !== generation) return
+      this.acceptGitStatus(workspaceId, status)
+      if (this.gitRefreshFailures.delete(workspaceId)) {
+        this.logger.info(`workbench-layout: Git file decoration refresh recovered in ${JSON.stringify(workspaceId)}`)
+      }
+    } catch {
+      if (!this.gitRefreshFailures.has(workspaceId)) {
+        this.gitRefreshFailures.add(workspaceId)
+        this.logger.warn(`workbench-layout: failed to refresh Git file decorations in ${JSON.stringify(workspaceId)}`)
       }
     }
   }
@@ -772,6 +826,7 @@ function emptyDiffTab(
 function cloneState(state: WorkbenchState): WorkbenchState {
   return {
     ...state,
+    gitDecorations: { ...state.gitDecorations },
     tabs: state.tabs.map((tab) => {
       if (tab.kind === 'file') return {
         ...tab,
@@ -784,6 +839,13 @@ function cloneState(state: WorkbenchState): WorkbenchState {
       return { ...tab }
     }),
   }
+}
+
+function sameDecorations(left: GitDecorationMap, right: GitDecorationMap): boolean {
+  const leftEntries = Object.entries(left)
+  const rightEntries = Object.entries(right)
+  return leftEntries.length === rightEntries.length
+    && leftEntries.every(([path, decoration]) => right[path] === decoration)
 }
 
 /** Terminal processes are page-live resources and never survive a Workspace switch. */

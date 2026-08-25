@@ -79,6 +79,7 @@ export function WorkbenchEditor({ sessionId, useWorkspaces, controller, activate
         <EditorTabs
           tabs={state.tabs}
           activeTabId={state.activeTabId}
+          gitDecorations={state.gitDecorations}
           onSelect={tabId => { controller.selectTab(tabId) }}
           onClose={requestClose}
           t={t}

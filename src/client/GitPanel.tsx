@@ -80,6 +80,7 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
         : [null, null]
       if (request !== refreshId.current) return
       setStatus(nextStatus)
+      controller.acceptGitStatus?.(workspaceId, nextStatus)
       setGraph(nextGraph)
       setBranches(nextBranches)
       setCommitFiles({})
@@ -122,6 +123,7 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
       const next = await operation()
       if (activeWorkspace.current !== targetWorkspace) return false
       setStatus(next)
+      controller.acceptGitStatus?.(targetWorkspace, next)
       return true
     } catch (reason: unknown) {
       if (activeWorkspace.current !== targetWorkspace) return false
@@ -158,6 +160,7 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
         : await controller.api.gitUnstageAll(targetWorkspace)
       if (activeWorkspace.current !== targetWorkspace) return
       setStatus(next)
+      controller.acceptGitStatus?.(targetWorkspace, next)
       controller.closeDiffTabs(targetWorkspace)
       setResult(t(operation === 'stage' ? 'git.stageAllDone' : 'git.unstageAllDone'))
     } catch (reason: unknown) {
@@ -190,6 +193,7 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
       controller.resetWorkspaceView(targetWorkspace)
       if (activeWorkspace.current !== targetWorkspace) return
       setStatus(next)
+      controller.acceptGitStatus?.(targetWorkspace, next)
       setDiscardRequest(null)
       setResult(t(request.scope === 'all' ? 'git.discardAllDone' : 'git.discardDone'))
     } catch (reason: unknown) {

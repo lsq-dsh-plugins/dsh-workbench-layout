@@ -3,19 +3,21 @@ import { IconCloseOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { WorkbenchTab } from './controller.ts'
 import { diffKindText } from './git-diff-labels.ts'
+import type { GitDecorationMap } from './git-decorations.ts'
 import type { WorkbenchKey } from './locales.ts'
 import css from './Workbench.module.css'
 
 export interface EditorTabsProps {
   tabs: readonly WorkbenchTab[]
   activeTabId: string | undefined
+  gitDecorations?: GitDecorationMap
   onSelect: (tabId: string) => void
   onClose: (tabId: string) => void
   t: TranslateNS<'workbench'>
 }
 
 /** Compact scrollable file/Diff tabs following DSH's native active-tab underline. */
-export function EditorTabs({ tabs, activeTabId, onSelect, onClose, t }: EditorTabsProps) {
+export function EditorTabs({ tabs, activeTabId, gitDecorations, onSelect, onClose, t }: EditorTabsProps) {
   const tabListRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const tabList = tabListRef.current
@@ -37,6 +39,7 @@ export function EditorTabs({ tabs, activeTabId, onSelect, onClose, t }: EditorTa
     <div ref={tabListRef} className={css.editorTabs} role="tablist" aria-label={t('editor.openFiles')}>
       {tabs.map((tab) => {
         const active = tab.id === activeTabId
+        const decoration = tab.kind === 'file' ? gitDecorations?.[tab.path] : undefined
         const kind = tab.kind === 'diff' ? diffKindText(tab.diffKind, t) : undefined
         const name = tab.kind === 'terminal'
           ? t('terminal.name', { index: String(tab.sequence) })
@@ -54,6 +57,7 @@ export function EditorTabs({ tabs, activeTabId, onSelect, onClose, t }: EditorTa
             data-active={active || undefined}
             data-dirty={tab.kind === 'file' && tab.dirty || undefined}
             data-tab-kind={tab.kind}
+            data-git-decoration={decoration}
             title={[tab.kind === 'terminal' ? name : tab.path, kind, status].filter(Boolean).join(' · ')}
           >
             <button

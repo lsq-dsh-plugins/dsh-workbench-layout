@@ -7,6 +7,7 @@ import {
 import type { DirectoryListing, WorkspaceEntry } from '../contracts.ts'
 import { IconFileOutline16 } from './CreateEntryIcons.tsx'
 import { FileTreeCreateRow, type FileTreeCreateKind } from './FileTreeCreateRow.tsx'
+import type { GitDecorationMap } from './git-decorations.ts'
 import css from './Workbench.module.css'
 
 export interface FileTreeCreateDraft {
@@ -23,6 +24,7 @@ interface FileTreeLevelProps {
   loading: Set<string>
   selected: string | undefined
   createDraft: FileTreeCreateDraft | null
+  decorations: GitDecorationMap
   createLabel: string
   onCreate: (draft: FileTreeCreateDraft, name: string) => Promise<boolean>
   onCancelCreate: () => void
@@ -55,6 +57,7 @@ export function FileTreeLevel(props: FileTreeLevelProps) {
             aria-expanded={directory ? open : undefined}
             className={css.treeRow}
             data-selected={props.selected === entry.path || undefined}
+            data-git-decoration={props.decorations[entry.path]}
             style={{ paddingLeft: 8 + props.depth * 16 }}
             onClick={() => { directory ? props.onToggle(entry.path) : props.onOpen(entry.path) }}
             onContextMenu={(event) => {

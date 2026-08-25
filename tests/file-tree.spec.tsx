@@ -10,6 +10,7 @@ const workbench = vi.hoisted(() => ({
     activeTabId: undefined as string | undefined,
     tabs: [] as Array<{ id: string; kind: 'file'; path: string; dirty: boolean }>,
     sidebarAction: undefined as { id: number; action: 'files.newFile' | 'files.newDirectory'; workspaceId: string } | undefined,
+    gitDecorations: {} as Record<string, 'conflict' | 'untracked' | 'deleted' | 'added' | 'modified' | 'renamed'>,
   },
 }))
 
@@ -59,10 +60,37 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
 
 afterEach(() => {
   cleanup()
-  workbench.current = { activeTabId: undefined, tabs: [], sidebarAction: undefined }
+  workbench.current = { activeTabId: undefined, tabs: [], sidebarAction: undefined, gitDecorations: {} }
 })
 
 describe('文件目录', () => {
+  it('用 Git 状态装饰文件并把最强状态聚合到父目录', async () => {
+    workbench.current.gitDecorations = {
+      src: 'untracked',
+      'src/new.ts': 'untracked',
+      'README.md': 'modified',
+    }
+    const controller = {
+      api: { listDirectory: vi.fn(() => Promise.resolve({
+        path: '',
+        truncated: false,
+        entries: [
+          { name: 'src', path: 'src', kind: 'directory' as const },
+          { name: 'README.md', path: 'README.md', kind: 'file' as const },
+        ],
+      })) },
+      refreshGitDecorations: vi.fn(() => Promise.resolve()),
+      openFile: vi.fn(),
+    }
+    const view = render(
+      <FileTree controller={controller as never} workspaceId="workspace-1" workspacePath="/workspace/project" t={key => zh[key]} />,
+    )
+
+    expect((await view.findByRole('treeitem', { name: 'src' })).dataset.gitDecoration).toBe('untracked')
+    expect(view.getByRole('treeitem', { name: 'README.md' }).dataset.gitDecoration).toBe('modified')
+    expect(controller.refreshGitDecorations).toHaveBeenCalledWith('workspace-1')
+  })
+
   it('在所选目录内新建文件，并在所选文件的父目录中新建文件夹', async () => {
     const root = {
       path: '',

@@ -65,6 +65,7 @@ export function useFileTreeMutations(options: FileTreeMutationOptions) {
     try {
       const renamed = await options.controller.api.renameEntry(workspaceId, source.path, name)
       options.controller.closeWorkspaceEntries(workspaceId, source.path)
+      void options.controller.refreshGitDecorations?.(workspaceId)
       if (activeWorkspace.current !== workspaceId) return
       options.onInvalidate(source.path)
       options.onSelect({ path: renamed.path, kind: renamed.kind })
@@ -87,6 +88,7 @@ export function useFileTreeMutations(options: FileTreeMutationOptions) {
     try {
       await options.controller.api.deleteEntry(workspaceId, source.path)
       options.controller.closeWorkspaceEntries(workspaceId, source.path)
+      void options.controller.refreshGitDecorations?.(workspaceId)
       if (activeWorkspace.current !== workspaceId) return
       options.onInvalidate(source.path)
       options.onSelect(null)

@@ -400,6 +400,63 @@ describe('WorkbenchController', () => {
     expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('consumed collapsed sidebar action files.newFile'))
   })
 
+  it('keeps Git file decorations Workspace-scoped and coalesces status refreshes', async () => {
+    let finishStatus: ((value: {
+      available: boolean
+      files: Array<{ path: string; index: string; worktree: string }>
+    }) => void) | undefined
+    const api = {
+      gitStatus: vi.fn(() => new Promise(resolve => { finishStatus = resolve })),
+    }
+    const controller = createController(api)
+    controller.setWorkspace('workspace-1')
+    const first = controller.refreshGitDecorations()
+    const second = controller.refreshGitDecorations()
+    expect(first).toBe(second)
+    expect(api.gitStatus).toHaveBeenCalledOnce()
+    finishStatus?.({
+      available: true,
+      files: [{ path: 'src/new.ts', index: 'A', worktree: ' ' }],
+    })
+    await first
+    expect(controller.store.getSnapshot().gitDecorations).toEqual({
+      src: 'added',
+      'src/new.ts': 'added',
+    })
+
+    controller.setWorkspace('workspace-2')
+    expect(controller.store.getSnapshot().gitDecorations).toEqual({})
+    controller.setWorkspace('workspace-1')
+    expect(controller.store.getSnapshot().gitDecorations).toEqual({
+      src: 'added',
+      'src/new.ts': 'added',
+    })
+  })
+
+  it('does not let an older background Git status overwrite a newer operation result', async () => {
+    let finishStatus: ((value: {
+      available: boolean
+      files: Array<{ path: string; index: string; worktree: string }>
+    }) => void) | undefined
+    const api = {
+      gitStatus: vi.fn(() => new Promise(resolve => { finishStatus = resolve })),
+    }
+    const controller = createController(api)
+    controller.setWorkspace('workspace-1')
+    const refresh = controller.refreshGitDecorations()
+    controller.acceptGitStatus('workspace-1', {
+      available: true,
+      files: [{ path: 'new.ts', index: 'A', worktree: ' ' }],
+    })
+    finishStatus?.({
+      available: true,
+      files: [{ path: 'old.ts', index: ' ', worktree: 'M' }],
+    })
+    await refresh
+
+    expect(controller.store.getSnapshot().gitDecorations).toEqual({ 'new.ts': 'added' })
+  })
+
   it('clears every file tab and Diff after Git changes the Workspace', async () => {
     const logger = { info: vi.fn(), warn: vi.fn() }
     const api = { readFile: vi.fn(() => Promise.resolve(file('src/a.ts', 'before', '1'))) }

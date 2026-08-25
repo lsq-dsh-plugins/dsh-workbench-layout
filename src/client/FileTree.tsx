@@ -60,6 +60,7 @@ export function FileTree({ controller, workspaceId, workspacePath, t }: FileTree
     setContextTarget(null)
     setResult(null)
     if (workspaceId === undefined) return
+    void controller.refreshGitDecorations?.(workspaceId)
     let active = true
     setLoading(new Set(['']))
     void controller.api.listDirectory(workspaceId, '').then((listing) => {
@@ -138,6 +139,7 @@ export function FileTree({ controller, workspaceId, workspacePath, t }: FileTree
       setError(null)
       if (draft.kind === 'file') await controller.api.createFile(targetWorkspace, path)
       else await controller.api.createDirectory(targetWorkspace, path)
+      void controller.refreshGitDecorations?.(targetWorkspace)
     } catch (reason: unknown) {
       if (activeWorkspace.current === targetWorkspace) setError(messageOf(reason))
       return false
@@ -298,6 +300,7 @@ export function FileTree({ controller, workspaceId, workspacePath, t }: FileTree
               loading={loading}
               selected={selectedPath}
               createDraft={createDraft}
+              decorations={workbench.gitDecorations ?? {}}
               createLabel={createDraft?.kind === 'file' ? t('files.fileName') : t('files.directoryName')}
               onCreate={(draft, name) => createEntry(draft, name)}
               onCancelCreate={() => { setCreateDraft(null) }}

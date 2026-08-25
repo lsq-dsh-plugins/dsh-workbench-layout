@@ -606,6 +606,24 @@
   color: var(--dsw-alias-brand-text);
 }
 
+.treeRow[data-git-decoration='conflict'],
+.treeRow[data-git-decoration='untracked'],
+.treeRow[data-git-decoration='deleted'] {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.treeRow[data-git-decoration='added'] {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.treeRow[data-git-decoration='modified'] {
+  color: var(--dsw-alias-state-business-primary);
+}
+
+.treeRow[data-git-decoration='renamed'] {
+  color: var(--dsw-alias-state-warn-label);
+}
+
 .chevron {
   display: inline-flex;
   flex: none;
@@ -1283,6 +1301,24 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.editorTab[data-git-decoration='conflict'] .editorTabName,
+.editorTab[data-git-decoration='untracked'] .editorTabName,
+.editorTab[data-git-decoration='deleted'] .editorTabName {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.editorTab[data-git-decoration='added'] .editorTabName {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.editorTab[data-git-decoration='modified'] .editorTabName {
+  color: var(--dsw-alias-state-business-primary);
+}
+
+.editorTab[data-git-decoration='renamed'] .editorTabName {
+  color: var(--dsw-alias-state-warn-label);
 }
 
 .editorTabKind {
