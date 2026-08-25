@@ -39,6 +39,8 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
   const activeTab = workbench.tabs.find(tab => tab.id === workbench.activeTabId)
   const activeDiff = activeTab?.kind === 'diff' ? activeTab.diff : null
   const refreshId = useRef(0)
+  const graphPageRequestId = useRef(0)
+  const graphPagePending = useRef(false)
   const activeWorkspace = useRef(workspaceId)
   activeWorkspace.current = workspaceId
   const view = workbench.gitView
@@ -47,6 +49,8 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
   const [status, setStatus] = useState<GitStatus | null>(null)
   const [branches, setBranches] = useState<GitBranches | null>(null)
   const [graph, setGraph] = useState<GitGraph | null>(null)
+  const [graphLoadingMore, setGraphLoadingMore] = useState(false)
+  const [graphLoadError, setGraphLoadError] = useState<string | null>(null)
   const [expandedCommit, setExpandedCommit] = useState<string | null>(null)
   const [expandedKind, setExpandedKind] = useState<GitCommitDetailKind>('commit')
   const [commitFiles, setCommitFiles] = useState<Record<string, CommitFilesState>>({})
@@ -71,6 +75,10 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
   const refresh = useCallback(async (): Promise<void> => {
     if (workspaceId === undefined) return
     const request = ++refreshId.current
+    graphPageRequestId.current += 1
+    graphPagePending.current = false
+    setGraphLoadingMore(false)
+    setGraphLoadError(null)
     setLoading(true)
     setError(null)
     try {
@@ -98,6 +106,8 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
     setStatus(null)
     setBranches(null)
     setGraph(null)
+    setGraphLoadingMore(false)
+    setGraphLoadError(null)
     setBusy(null)
     setMessage('')
     setError(null)
@@ -116,6 +126,32 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
     setCommitActionError(null)
     void refresh()
   }, [refresh])
+
+  const loadMoreGraph = useCallback(async (): Promise<void> => {
+    if (workspaceId === undefined || graph === null || loading || !graph.truncated || graphPagePending.current) return
+    const targetWorkspace = workspaceId
+    const refreshRequest = refreshId.current
+    const pageRequest = ++graphPageRequestId.current
+    const offset = graph.nextOffset
+    graphPagePending.current = true
+    setGraphLoadingMore(true)
+    setGraphLoadError(null)
+    try {
+      const page = await controller.api.gitGraph(targetWorkspace, offset)
+      if (activeWorkspace.current !== targetWorkspace || refreshId.current !== refreshRequest || graphPageRequestId.current !== pageRequest) return
+      setGraph(current => current === null ? current : appendGraphPage(current, page))
+    } catch (reason: unknown) {
+      if (activeWorkspace.current === targetWorkspace && refreshId.current === refreshRequest && graphPageRequestId.current === pageRequest) {
+        setGraphLoadError(messageOf(reason))
+      }
+    } finally {
+      if (graphPageRequestId.current === pageRequest) {
+        graphPagePending.current = false
+        setGraphLoadingMore(false)
+      }
+    }
+  }, [controller, graph, loading, workspaceId])
+  const requestMoreGraph = useCallback(() => { void loadMoreGraph() }, [loadMoreGraph])
 
   const update = async (targetWorkspace: string, operation: () => Promise<GitStatus>): Promise<boolean> => {
     setError(null)
@@ -542,12 +578,15 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
           selectedRevision={activeDiff?.revision}
           selectedPath={activeDiff?.path}
           selectedKind={activeDiff?.kind === 'commit' || activeDiff?.kind === 'comparison' ? activeDiff.kind : undefined}
+          loadingMore={graphLoadingMore}
+          loadError={graphLoadError}
           onToggle={commitValue => { void showCommitDetails(commitValue, 'commit') }}
           onOpen={(commitValue, path) => {
             if (expandedKind === 'comparison') void controller.openComparisonDiff(workspaceId, commitValue, path)
             else void controller.openCommitDiff(workspaceId, commitValue, path)
           }}
           onMenuAction={(action, commitValue) => { void commitMenuAction(action, commitValue) }}
+          onLoadMore={requestMoreGraph}
           t={t}
         />
       )}
@@ -599,6 +638,17 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
       />
     </div>
   )
+}
+
+function appendGraphPage(current: GitGraph, page: GitGraph): GitGraph {
+  const seen = new Set(current.commits.map(commit => commit.hash))
+  const commits = [...current.commits]
+  for (const commit of page.commits) {
+    if (seen.has(commit.hash)) continue
+    seen.add(commit.hash)
+    commits.push(commit)
+  }
+  return { commits, truncated: page.truncated, nextOffset: page.nextOffset }
 }
 
 function isStaged(file: GitFileStatus): boolean {

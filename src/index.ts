@@ -119,7 +119,7 @@ async function dispatch(
     case `${WORKBENCH_API_PREFIX}/git/diff`:
       return git.diff(body.workspaceId, body.path, body.staged)
     case `${WORKBENCH_API_PREFIX}/git/graph`:
-      return git.graph(body.workspaceId)
+      return git.graph(body.workspaceId, body.offset)
     case `${WORKBENCH_API_PREFIX}/git/branches`:
       return git.branches(body.workspaceId)
     case `${WORKBENCH_API_PREFIX}/git/branch/switch`:

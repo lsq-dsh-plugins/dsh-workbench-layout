@@ -31,7 +31,8 @@ describe('Workbench browser API', () => {
     const deleteRequest = fetch.mock.calls[5]?.[1] as RequestInit
     const absoluteRequest = fetch.mock.calls[6]?.[1] as RequestInit
     const relativeRequest = fetch.mock.calls[7]?.[1] as RequestInit
-    const gitRequest = fetch.mock.calls[8]?.[1] as RequestInit
+    const gitStatusRequest = fetch.mock.calls[8]?.[1] as RequestInit
+    const gitGraphRequest = fetch.mock.calls[9]?.[1] as RequestInit
     expect(fetch.mock.calls[1]?.[0]).toBe('/dsh-workbench-layout/files/refresh')
     expect(fetch.mock.calls[2]?.[0]).toBe('/dsh-workbench-layout/file/create')
     expect(fetch.mock.calls[3]?.[0]).toBe('/dsh-workbench-layout/directory/create')
@@ -50,7 +51,8 @@ describe('Workbench browser API', () => {
     expect(JSON.parse(String(deleteRequest.body))).toEqual({ workspaceId: 'workspace-1', path: 'notes' })
     expect(JSON.parse(String(absoluteRequest.body))).toEqual({ workspaceId: 'workspace-1', path: 'README.md' })
     expect(JSON.parse(String(relativeRequest.body))).toEqual({ workspaceId: 'workspace-1', path: 'README.md' })
-    expect(JSON.parse(String(gitRequest.body))).toEqual({ workspaceId: 'workspace-1' })
-    expect(`${String(fileRequest.body)}${String(gitRequest.body)}`).not.toContain('sessionId')
+    expect(JSON.parse(String(gitStatusRequest.body))).toEqual({ workspaceId: 'workspace-1' })
+    expect(JSON.parse(String(gitGraphRequest.body))).toEqual({ workspaceId: 'workspace-1', offset: 0 })
+    expect(`${String(fileRequest.body)}${String(gitGraphRequest.body)}`).not.toContain('sessionId')
   })
 })

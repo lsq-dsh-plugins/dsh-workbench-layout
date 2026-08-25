@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -108,7 +108,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
 }))
 
 beforeEach(() => { workbenchStore.reset() })
-afterEach(() => { cleanup() })
+afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
 describe('Git panel', () => {
   it('uses the native neutral notice surface for successful Git feedback', () => {
@@ -228,6 +228,90 @@ describe('Git panel', () => {
 
     fireEvent.click(view.getByRole('button', { name: '切换到更改' }))
     expect(view.container.querySelector('[data-change-layout="tree"]')).not.toBeNull()
+  })
+
+  it('loads and deduplicates older graph pages when the bottom sentinel becomes visible', async () => {
+    const intersection = installIntersectionObserver()
+    workbenchStore.update({ gitView: 'graph' })
+    const { controller, commit } = harness()
+    const older = {
+      ...commit,
+      hash: 'b'.repeat(40),
+      shortHash: 'bbbbbbb',
+      parents: [],
+      subject: '较早提交',
+      references: [],
+    }
+    let resolveOlderPage: ((page: { commits: typeof commit[]; truncated: boolean; nextOffset: number }) => void) | undefined
+    controller.api.gitGraph.mockImplementation((_workspaceId: string, offset = 0) => offset === 0
+      ? Promise.resolve({ commits: [commit], truncated: true, nextOffset: 1 })
+      : new Promise(resolve => { resolveOlderPage = resolve }))
+    const view = renderPanel(controller)
+
+    await waitFor(() => { expect(view.container.querySelector('[data-git-graph-sentinel]')).not.toBeNull() })
+    act(() => { intersection.trigger(); intersection.trigger() })
+    await waitFor(() => { expect(controller.api.gitGraph).toHaveBeenCalledWith('workspace-1', 1) })
+    expect(controller.api.gitGraph).toHaveBeenCalledTimes(2)
+
+    await act(async () => {
+      resolveOlderPage?.({ commits: [commit, older], truncated: false, nextOffset: 3 })
+      await Promise.resolve()
+    })
+    await waitFor(() => { expect(view.getByText('较早提交')).toBeTruthy() })
+    expect(view.getAllByText('完善工作台')).toHaveLength(1)
+    expect(view.container.querySelector('[data-graph-edge="incoming"]')).not.toBeNull()
+    expect(view.container.querySelector('[data-git-graph-sentinel]')).toBeNull()
+  })
+
+  it('shows an incremental graph error and retries when the sentinel re-enters view', async () => {
+    const intersection = installIntersectionObserver()
+    workbenchStore.update({ gitView: 'graph' })
+    const { controller, commit } = harness()
+    const older = { ...commit, hash: 'b'.repeat(40), shortHash: 'bbbbbbb', parents: [], subject: '重试后的提交', references: [] }
+    let pageAttempt = 0
+    controller.api.gitGraph.mockImplementation((_workspaceId: string, offset = 0) => {
+      if (offset === 0) return Promise.resolve({ commits: [commit], truncated: true, nextOffset: 1 })
+      pageAttempt += 1
+      return pageAttempt === 1
+        ? Promise.reject(new Error('temporary failure'))
+        : Promise.resolve({ commits: [older], truncated: false, nextOffset: 2 })
+    })
+    const view = renderPanel(controller)
+
+    await waitFor(() => { expect(view.container.querySelector('[data-git-graph-sentinel]')).not.toBeNull() })
+    act(() => { intersection.trigger() })
+    await waitFor(() => { expect(view.getByRole('alert').textContent).toContain('temporary failure') })
+    expect(controller.api.gitGraph).toHaveBeenCalledTimes(2)
+
+    act(() => { intersection.trigger() })
+    await waitFor(() => { expect(view.getByText('重试后的提交')).toBeTruthy() })
+    expect(controller.api.gitGraph).toHaveBeenCalledTimes(3)
+    expect(view.queryByRole('alert')).toBeNull()
+  })
+
+  it('does not append an old graph page while a full Git refresh is replacing the graph', async () => {
+    const intersection = installIntersectionObserver()
+    workbenchStore.update({ gitView: 'graph' })
+    const { controller, commit, status } = harness()
+    let resolveRefreshStatus: ((value: typeof status) => void) | undefined
+    controller.api.gitGraph.mockResolvedValue({ commits: [commit], truncated: true, nextOffset: 1 })
+    controller.api.gitStatus
+      .mockResolvedValueOnce(status)
+      .mockImplementationOnce(() => new Promise(resolve => { resolveRefreshStatus = resolve }))
+    const view = renderPanel(controller)
+
+    await waitFor(() => { expect(view.container.querySelector('[data-git-graph-sentinel]')).not.toBeNull() })
+    fireEvent.click(view.getByRole('button', { name: '更多 Git 操作' }))
+    fireEvent.click(view.getByRole('button', { name: '刷新 Git 状态' }))
+    act(() => { intersection.trigger() })
+    expect(controller.api.gitGraph).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      resolveRefreshStatus?.(status)
+      await Promise.resolve()
+    })
+    await waitFor(() => { expect(controller.api.gitGraph).toHaveBeenCalledTimes(2) })
+    expect(controller.api.gitGraph).not.toHaveBeenCalledWith('workspace-1', 1)
   })
 
   it('opens the commit context menu, compares with the workspace, and confirms commit actions', async () => {
@@ -410,7 +494,7 @@ function harness() {
   const controller = {
     api: {
       gitStatus: vi.fn(() => Promise.resolve(status)),
-      gitGraph: vi.fn(() => Promise.resolve({ commits: [commit], truncated: false })),
+      gitGraph: vi.fn(() => Promise.resolve({ commits: [commit], truncated: false, nextOffset: 1 })),
       gitBranches: vi.fn(() => Promise.resolve({
         current: 'main',
         detached: false,
@@ -469,9 +553,29 @@ function harness() {
       workbenchStore.update(view === 'changes' ? { gitChangeLayout: layout } : { gitGraphFileLayout: layout })
     }),
   }
-  return { controller, commit }
+  return { controller, commit, status }
 }
 
 function interpolate(template: string, params: Record<string, unknown> = {}): string {
   return template.replace(/\{([^}]+)\}/gu, (_, key: string) => String(params[key] ?? `{${key}}`))
+}
+
+function installIntersectionObserver(): { trigger: () => void } {
+  let callback: IntersectionObserverCallback | undefined
+  class TestIntersectionObserver {
+    readonly root = null
+    readonly rootMargin = '0px'
+    readonly thresholds = [0]
+    constructor(next: IntersectionObserverCallback) { callback = next }
+    disconnect(): void {}
+    observe(): void {}
+    takeRecords(): IntersectionObserverEntry[] { return [] }
+    unobserve(): void {}
+  }
+  vi.stubGlobal('IntersectionObserver', TestIntersectionObserver)
+  return {
+    trigger: () => {
+      callback?.([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver)
+    },
+  }
 }

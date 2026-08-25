@@ -86,8 +86,8 @@ export class WorkbenchApi {
     return this.post('/git/diff', { workspaceId, path, staged })
   }
 
-  async gitGraph(workspaceId: string): Promise<GitGraph> {
-    return this.post('/git/graph', { workspaceId })
+  async gitGraph(workspaceId: string, offset = 0): Promise<GitGraph> {
+    return this.post('/git/graph', { workspaceId, offset })
   }
 
   async gitBranches(workspaceId: string): Promise<GitBranches> {

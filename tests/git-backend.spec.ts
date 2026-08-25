@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
+import { GIT_GRAPH_PAGE_SIZE } from '../src/contracts.ts'
 import {
   GitBackend,
   parseGitBranches,
@@ -104,12 +105,13 @@ describe('GitBackend single-file diffs', () => {
     const revision = graph.commits[0]?.hash
     expect(graph).toMatchObject({
       truncated: false,
+      nextOffset: 1,
       commits: [{
         parents: [], subject: '添加说明', author: 'Workbench Test',
         stats: { filesChanged: 1, additions: 1, deletions: 0 },
       }],
     })
-    expect(fixture.logger.info).toHaveBeenCalledWith('workbench-layout: loaded Git graph with 1 visible commits and change statistics')
+    expect(fixture.logger.info).toHaveBeenCalledWith('workbench-layout: loaded Git graph page at offset 0 with 1 commits; older commits exhausted')
     const files = await fixture.backend.commitFiles('workspace-1', revision)
     expect(files).toMatchObject({ files: [{ path: 'note.txt', status: 'A' }] })
     const graphDiff = await fixture.backend.commitFileDiff('workspace-1', revision, 'note.txt')
@@ -153,6 +155,26 @@ describe('GitBackend single-file diffs', () => {
     git(fixture.root, ['add', '-A'])
     const deleted = await fixture.backend.diff('workspace-1', 'new-name.txt', true)
     expect(deleted).toMatchObject({ status: 'D', original: 'legacy\n', modified: '', deletions: 1 })
+  })
+
+  it('loads the complete commit graph in stable forty-commit pages', async () => {
+    const fixture = await createRepository()
+    for (let index = 0; index < GIT_GRAPH_PAGE_SIZE + 2; index += 1) {
+      await writeFile(join(fixture.root, 'history.txt'), `${index}\n`)
+      git(fixture.root, ['add', 'history.txt'])
+      git(fixture.root, ['commit', '--quiet', '-m', `commit ${index}`])
+    }
+
+    const first = await fixture.backend.graph('workspace-1', 0)
+    const second = await fixture.backend.graph('workspace-1', first.nextOffset)
+
+    expect(first).toMatchObject({ truncated: true, nextOffset: GIT_GRAPH_PAGE_SIZE })
+    expect(first.commits).toHaveLength(GIT_GRAPH_PAGE_SIZE)
+    expect(second).toMatchObject({ truncated: false, nextOffset: GIT_GRAPH_PAGE_SIZE + 2 })
+    expect(second.commits).toHaveLength(2)
+    expect(new Set([...first.commits, ...second.commits].map(commit => commit.hash))).toHaveProperty('size', GIT_GRAPH_PAGE_SIZE + 2)
+    await expect(fixture.backend.graph('workspace-1', -1)).rejects.toMatchObject({ code: 'GIT_GRAPH_OFFSET_INVALID' })
+    expect(fixture.logger.info).toHaveBeenCalledWith(`workbench-layout: loaded Git graph page at offset ${GIT_GRAPH_PAGE_SIZE} with 2 commits; older commits exhausted`)
   })
 
   it('stages, unstages, and discards worktree changes in explicit batches', async () => {

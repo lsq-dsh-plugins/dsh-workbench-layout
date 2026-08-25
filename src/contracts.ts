@@ -117,9 +117,12 @@ export interface GitCommit {
   stats?: GitCommitStats
 }
 
+export const GIT_GRAPH_PAGE_SIZE = 40
+
 export interface GitGraph {
   commits: GitCommit[]
   truncated: boolean
+  nextOffset: number
 }
 
 export type GitDiffKind = 'worktree' | 'staged' | 'commit' | 'comparison'

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import {
   IconCodeOutline16,
@@ -47,17 +47,40 @@ interface GitGraphViewProps {
   selectedRevision: string | undefined
   selectedPath: string | undefined
   selectedKind: GitCommitDetailKind | undefined
+  loadingMore: boolean
+  loadError: string | null
   onToggle: (commit: GitCommit) => void
   onOpen: (commit: GitCommit, path: string) => void
   onMenuAction: (action: GitCommitMenuAction, commit: GitCommit) => void
+  onLoadMore: () => void
   t: TranslateNS<'workbench'>
 }
 
 /** 带真实父节点拓扑的提交图；提交详情仍在当前行下方展开。 */
 export function GitGraphView(props: GitGraphViewProps) {
   const layout = buildGitGraph(props.graph?.commits ?? [])
+  const scrollRootRef = useRef<HTMLDivElement>(null)
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const root = scrollRootRef.current
+    const sentinel = sentinelRef.current
+    if (root === null || sentinel === null || props.graph?.truncated !== true) return
+    if (typeof IntersectionObserver === 'undefined') {
+      const loadNearEnd = () => {
+        if (root.scrollTop + root.clientHeight >= root.scrollHeight - 160) props.onLoadMore()
+      }
+      root.addEventListener('scroll', loadNearEnd, { passive: true })
+      loadNearEnd()
+      return () => { root.removeEventListener('scroll', loadNearEnd) }
+    }
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some(entry => entry.isIntersecting)) props.onLoadMore()
+    }, { root, rootMargin: '0px 0px 160px 0px' })
+    observer.observe(sentinel)
+    return () => { observer.disconnect() }
+  }, [props.graph?.truncated, props.onLoadMore])
   return (
-    <div className={css.gitGraph} data-git-graph="">
+    <div ref={scrollRootRef} className={css.gitGraph} data-git-graph="">
       {props.graph === null
         ? <div className={css.gitSectionEmpty}>{props.t('git.graphLoading')}</div>
         : layout.rows.length === 0
@@ -80,7 +103,15 @@ export function GitGraphView(props: GitGraphViewProps) {
               t={props.t}
             />
           ))}
-      {props.graph?.truncated === true && <div className={css.gitSectionEmpty}>{props.t('git.graphTruncated')}</div>}
+      {props.graph?.truncated === true && (
+        <div ref={sentinelRef} className={css.gitGraphSentinel} data-git-graph-sentinel="">
+          {props.loadingMore
+            ? <span role="status">{props.t('git.graphLoadingMore')}</span>
+            : props.loadError === null
+              ? null
+              : <span role="alert">{props.t('git.graphLoadFailed', { message: props.loadError })}</span>}
+        </div>
+      )}
     </div>
   )
 }

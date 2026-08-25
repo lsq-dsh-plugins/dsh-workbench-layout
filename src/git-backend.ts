@@ -26,6 +26,7 @@ import type {
   GitTargetRemoteOperation,
   GitTargetRemoteResult,
 } from './contracts.ts'
+import { GIT_GRAPH_PAGE_SIZE } from './contracts.ts'
 import { WorkbenchHttpError } from './http.ts'
 import type { WorkspaceBackend, WorkspaceGitText } from './workspace-backend.ts'
 
@@ -334,18 +335,19 @@ export class GitBackend {
     }
   }
 
-  async graph(workspaceId: unknown): Promise<GitGraph> {
+  async graph(workspaceId: unknown, offsetValue: unknown = 0): Promise<GitGraph> {
+    const offset = graphOffset(offsetValue)
     const cwd = await this.repositoryRoot(workspaceId)
-    if (!await this.hasHead(cwd)) return { commits: [], truncated: false }
-    const limit = 40
+    if (!await this.hasHead(cwd)) return { commits: [], truncated: false, nextOffset: offset }
     const result = await this.run(cwd, [
-      'log', '--all', '--topo-order', '-n', String(limit + 1), '--date=iso-strict', '--decorate=full',
+      'log', '--all', '--topo-order', `--skip=${offset}`, '-n', String(GIT_GRAPH_PAGE_SIZE + 1), '--date=iso-strict', '--decorate=full',
       '--shortstat', '--diff-merges=first-parent',
       '--format=%x1e%H%x00%h%x00%P%x00%an%x00%aI%x00%s%x00%D%x00',
     ], [0], { LC_ALL: 'C', LANG: 'C' })
     const commits = parseGitGraphWithStats(result.stdout)
-    const graph = { commits: commits.slice(0, limit), truncated: commits.length > limit }
-    this.ctx.logger.info(`workbench-layout: loaded Git graph with ${graph.commits.length} visible commits and change statistics`)
+    const visible = commits.slice(0, GIT_GRAPH_PAGE_SIZE)
+    const graph = { commits: visible, truncated: commits.length > GIT_GRAPH_PAGE_SIZE, nextOffset: offset + visible.length }
+    this.ctx.logger.info(`workbench-layout: loaded Git graph page at offset ${offset} with ${visible.length} commits; older commits ${graph.truncated ? 'remain' : 'exhausted'}`)
     return graph
   }
 
@@ -973,6 +975,13 @@ export class GitBackend {
     const detail = stderr.trim().split(/\r?\n/u)[0]
     return new WorkbenchHttpError(400, 'GIT_COMMAND_FAILED', detail === undefined || detail === '' ? 'Git 操作失败。' : detail)
   }
+}
+
+function graphOffset(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
+    throw new WorkbenchHttpError(400, 'GIT_GRAPH_OFFSET_INVALID', '提交图分页位置无效。')
+  }
+  return value
 }
 
 function failureFields(error: unknown): { exitCode?: number; stdout: string; stderr: string } {

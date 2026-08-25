@@ -40,7 +40,7 @@ The layout, icons, colors, menus, dialogs, tooltips, and responsive behavior reu
 - Stage, unstage, discard, and commit through explicit actions. Long filenames use the full row at rest, then contract by the exact one- or two-button action width on row hover; direct button hover shows a circular fill.
 - Open each working-tree, staged, commit, or comparison Diff as its own editor tab.
 - Render text Diffs with CodeMirror MergeView, line numbers, change blocks, collapsed unchanged regions, side-by-side and inline modes, and long-line wrapping.
-- Explore the latest 40 commits from local and remote refs as a lane-based Commit Graph with branches, merges, tags, authors, timestamps, and file statistics.
+- Explore local and remote refs as a lane-based Commit Graph with branches, merges, tags, authors, timestamps, and file statistics; older commits load automatically in 40-entry pages while scrolling.
 - Expand a commit in place, arrange its files as a list or tree, and open one file at a time.
 - Create, switch, rename, and safely delete local branches; create a branch from a selected ref or commit.
 - Configure remotes and run Fetch, fast-forward Pull, Push, Publish, and Sync against an upstream or an explicit remote and branch.
@@ -106,7 +106,6 @@ Git features require the selected Workspace root to be a Git repository. Remote 
 
 - Open tabs and unsaved drafts live in the current page and are lost on refresh.
 - The file editor reads text files; binary files receive a binary-change notice instead of rendered content.
-- The Commit Graph currently loads the latest 40 commits without pagination.
 - Terminal processes end when their tab closes, the page reloads, the connection ends, the Workspace changes, or the plugin stops. The default composition allows up to eight concurrent terminals.
 - The plugin reorders the official AppFrame through stable client markers because DSH does not currently expose a dedicated conversation-column placement API. A future AppFrame rewrite may require a plugin update.
 - On very narrow windows, the official AppFrame concession temporarily closes the middle editor and restores it when enough width is available.

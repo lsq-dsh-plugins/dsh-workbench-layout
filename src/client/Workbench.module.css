@@ -937,6 +937,25 @@
   scrollbar-gutter: stable;
 }
 
+.gitGraphSentinel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1px;
+  padding: 3px 8px;
+  color: var(--dsw-alias-label-quaternary);
+  font: var(--dsw-font-xxs-12);
+  text-align: center;
+}
+
+.gitGraphSentinel:empty {
+  padding-block: 0;
+}
+
+.gitGraphSentinel [role='alert'] {
+  color: var(--dsw-alias-label-error);
+}
+
 :global(body[data-ds-dark-theme]) .gitGraph {
   --git-graph-color-0: var(--dsw-static-deepseek-400);
   --git-graph-color-1: rgb(167, 139, 250);
