@@ -884,15 +884,20 @@
 .gitRowActions {
   position: absolute;
   z-index: 1;
-  top: 4px;
+  top: 6px;
   right: 24px;
   display: flex;
   align-items: center;
-  padding-left: 10px;
-  background: linear-gradient(to right, transparent, var(--dsw-alias-interactive-bg-hover-solid) 10px);
+  gap: 2px;
   opacity: 0;
   pointer-events: none;
   visibility: hidden;
+}
+
+.gitRowAction {
+  width: 20px;
+  height: 20px;
+  background: var(--dsw-alias-interactive-bg-hover-solid);
 }
 
 .gitChangeRow:hover .gitRowActions,

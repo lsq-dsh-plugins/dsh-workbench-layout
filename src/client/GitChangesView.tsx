@@ -47,7 +47,7 @@ export function GitChangesView(props: GitChangesViewProps) {
         onOpen={file => { props.onOpen(file, true) }}
         onAction={props.onUnstage}
         actionLabel={props.t('git.unstage')}
-        actionIcon={<IconCloseOutline16 size={14} />}
+        actionIcon={<IconCloseOutline16 size={12} />}
         headerActions={[{ label: props.t('git.unstageAll'), icon: <IconCloseOutline16 size={14} />, action: props.onUnstageAll }]}
         busy={props.busy}
       />
@@ -61,10 +61,10 @@ export function GitChangesView(props: GitChangesViewProps) {
         onOpen={file => { props.onOpen(file, false) }}
         onAction={props.onStage}
         actionLabel={props.t('git.stage')}
-        actionIcon={<IconPlusOutline16 size={14} />}
+        actionIcon={<IconPlusOutline16 size={12} />}
         secondaryAction={props.onDiscard}
         secondaryActionLabel={props.t('git.discard')}
-        secondaryActionIcon={<IconTrashOutline16 size={14} />}
+        secondaryActionIcon={<IconTrashOutline16 size={12} />}
         headerActions={[
           { label: props.t('git.stageAll'), icon: <IconPlusOutline16 size={14} />, action: props.onStageAll },
           { label: props.t('git.discardAll'), icon: <IconTrashOutline16 size={14} />, action: props.onDiscardAll },
@@ -230,13 +230,13 @@ function ChangeRow(props: ChangeRowProps) {
       </button>
       <div className={css.gitRowActions} data-git-row-actions="">
         <Tooltip label={props.actionLabel} delayMs={400}>
-          <button type="button" className={css.gitSectionAction} aria-label={`${props.actionLabel} ${props.file.path}`} disabled={props.busy} onClick={props.onAction}>
+          <button type="button" className={`${css.gitSectionAction} ${css.gitRowAction}`} aria-label={`${props.actionLabel} ${props.file.path}`} disabled={props.busy} onClick={props.onAction}>
             {props.actionIcon}
           </button>
         </Tooltip>
         {props.secondaryAction !== undefined && props.secondaryActionLabel !== undefined && (
           <Tooltip label={props.secondaryActionLabel} delayMs={400}>
-            <button type="button" className={css.gitSectionAction} aria-label={`${props.secondaryActionLabel} ${props.file.path}`} disabled={props.busy} onClick={props.secondaryAction}>
+            <button type="button" className={`${css.gitSectionAction} ${css.gitRowAction}`} aria-label={`${props.secondaryActionLabel} ${props.file.path}`} disabled={props.busy} onClick={props.secondaryAction}>
               {props.secondaryActionIcon}
             </button>
           </Tooltip>

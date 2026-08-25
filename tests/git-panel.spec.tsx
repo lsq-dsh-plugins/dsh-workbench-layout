@@ -133,13 +133,18 @@ describe('Git panel', () => {
     expect(actionOverlay).not.toBeNull()
     expect(changeRow?.querySelector('[data-status]')?.textContent).toBe('M')
     expect(openButton?.contains(actionOverlay ?? null)).toBe(false)
-    expect(stageButton.className).toBe(stageAllButton.className)
+    for (const className of stageAllButton.classList) expect(stageButton.classList.contains(className)).toBe(true)
 
     const stylesheet = readFileSync(resolve(process.cwd(), 'src/client/Workbench.module.css'), 'utf8')
     const overlayRule = stylesheet.match(/\.gitRowActions\s*\{[^}]+\}/u)?.[0]
+    const rowActionRule = stylesheet.match(/\.gitRowAction\s*\{[^}]+\}/u)?.[0]
     expect(overlayRule).toContain('position: absolute')
     expect(overlayRule).toContain('right: 24px')
     expect(overlayRule).toContain('pointer-events: none')
+    expect(overlayRule).not.toContain('background:')
+    expect(rowActionRule).toContain('width: 20px')
+    expect(rowActionRule).toContain('height: 20px')
+    expect(rowActionRule).toContain('background: var(--dsw-alias-interactive-bg-hover-solid)')
   })
 
   it('switches list/tree layouts and opens only the selected change', async () => {

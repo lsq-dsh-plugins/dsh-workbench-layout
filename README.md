@@ -37,7 +37,7 @@ The layout, icons, colors, menus, dialogs, tooltips, and responsive behavior reu
 ### Git workspace
 
 - View staged and unstaged changes as a list or directory tree.
-- Stage, unstage, discard, and commit through explicit actions. Per-file actions reuse the changes-header circular icon controls and overlay the path on hover without permanently reducing the filename width.
+- Stage, unstage, discard, and commit through explicit actions. Compact circular per-file controls overlay the path on hover without permanently reducing the filename width or adding a rectangular action-group surface.
 - Open each working-tree, staged, commit, or comparison Diff as its own editor tab.
 - Render text Diffs with CodeMirror MergeView, line numbers, change blocks, collapsed unchanged regions, side-by-side and inline modes, and long-line wrapping.
 - Explore the latest 40 commits from local and remote refs as a lane-based Commit Graph with branches, merges, tags, authors, timestamps, and file statistics.
