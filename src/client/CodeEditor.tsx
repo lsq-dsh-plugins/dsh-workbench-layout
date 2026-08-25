@@ -12,8 +12,10 @@ import css from './Workbench.module.css'
 import {
   DEFAULT_GIT_LINE_LABELS,
   gitLineDecorations,
+  type GitLineDecorationCallbacks,
   type GitLineDecorationLabels,
 } from './git-line-decorations.ts'
+import type { GitHunkPeekSize, GitHunkPeekStorageOperation } from './git-hunk-peek-resize.ts'
 
 export interface CodeEditorProps {
   value: string
@@ -22,12 +24,23 @@ export interface CodeEditorProps {
   gitOriginal?: string
   gitLabels?: GitLineDecorationLabels
   onGitHunkOpen?: () => void
+  onGitHunkResize?: (size: GitHunkPeekSize) => void
+  onGitHunkResizeStorageError?: (operation: GitHunkPeekStorageOperation) => void
 }
 
 export type CodeEditorChangeSource = 'input' | 'git-revert'
 
 /** CodeMirror surface themed entirely through DSH design tokens. */
-export function CodeEditor({ value, onChange, ariaLabel, gitOriginal, gitLabels, onGitHunkOpen }: CodeEditorProps) {
+export function CodeEditor({
+  value,
+  onChange,
+  ariaLabel,
+  gitOriginal,
+  gitLabels,
+  onGitHunkOpen,
+  onGitHunkResize,
+  onGitHunkResizeStorageError,
+}: CodeEditorProps) {
   const parent = useRef<HTMLDivElement>(null)
   const view = useRef<EditorView | null>(null)
   const onChangeRef = useRef(onChange)
@@ -35,9 +48,17 @@ export function CodeEditor({ value, onChange, ariaLabel, gitOriginal, gitLabels,
   const syncingRef = useRef(false)
   const gitChanges = useRef(new Compartment())
   const onGitHunkOpenRef = useRef(onGitHunkOpen)
-  const notifyGitHunkOpen = useRef(() => { onGitHunkOpenRef.current?.() })
+  const onGitHunkResizeRef = useRef(onGitHunkResize)
+  const onGitHunkResizeStorageErrorRef = useRef(onGitHunkResizeStorageError)
+  const gitCallbacks = useRef<GitLineDecorationCallbacks>({
+    onHunkOpen: () => { onGitHunkOpenRef.current?.() },
+    onHunkResize: size => { onGitHunkResizeRef.current?.(size) },
+    onHunkResizeStorageError: operation => { onGitHunkResizeStorageErrorRef.current?.(operation) },
+  })
   onChangeRef.current = onChange
   onGitHunkOpenRef.current = onGitHunkOpen
+  onGitHunkResizeRef.current = onGitHunkResize
+  onGitHunkResizeStorageErrorRef.current = onGitHunkResizeStorageError
   lineEndingRef.current = detectEditorLineEnding(value)
 
   useEffect(() => {
@@ -90,7 +111,7 @@ export function CodeEditor({ value, onChange, ariaLabel, gitOriginal, gitLabels,
           gitChanges.current.of(gitLineDecorations(
             gitOriginal ?? null,
             gitLabels ?? DEFAULT_GIT_LINE_LABELS,
-            notifyGitHunkOpen.current,
+            gitCallbacks.current,
           )),
         ],
       }),
@@ -123,7 +144,7 @@ export function CodeEditor({ value, onChange, ariaLabel, gitOriginal, gitLabels,
       effects: gitChanges.current.reconfigure(gitLineDecorations(
         gitOriginal ?? null,
         gitLabels ?? DEFAULT_GIT_LINE_LABELS,
-        notifyGitHunkOpen.current,
+        gitCallbacks.current,
       )),
     })
   }, [gitLabels, gitOriginal])

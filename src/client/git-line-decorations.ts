@@ -10,6 +10,11 @@ import {
 } from '@codemirror/view'
 import { normalizeEditorText } from './editor-line-endings.ts'
 import { buildGitHunkDiff, type GitHunkDiffRow } from './git-hunk-diff.ts'
+import {
+  makeGitHunkPeekResizable,
+  type GitHunkPeekSize,
+  type GitHunkPeekStorageOperation,
+} from './git-hunk-peek-resize.ts'
 
 export type GitLineChangeKind = 'added' | 'modified' | 'deleted'
 
@@ -23,6 +28,15 @@ export interface GitLineDecorationLabels {
   next: string
   revert: string
   close: string
+  resizeWidth: string
+  resizeHeight: string
+  resizeBoth: string
+}
+
+export interface GitLineDecorationCallbacks {
+  onHunkOpen?: () => void
+  onHunkResize?: (size: GitHunkPeekSize) => void
+  onHunkResizeStorageError?: (operation: GitHunkPeekStorageOperation) => void
 }
 
 interface GitLineChange {
@@ -53,6 +67,9 @@ export const DEFAULT_GIT_LINE_LABELS: GitLineDecorationLabels = {
   next: 'Next',
   revert: 'Revert',
   close: 'Close',
+  resizeWidth: 'Resize change width',
+  resizeHeight: 'Resize change height',
+  resizeBoth: 'Resize change width and height',
 }
 
 class GitLineMarker extends GutterMarker {
@@ -90,7 +107,7 @@ class GitLineMarker extends GutterMarker {
 export function gitLineDecorations(
   original: string | null,
   labels: GitLineDecorationLabels = DEFAULT_GIT_LINE_LABELS,
-  onHunkOpen?: () => void,
+  callbacks: GitLineDecorationCallbacks = {},
 ): Extension {
   const originalDocument = original === null
     ? null
@@ -98,7 +115,7 @@ export function gitLineDecorations(
   const field: StateField<GitLineDecorationState> = StateField.define<GitLineDecorationState>({
     create(state): GitLineDecorationState {
       const chunks = originalDocument === null ? [] : Chunk.build(originalDocument, state.doc, DIFF_CONFIG)
-      return decorationState(chunks, originalDocument, state.doc, null, labels, field)
+      return decorationState(chunks, originalDocument, state.doc, null, labels, field, callbacks)
     },
     update(value, transaction): GitLineDecorationState {
       let selectedAnchor = value.selectedAnchor
@@ -113,7 +130,7 @@ export function gitLineDecorations(
         : transaction.docChanged
           ? Chunk.updateB(value.chunks, originalDocument, transaction.state.doc, transaction.changes, DIFF_CONFIG)
           : value.chunks
-      return decorationState(chunks, originalDocument, transaction.state.doc, selectedAnchor, labels, field)
+      return decorationState(chunks, originalDocument, transaction.state.doc, selectedAnchor, labels, field, callbacks)
     },
     provide: source => showTooltip.from(source, value => value.tooltip),
   })
@@ -134,7 +151,7 @@ export function gitLineDecorations(
           const opening = state.selectedAnchor !== anchor
           event.preventDefault()
           view.dispatch({ effects: setGitChangePeek.of(opening ? anchor : null) })
-          if (opening) onHunkOpen?.()
+          if (opening) callbacks.onHunkOpen?.()
           return true
         },
       },
@@ -158,6 +175,7 @@ function decorationState(
   requestedAnchor: number | null,
   labels: GitLineDecorationLabels,
   field: StateField<GitLineDecorationState>,
+  callbacks: GitLineDecorationCallbacks,
 ): GitLineDecorationState {
   if (original === null) return emptyDecorationState()
   const changes = chunks.map(chunk => lineChange(chunk, original, current))
@@ -198,6 +216,7 @@ function decorationState(
         current,
         changes[selectedIndex - 1]?.chunk,
         changes[selectedIndex + 1]?.chunk,
+        callbacks,
       ),
   }
 }
@@ -280,6 +299,7 @@ function changeTooltip(
   current: Text,
   previous: Chunk | undefined,
   next: Chunk | undefined,
+  callbacks: GitLineDecorationCallbacks,
 ): Tooltip {
   return {
     pos: change.anchorPosition,
@@ -290,7 +310,6 @@ function changeTooltip(
       dom.dataset.kind = change.kind
       dom.setAttribute('role', 'dialog')
       dom.setAttribute('aria-label', `${markerLabel(change.kind, labels)} ${index + 1}/${total}`)
-      dom.style.maxInlineSize = `${Math.max(220, view.dom.clientWidth - 24)}px`
 
       const header = document.createElement('header')
       header.className = 'cm-gitChangePeekHeader'
@@ -320,6 +339,18 @@ function changeTooltip(
         labels,
       )
       dom.append(header, body)
+      const resize = makeGitHunkPeekResizable(dom, {
+        labels: {
+          width: labels.resizeWidth,
+          height: labels.resizeHeight,
+          both: labels.resizeBoth,
+        },
+        requestMeasure: () => { view.requestMeasure() },
+        ...(callbacks.onHunkResize === undefined ? {} : { onCommit: callbacks.onHunkResize }),
+        ...(callbacks.onHunkResizeStorageError === undefined
+          ? {}
+          : { onStorageError: callbacks.onHunkResizeStorageError }),
+      })
 
       const onClick = (event: MouseEvent): void => {
         const target = event.target
@@ -342,7 +373,10 @@ function changeTooltip(
             ?? view.coordsAtPos(change.anchorPosition)
             ?? view.dom.getBoundingClientRect()
         },
-        destroy() { dom.removeEventListener('click', onClick) },
+        destroy() {
+          resize.destroy()
+          dom.removeEventListener('click', onClick)
+        },
       }
     },
   }
@@ -513,8 +547,9 @@ const gitLineTheme = EditorView.theme({
     outlineOffset: '-1px',
   },
   '.cm-tooltip.cm-gitChangePeek': {
+    display: 'flex',
+    flexDirection: 'column',
     boxSizing: 'border-box',
-    width: 'min(480px, calc(100vw - 32px))',
     overflow: 'hidden',
     border: '1px solid var(--dsw-alias-border-inverted)',
     borderRadius: '12px',
@@ -524,6 +559,7 @@ const gitLineTheme = EditorView.theme({
   },
   '.cm-gitChangePeekHeader': {
     display: 'flex',
+    flex: '0 0 auto',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: '10px',
@@ -583,11 +619,16 @@ const gitLineTheme = EditorView.theme({
     outline: 'none',
   },
   '.cm-gitChangePeekBody': {
+    display: 'flex',
+    flex: '1 1 auto',
+    flexDirection: 'column',
     minWidth: '0',
+    minHeight: '0',
     background: 'var(--dsw-alias-markdown-code-block)',
   },
   '.cm-gitChangePeekHunkHeader': {
     display: 'flex',
+    flex: '0 0 auto',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: '12px',
@@ -603,7 +644,8 @@ const gitLineTheme = EditorView.theme({
     font: 'var(--dsw-font-markdown-code-block)',
   },
   '.cm-gitChangePeekRows': {
-    maxHeight: '260px',
+    flex: '1 1 auto',
+    minHeight: '0',
     overflow: 'auto',
     paddingBlock: '5px',
     font: 'var(--dsw-font-markdown-code-block)',
@@ -658,5 +700,83 @@ const gitLineTheme = EditorView.theme({
   '.cm-gitChangePeekRow[data-diff-kind="added"] [data-diff-segment="changed"]': {
     borderRadius: '2px',
     background: 'color-mix(in srgb, var(--dsw-alias-state-success-primary) 23%, transparent)',
+  },
+  '.cm-gitChangePeekResizeHandle': {
+    position: 'absolute',
+    zIndex: '3',
+    boxSizing: 'border-box',
+    padding: '0',
+    border: '0',
+    background: 'transparent',
+    touchAction: 'none',
+    userSelect: 'none',
+  },
+  '.cm-gitChangePeekResizeHandle[data-resize-axis="width"]': {
+    insetBlock: '38px 10px',
+    insetInlineEnd: '0',
+    width: '8px',
+    cursor: 'col-resize',
+  },
+  '.cm-gitChangePeekResizeHandle[data-resize-axis="height"]': {
+    insetInline: '0 10px',
+    insetBlockEnd: '0',
+    height: '8px',
+    cursor: 'row-resize',
+  },
+  '.cm-gitChangePeekResizeHandle[data-resize-axis="both"]': {
+    insetInlineEnd: '0',
+    insetBlockEnd: '0',
+    width: '14px',
+    height: '14px',
+    cursor: 'nwse-resize',
+  },
+  '.cm-gitChangePeekResizeHandle::after': {
+    content: '""',
+    position: 'absolute',
+    boxSizing: 'border-box',
+    opacity: '0',
+    transition: 'opacity var(--ds-transition-duration-slow) var(--ds-ease-in-out)',
+  },
+  '.cm-gitChangePeekResizeHandle[data-resize-axis="width"]::after': {
+    insetBlockStart: '50%',
+    insetInlineEnd: '2px',
+    width: '2px',
+    height: '28px',
+    borderRadius: '2px',
+    background: 'var(--dsw-alias-label-tertiary)',
+    transform: 'translateY(-50%)',
+  },
+  '.cm-gitChangePeekResizeHandle[data-resize-axis="height"]::after': {
+    insetInlineStart: '50%',
+    insetBlockEnd: '2px',
+    width: '28px',
+    height: '2px',
+    borderRadius: '2px',
+    background: 'var(--dsw-alias-label-tertiary)',
+    transform: 'translateX(-50%)',
+  },
+  '.cm-gitChangePeekResizeHandle[data-resize-axis="both"]::after': {
+    insetInlineEnd: '3px',
+    insetBlockEnd: '3px',
+    width: '7px',
+    height: '7px',
+    borderInlineEnd: '2px solid var(--dsw-alias-label-tertiary)',
+    borderBlockEnd: '2px solid var(--dsw-alias-label-tertiary)',
+    borderRadius: '0 0 2px',
+  },
+  '.cm-gitChangePeek:hover .cm-gitChangePeekResizeHandle::after': {
+    opacity: '0.45',
+  },
+  '.cm-gitChangePeekResizeHandle:hover::after, .cm-gitChangePeekResizeHandle:focus-visible::after, .cm-gitChangePeek[data-resizing] .cm-gitChangePeekResizeHandle::after': {
+    opacity: '1',
+  },
+  '.cm-gitChangePeekResizeHandle:focus-visible': {
+    outline: '1px solid var(--dsw-alias-brand-border)',
+    outlineOffset: '-2px',
+  },
+  '@media (prefers-reduced-motion: reduce)': {
+    '.cm-gitChangePeekResizeHandle::after': {
+      transition: 'none',
+    },
   },
 })

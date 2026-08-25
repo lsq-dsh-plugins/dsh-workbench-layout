@@ -5,6 +5,7 @@ import { undo } from '@codemirror/commands'
 import { act, cleanup, fireEvent, render, within } from '@testing-library/react'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { CodeEditor } from '../src/client/CodeEditor.tsx'
+import { GIT_HUNK_PEEK_STORAGE_KEY } from '../src/client/git-hunk-peek-resize.ts'
 
 const rangeGetClientRects = Range.prototype.getClientRects
 const rangeGetBoundingClientRect = Range.prototype.getBoundingClientRect
@@ -41,7 +42,10 @@ afterAll(() => {
   })
 })
 
-afterEach(() => { cleanup() })
+afterEach(() => {
+  cleanup()
+  window.localStorage.clear()
+})
 
 describe('editable Git line decorations', () => {
   it('marks added and modified lines only in the clickable gutter', () => {
@@ -165,6 +169,45 @@ describe('editable Git line decorations', () => {
     expect(within(view.getByRole('dialog')).getByText('FOUR')).toBeTruthy()
     fireEvent.click(within(view.getByRole('dialog')).getByRole('button', { name: 'Close' }))
     expect(view.queryByRole('dialog')).toBeNull()
+  })
+
+  it('resizes the local Diff with keyboard or pointer handles and restores that size', () => {
+    const onGitHunkResize = vi.fn()
+    const view = render(
+      <CodeEditor
+        value={'one\nTWO\nthree\nFOUR\n'}
+        gitOriginal={'one\ntwo\nthree\nfour\n'}
+        onChange={() => {}}
+        onGitHunkResize={onGitHunkResize}
+        ariaLabel="resize.txt"
+      />,
+    )
+    fireEvent.click(gitMarker(view.container, 'modified', 0))
+    const firstDialog = view.getByRole('dialog')
+    expect(firstDialog.style.inlineSize).toBe('480px')
+    expect(firstDialog.style.blockSize).toBe('320px')
+
+    fireEvent.keyDown(within(firstDialog).getByRole('separator', { name: 'Resize change width' }), {
+      key: 'ArrowRight',
+    })
+    expect(firstDialog.style.inlineSize).toBe('488px')
+    expect(firstDialog.style.blockSize).toBe('320px')
+    expect(onGitHunkResize).toHaveBeenLastCalledWith({ width: 488, height: 320 })
+
+    const corner = firstDialog.querySelector<HTMLElement>('[data-resize-axis="both"]')
+    expect(corner).toBeInstanceOf(HTMLElement)
+    fireEvent.pointerDown(corner as HTMLElement, { button: 0, pointerId: 7, clientX: 100, clientY: 100 })
+    fireEvent.pointerMove(corner as HTMLElement, { pointerId: 7, clientX: 124, clientY: 140 })
+    fireEvent.pointerUp(corner as HTMLElement, { pointerId: 7, clientX: 124, clientY: 140 })
+    expect(firstDialog.style.inlineSize).toBe('512px')
+    expect(firstDialog.style.blockSize).toBe('360px')
+    expect(onGitHunkResize).toHaveBeenLastCalledWith({ width: 512, height: 360 })
+    expect(window.localStorage.getItem(GIT_HUNK_PEEK_STORAGE_KEY)).toBe('{"width":512,"height":360}')
+
+    fireEvent.click(within(firstDialog).getByRole('button', { name: 'Next' }))
+    const nextDialog = view.getByRole('dialog')
+    expect(nextDialog.style.inlineSize).toBe('512px')
+    expect(nextDialog.style.blockSize).toBe('360px')
   })
 
   it('reverts one change in the draft and keeps the edit undoable', () => {

@@ -56,6 +56,14 @@ describe('WorkbenchController', () => {
     expect(logger.info).toHaveBeenLastCalledWith(
       'workbench-layout: opened local Git Diff hunk for "src/a.ts"',
     )
+    controller.logGitHunkResize('src/a.ts', { width: 512, height: 360 })
+    expect(logger.info).toHaveBeenLastCalledWith(
+      'workbench-layout: resized local Git Diff hunk for "src/a.ts" to 512x360px',
+    )
+    controller.logGitHunkResizeStorageError('save')
+    expect(logger.warn).toHaveBeenLastCalledWith(
+      'workbench-layout: could not save local Git Diff hunk size preference',
+    )
     controller.setDraft('before', 'git-revert')
 
     expect(logger.info).toHaveBeenCalledWith(
