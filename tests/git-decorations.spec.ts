@@ -11,7 +11,7 @@ describe('Git file decorations', () => {
     expect(gitFileDecoration({ path: 'conflicted.ts', index: 'U', worktree: 'U' })).toBe('conflict')
   })
 
-  it('aggregates descendant states onto directories using the conflict-first priority', () => {
+  it('aggregates tracked descendant states without propagating untracked red to directories', () => {
     expect(buildGitDecorations([
       { path: 'src/added.ts', index: 'A', worktree: ' ' },
       { path: 'src/nested/modified.ts', index: ' ', worktree: 'M' },
@@ -22,8 +22,8 @@ describe('Git file decorations', () => {
       'src/nested/modified.ts': 'modified',
       'docs/renamed.md': 'renamed',
       'src/nested/untracked.ts': 'untracked',
-      src: 'untracked',
-      'src/nested': 'untracked',
+      src: 'added',
+      'src/nested': 'modified',
       docs: 'renamed',
     })
   })

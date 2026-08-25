@@ -33,6 +33,7 @@ export function buildGitDecorations(files: readonly GitFileStatus[]): GitDecorat
     const decoration = gitFileDecoration(file)
     if (decoration === undefined) continue
     mergeDecoration(decorations, file.path, decoration)
+    if (decoration === 'untracked') continue
     let parent = parentPath(file.path)
     while (parent !== '') {
       mergeDecoration(decorations, parent, decoration)

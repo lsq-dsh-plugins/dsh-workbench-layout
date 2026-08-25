@@ -64,9 +64,8 @@ afterEach(() => {
 })
 
 describe('文件目录', () => {
-  it('用 Git 状态装饰文件并把最强状态聚合到父目录', async () => {
+  it('用 Git 状态装饰文件但不把未跟踪红色传播到父目录', async () => {
     workbench.current.gitDecorations = {
-      src: 'untracked',
       'src/new.ts': 'untracked',
       'README.md': 'modified',
     }
@@ -86,7 +85,7 @@ describe('文件目录', () => {
       <FileTree controller={controller as never} workspaceId="workspace-1" workspacePath="/workspace/project" t={key => zh[key]} />,
     )
 
-    expect((await view.findByRole('treeitem', { name: 'src' })).dataset.gitDecoration).toBe('untracked')
+    expect((await view.findByRole('treeitem', { name: 'src' })).dataset.gitDecoration).toBeUndefined()
     expect(view.getByRole('treeitem', { name: 'README.md' }).dataset.gitDecoration).toBe('modified')
     expect(controller.refreshGitDecorations).toHaveBeenCalledWith('workspace-1')
   })
