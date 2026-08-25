@@ -10,7 +10,9 @@ const workbenchState = vi.hoisted(() => ({ current: {} as WorkbenchState }))
 
 vi.mock('../src/client/use-workbench.ts', () => ({ useWorkbench: () => workbenchState.current }))
 vi.mock('../src/client/CodeEditor.tsx', () => ({
-  CodeEditor: ({ ariaLabel }: { ariaLabel: string }) => <textarea aria-label={ariaLabel} />,
+  CodeEditor: ({ ariaLabel, gitOriginal }: { ariaLabel: string; gitOriginal?: string }) => (
+    <textarea aria-label={ariaLabel} data-git-original={gitOriginal} />
+  ),
 }))
 vi.mock('../src/client/GitDiffEditor.tsx', () => ({ GitDiffEditor: () => <div>diff</div> }))
 vi.mock('../src/client/TerminalSurface.tsx', () => ({
@@ -48,6 +50,25 @@ describe('WorkbenchEditor multi-file tabs', () => {
     const view = renderEditor(controller)
     fireEvent.click(view.getByRole('tab', { name: 'a.ts' }))
     expect(controller.selectTab).toHaveBeenCalledWith('file:src/a.ts')
+  })
+
+  it('loads the HEAD baseline for a source tab and passes it to the normal editor', () => {
+    workbenchState.current.activeTabId = 'file:src/a.ts'
+    const source = workbenchState.current.tabs[0]
+    if (source?.kind === 'file') {
+      source.gitBaseline = {
+        path: source.path,
+        available: true,
+        original: 'const a = 0',
+        binary: false,
+        revision: 'a'.repeat(40),
+      }
+    }
+    const controller = controllerFake()
+    const view = renderEditor(controller)
+
+    expect(controller.ensureGitBaseline).toHaveBeenCalledWith('file:src/a.ts')
+    expect(view.getByRole('textbox', { name: 'src/a.ts' }).dataset.gitOriginal).toBe('const a = 0')
   })
 
   it('uses a DSH modal before discarding an unsaved tab', () => {
@@ -139,6 +160,7 @@ function controllerFake() {
     reloadExternalFile: vi.fn(),
     keepCurrentDraft: vi.fn(),
     setDraft: vi.fn(),
+    ensureGitBaseline: vi.fn(() => Promise.resolve()),
     setDiffViewMode: vi.fn(),
     restartTerminal: vi.fn(),
   }

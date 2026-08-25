@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { EditorState } from '@codemirror/state'
+import { Compartment, EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { basicSetup } from 'codemirror'
 import {
@@ -9,20 +9,23 @@ import {
   type EditorLineEnding,
 } from './editor-line-endings.ts'
 import css from './Workbench.module.css'
+import { gitLineDecorations } from './git-line-decorations.ts'
 
 export interface CodeEditorProps {
   value: string
   onChange: (value: string) => void
   ariaLabel: string
+  gitOriginal?: string
 }
 
 /** CodeMirror surface themed entirely through DSH design tokens. */
-export function CodeEditor({ value, onChange, ariaLabel }: CodeEditorProps) {
+export function CodeEditor({ value, onChange, ariaLabel, gitOriginal }: CodeEditorProps) {
   const parent = useRef<HTMLDivElement>(null)
   const view = useRef<EditorView | null>(null)
   const onChangeRef = useRef(onChange)
   const lineEndingRef = useRef<EditorLineEnding>(detectEditorLineEnding(value))
   const syncingRef = useRef(false)
+  const gitChanges = useRef(new Compartment())
   onChangeRef.current = onChange
   lineEndingRef.current = detectEditorLineEnding(value)
 
@@ -67,6 +70,7 @@ export function CodeEditor({ value, onChange, ariaLabel }: CodeEditorProps) {
             '&.cm-focused': { outline: 'none' },
             '.cm-cursor': { borderLeftColor: 'var(--dsw-alias-label-primary)' },
           }),
+          gitChanges.current.of(gitLineDecorations(gitOriginal ?? null)),
         ],
       }),
     })
@@ -90,6 +94,14 @@ export function CodeEditor({ value, onChange, ariaLabel }: CodeEditorProps) {
       syncingRef.current = false
     }
   }, [value])
+
+  useEffect(() => {
+    const editor = view.current
+    if (editor === null) return
+    editor.dispatch({
+      effects: gitChanges.current.reconfigure(gitLineDecorations(gitOriginal ?? null)),
+    })
+  }, [gitOriginal])
 
   return <div ref={parent} className={css.codeEditorHost} />
 }

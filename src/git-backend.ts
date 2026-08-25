@@ -14,6 +14,7 @@ import type {
   GitCommitFiles,
   GitCommitResult,
   GitCommitStats,
+  GitEditorBaseline,
   GitFileDiff,
   GitFileStatus,
   GitGraph,
@@ -284,7 +285,8 @@ export class GitBackend {
     ])
     const branchName = branch.stdout.trim()
     const remoteNames = remotes.stdout.split(/\r?\n/u).map(name => name.trim()).filter(name => name !== '')
-    const hasHead = await this.hasHead(cwd)
+    const head = await this.headRevision(cwd)
+    const hasHead = head !== undefined
     const upstreamResult = hasHead && branchName !== ''
       ? await this.run(cwd, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'], [0, 128])
       : undefined
@@ -295,6 +297,7 @@ export class GitBackend {
     return {
       available: true,
       files: parsePorcelainStatus(status.stdout),
+      ...(head === undefined ? {} : { head }),
       ...(branchName === '' ? {} : { branch: branchName }),
       detached: hasHead && branchName === '',
       hasRemote: remoteNames.length > 0,
@@ -332,6 +335,50 @@ export class GitBackend {
       binary,
       ...(stat?.additions === undefined ? {} : { additions: stat.additions }),
       ...(stat?.deletions === undefined ? {} : { deletions: stat.deletions }),
+    }
+  }
+
+  /** Return the HEAD-side text used by editable source-line Git decorations. */
+  async editorBaseline(workspaceId: unknown, pathValue: unknown): Promise<GitEditorBaseline> {
+    const path = await this.workspace.assertGitPath(workspaceId, pathValue)
+    let cwd: string
+    try {
+      cwd = await this.repositoryRoot(workspaceId)
+    } catch (error) {
+      if (error instanceof WorkbenchHttpError && error.code === 'GIT_UNAVAILABLE') {
+        return { path, available: false, original: '', binary: false }
+      }
+      throw error
+    }
+    const head = await this.headRevision(cwd)
+    const status = parsePorcelainStatus((await this.run(cwd, [
+      'status', '--porcelain=v1', '-z', '--untracked-files=all', '--', path,
+    ])).stdout).find(file => file.path === path)
+    if (status?.index === '?' || status?.index === 'A' || head === undefined) {
+      this.ctx.logger.info(`workbench-layout: loaded empty Git editor baseline for ${JSON.stringify(path)}`)
+      return {
+        path,
+        available: status !== undefined,
+        original: '',
+        binary: false,
+        ...(head === undefined ? {} : { revision: head }),
+      }
+    }
+    if (status === undefined) {
+      const tracked = await this.run(cwd, ['ls-files', '--error-unmatch', '--', path], [0, 1])
+      if (tracked.exitCode !== 0) {
+        this.ctx.logger.info(`workbench-layout: skipped Git editor baseline for untracked ignored path ${JSON.stringify(path)}`)
+        return { path, available: false, original: '', binary: false, revision: head }
+      }
+    }
+    const original = await this.readGitBlobMaybe(cwd, `HEAD:${status?.originalPath ?? path}`)
+    this.ctx.logger.info(`workbench-layout: loaded Git editor baseline for ${JSON.stringify(path)} from HEAD`)
+    return {
+      path,
+      available: true,
+      original: original.binary ? '' : original.text,
+      binary: original.binary,
+      revision: head,
     }
   }
 
@@ -870,8 +917,13 @@ export class GitBackend {
   }
 
   private async hasHead(cwd: string): Promise<boolean> {
+    return await this.headRevision(cwd) !== undefined
+  }
+
+  private async headRevision(cwd: string): Promise<string | undefined> {
     const result = await this.run(cwd, ['rev-parse', '--verify', 'HEAD'], [0, 1, 128])
-    return result.exitCode === 0 && result.stdout.trim() !== ''
+    const revision = result.stdout.trim()
+    return result.exitCode === 0 && revision !== '' ? revision : undefined
   }
 
   private async requireBranchName(cwd: string, value: unknown): Promise<string> {

@@ -21,6 +21,7 @@ describe('Workbench browser API', () => {
     await api.absolutePath('workspace-1', 'README.md')
     await api.relativePath('workspace-1', 'README.md')
     await api.gitStatus('workspace-1')
+    await api.gitEditorBaseline('workspace-1', 'src/a.ts')
     await api.gitGraph('workspace-1')
 
     const fileRequest = fetch.mock.calls[0]?.[1] as RequestInit
@@ -32,7 +33,8 @@ describe('Workbench browser API', () => {
     const absoluteRequest = fetch.mock.calls[6]?.[1] as RequestInit
     const relativeRequest = fetch.mock.calls[7]?.[1] as RequestInit
     const gitStatusRequest = fetch.mock.calls[8]?.[1] as RequestInit
-    const gitGraphRequest = fetch.mock.calls[9]?.[1] as RequestInit
+    const gitBaselineRequest = fetch.mock.calls[9]?.[1] as RequestInit
+    const gitGraphRequest = fetch.mock.calls[10]?.[1] as RequestInit
     expect(fetch.mock.calls[1]?.[0]).toBe('/dsh-workbench-layout/files/refresh')
     expect(fetch.mock.calls[2]?.[0]).toBe('/dsh-workbench-layout/file/create')
     expect(fetch.mock.calls[3]?.[0]).toBe('/dsh-workbench-layout/directory/create')
@@ -40,7 +42,8 @@ describe('Workbench browser API', () => {
     expect(fetch.mock.calls[5]?.[0]).toBe('/dsh-workbench-layout/entry/delete')
     expect(fetch.mock.calls[6]?.[0]).toBe('/dsh-workbench-layout/path/absolute')
     expect(fetch.mock.calls[7]?.[0]).toBe('/dsh-workbench-layout/path/relative')
-    expect(fetch.mock.calls[9]?.[0]).toBe('/dsh-workbench-layout/git/graph')
+    expect(fetch.mock.calls[9]?.[0]).toBe('/dsh-workbench-layout/git/editor-baseline')
+    expect(fetch.mock.calls[10]?.[0]).toBe('/dsh-workbench-layout/git/graph')
     expect(JSON.parse(String(fileRequest.body))).toEqual({ workspaceId: 'workspace-1', path: 'src' })
     expect(JSON.parse(String(refreshRequest.body))).toEqual({
       workspaceId: 'workspace-1', files: [{ path: 'src/a.ts', version: 'v1' }],
@@ -52,6 +55,7 @@ describe('Workbench browser API', () => {
     expect(JSON.parse(String(absoluteRequest.body))).toEqual({ workspaceId: 'workspace-1', path: 'README.md' })
     expect(JSON.parse(String(relativeRequest.body))).toEqual({ workspaceId: 'workspace-1', path: 'README.md' })
     expect(JSON.parse(String(gitStatusRequest.body))).toEqual({ workspaceId: 'workspace-1' })
+    expect(JSON.parse(String(gitBaselineRequest.body))).toEqual({ workspaceId: 'workspace-1', path: 'src/a.ts' })
     expect(JSON.parse(String(gitGraphRequest.body))).toEqual({ workspaceId: 'workspace-1', offset: 0 })
     expect(`${String(fileRequest.body)}${String(gitGraphRequest.body)}`).not.toContain('sessionId')
   })

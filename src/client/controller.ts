@@ -1,7 +1,7 @@
 /** Shared browser state joining the root-scoped sidebar and Session-scoped editor. */
 
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
-import type { GitCommit, GitFileDiff, GitStatus, WorkspaceFile } from '../contracts.ts'
+import type { GitCommit, GitEditorBaseline, GitFileDiff, GitStatus, WorkspaceFile } from '../contracts.ts'
 import { WorkbenchApi } from './api.ts'
 import { buildGitDecorations, type GitDecorationMap } from './git-decorations.ts'
 import type { GitFileLayout } from './git-tree.ts'
@@ -32,6 +32,9 @@ export interface WorkbenchFileTab {
   saving: boolean
   externalChange: ExternalFileChange | null
   error: string | null
+  gitBaseline?: GitEditorBaseline | null
+  gitBaselineKey?: string
+  gitBaselineLoading?: boolean
 }
 
 export type ExternalFileChange =
@@ -74,6 +77,8 @@ export interface WorkbenchState {
   gitChangeLayout: GitFileLayout
   gitGraphFileLayout: GitFileLayout
   gitDecorations: GitDecorationMap
+  gitHead?: string
+  gitLineVersions?: Record<string, string>
   sidebarAction?: WorkbenchSidebarActionRequest
 }
 
@@ -86,6 +91,7 @@ const INITIAL_STATE: WorkbenchState = {
   gitChangeLayout: 'list',
   gitGraphFileLayout: 'list',
   gitDecorations: {},
+  gitLineVersions: {},
 }
 
 export interface WorkbenchLogger {
@@ -106,6 +112,7 @@ export class WorkbenchController {
   private requestId = 0
   private sidebarActionId = 0
   private readonly fileRequests = new Map<string, number>()
+  private readonly gitBaselineRequests = new Map<string, number>()
   private readonly diffRequests = new Map<string, number>()
   private terminalId = 0
   private setSidebarShadow: ((active: boolean) => void) | undefined
@@ -182,14 +189,60 @@ export class WorkbenchController {
   acceptGitStatus(workspaceId: string, status: GitStatus): void {
     this.gitStatusGenerations.set(workspaceId, (this.gitStatusGenerations.get(workspaceId) ?? 0) + 1)
     const decorations = status.available ? buildGitDecorations(status.files) : {}
+    const lineVersions = status.available ? buildGitLineVersions(status.files) : {}
     const current = this.store.getSnapshot().workspaceId === workspaceId
-      ? this.store.getSnapshot().gitDecorations
-      : this.workspaceStates.get(workspaceId)?.gitDecorations
-    if (current === undefined || sameDecorations(current, decorations)) return
-    this.updateWorkspaceState(workspaceId, (state) => { state.gitDecorations = decorations })
+      ? this.store.getSnapshot()
+      : this.workspaceStates.get(workspaceId)
+    if (current === undefined || (
+      sameDecorations(current.gitDecorations, decorations)
+      && current.gitHead === status.head
+      && sameStringMap(current.gitLineVersions ?? {}, lineVersions)
+    )) return
+    this.updateWorkspaceState(workspaceId, (state) => {
+      state.gitDecorations = decorations
+      state.gitLineVersions = lineVersions
+      if (status.head === undefined) delete state.gitHead
+      else state.gitHead = status.head
+    })
     this.logger.info(
-      `workbench-layout: updated ${Object.keys(decorations).length} Git file decoration(s) in ${JSON.stringify(workspaceId)}`,
+      `workbench-layout: updated Git file and line decoration state in ${JSON.stringify(workspaceId)}`,
     )
+  }
+
+  /** Load and cache the HEAD-side text for one editable source tab. */
+  async ensureGitBaseline(tabId = this.store.getSnapshot().activeTabId): Promise<void> {
+    if (tabId === undefined) return
+    const snapshot = this.store.getSnapshot()
+    const workspaceId = snapshot.workspaceId
+    const tab = snapshot.tabs.find(candidate => candidate.id === tabId)
+    if (workspaceId === undefined || tab?.kind !== 'file' || tab.file === null) return
+    const key = gitBaselineKey(snapshot, tab)
+    if (tab.gitBaselineKey === key) return
+    const requestKey = tabRequestKey(workspaceId, tabId)
+    const requestId = ++this.requestId
+    this.gitBaselineRequests.set(requestKey, requestId)
+    this.updateFileTabState(workspaceId, tabId, (draft) => {
+      draft.gitBaselineKey = key
+      draft.gitBaselineLoading = true
+    })
+    try {
+      const baseline = await this.api.gitEditorBaseline(workspaceId, tab.path)
+      if (this.gitBaselineRequests.get(requestKey) !== requestId) return
+      this.updateFileTabState(workspaceId, tabId, (draft) => {
+        if (draft.gitBaselineKey !== key) return
+        draft.gitBaseline = baseline
+        draft.gitBaselineLoading = false
+      })
+      this.logger.info(`workbench-layout: prepared Git line decorations for ${JSON.stringify(tab.path)}`)
+    } catch {
+      if (this.gitBaselineRequests.get(requestKey) !== requestId) return
+      this.updateFileTabState(workspaceId, tabId, (draft) => {
+        if (draft.gitBaselineKey !== key) return
+        draft.gitBaseline = null
+        draft.gitBaselineLoading = false
+      })
+      this.logger.warn(`workbench-layout: failed to prepare Git line decorations for ${JSON.stringify(tab.path)}`)
+    }
   }
 
   /** Coalesce background Git status checks independently for each Workspace. */
@@ -378,6 +431,7 @@ export class WorkbenchController {
       : state.activeTabId
     const requestKey = tabRequestKey(state.workspaceId, tabId)
     this.fileRequests.delete(requestKey)
+    this.gitBaselineRequests.delete(requestKey)
     this.diffRequests.delete(requestKey)
     this.store.update((draft) => {
       draft.tabs.splice(index, 1)
@@ -827,10 +881,14 @@ function cloneState(state: WorkbenchState): WorkbenchState {
   return {
     ...state,
     gitDecorations: { ...state.gitDecorations },
+    gitLineVersions: { ...state.gitLineVersions },
     tabs: state.tabs.map((tab) => {
       if (tab.kind === 'file') return {
         ...tab,
         file: tab.file === null ? null : { ...tab.file },
+        ...(tab.gitBaseline === undefined
+          ? {}
+          : { gitBaseline: tab.gitBaseline === null ? null : { ...tab.gitBaseline } }),
         externalChange: tab.externalChange?.kind === 'changed'
           ? { kind: 'changed', file: { ...tab.externalChange.file } }
           : tab.externalChange,
@@ -846,6 +904,24 @@ function sameDecorations(left: GitDecorationMap, right: GitDecorationMap): boole
   const rightEntries = Object.entries(right)
   return leftEntries.length === rightEntries.length
     && leftEntries.every(([path, decoration]) => right[path] === decoration)
+}
+
+function sameStringMap(left: Record<string, string>, right: Record<string, string>): boolean {
+  const leftEntries = Object.entries(left)
+  const rightEntries = Object.entries(right)
+  return leftEntries.length === rightEntries.length
+    && leftEntries.every(([path, value]) => right[path] === value)
+}
+
+function buildGitLineVersions(files: readonly GitStatus['files'][number][]): Record<string, string> {
+  return Object.fromEntries(files.map(file => [
+    file.path,
+    `${file.originalPath ?? ''}\0${file.index}${file.worktree}`,
+  ]))
+}
+
+function gitBaselineKey(state: WorkbenchState, tab: WorkbenchFileTab): string {
+  return [tab.file?.version ?? '', state.gitHead ?? '', state.gitLineVersions?.[tab.path] ?? ''].join('\0')
 }
 
 /** Terminal processes are page-live resources and never survive a Workspace switch. */

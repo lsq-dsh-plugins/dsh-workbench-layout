@@ -9,6 +9,7 @@ import type {
   GitCommitAction,
   GitCommitActionResult,
   GitCommitResult,
+  GitEditorBaseline,
   GitFileDiff,
   GitGraph,
   GitRemoteOperation,
@@ -84,6 +85,10 @@ export class WorkbenchApi {
 
   async gitDiff(workspaceId: string, path: string, staged: boolean): Promise<GitFileDiff> {
     return this.post('/git/diff', { workspaceId, path, staged })
+  }
+
+  async gitEditorBaseline(workspaceId: string, path: string): Promise<GitEditorBaseline> {
+    return this.post('/git/editor-baseline', { workspaceId, path })
   }
 
   async gitGraph(workspaceId: string, offset = 0): Promise<GitGraph> {

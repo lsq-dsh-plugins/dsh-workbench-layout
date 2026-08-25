@@ -457,6 +457,67 @@ describe('WorkbenchController', () => {
     expect(controller.store.getSnapshot().gitDecorations).toEqual({ 'new.ts': 'added' })
   })
 
+  it('caches editor Git baselines and reloads them when HEAD changes', async () => {
+    const api = {
+      readFile: vi.fn(() => Promise.resolve(file('src/a.ts', 'working', 'v1'))),
+      gitEditorBaseline: vi.fn()
+        .mockResolvedValueOnce({ path: 'src/a.ts', available: true, original: 'head one', binary: false, revision: '1'.repeat(40) })
+        .mockResolvedValueOnce({ path: 'src/a.ts', available: true, original: 'head two', binary: false, revision: '2'.repeat(40) }),
+    }
+    const controller = createController(api)
+    await controller.openFile('workspace-1', 'src/a.ts')
+    controller.acceptGitStatus('workspace-1', {
+      available: true,
+      head: '1'.repeat(40),
+      files: [{ path: 'src/a.ts', index: ' ', worktree: 'M' }],
+    })
+
+    await controller.ensureGitBaseline()
+    await controller.ensureGitBaseline()
+    expect(api.gitEditorBaseline).toHaveBeenCalledTimes(1)
+    expect(activeTab(controller)).toMatchObject({
+      gitBaseline: { available: true, original: 'head one', revision: '1'.repeat(40) },
+      gitBaselineLoading: false,
+    })
+
+    controller.acceptGitStatus('workspace-1', {
+      available: true,
+      head: '2'.repeat(40),
+      files: [{ path: 'src/a.ts', index: ' ', worktree: 'M' }],
+    })
+    await controller.ensureGitBaseline()
+    expect(api.gitEditorBaseline).toHaveBeenCalledTimes(2)
+    expect(activeTab(controller)).toMatchObject({ gitBaseline: { original: 'head two' } })
+  })
+
+  it('does not apply a stale editor baseline after HEAD changes', async () => {
+    let finishOld: ((value: {
+      path: string
+      available: boolean
+      original: string
+      binary: boolean
+      revision: string
+    }) => void) | undefined
+    const oldBaseline = new Promise(resolve => { finishOld = resolve })
+    const api = {
+      readFile: vi.fn(() => Promise.resolve(file('src/a.ts', 'working', 'v1'))),
+      gitEditorBaseline: vi.fn()
+        .mockReturnValueOnce(oldBaseline)
+        .mockResolvedValueOnce({ path: 'src/a.ts', available: true, original: 'new head', binary: false, revision: '2'.repeat(40) }),
+    }
+    const controller = createController(api)
+    await controller.openFile('workspace-1', 'src/a.ts')
+    controller.acceptGitStatus('workspace-1', { available: true, head: '1'.repeat(40), files: [] })
+    const oldRequest = controller.ensureGitBaseline()
+
+    controller.acceptGitStatus('workspace-1', { available: true, head: '2'.repeat(40), files: [] })
+    await controller.ensureGitBaseline()
+    finishOld?.({ path: 'src/a.ts', available: true, original: 'old head', binary: false, revision: '1'.repeat(40) })
+    await oldRequest
+
+    expect(activeTab(controller)).toMatchObject({ gitBaseline: { original: 'new head', revision: '2'.repeat(40) } })
+  })
+
   it('clears every file tab and Diff after Git changes the Workspace', async () => {
     const logger = { info: vi.fn(), warn: vi.fn() }
     const api = { readFile: vi.fn(() => Promise.resolve(file('src/a.ts', 'before', '1'))) }

@@ -82,6 +82,7 @@ export interface GitFileStatus {
 
 export interface GitStatus {
   available: boolean
+  head?: string
   branch?: string
   detached?: boolean
   upstream?: string
@@ -91,6 +92,14 @@ export interface GitStatus {
   remotes?: string[]
   files: GitFileStatus[]
   message?: string
+}
+
+export interface GitEditorBaseline {
+  path: string
+  available: boolean
+  original: string
+  binary: boolean
+  revision?: string
 }
 
 export type GitReferenceKind = 'head' | 'local' | 'remote' | 'tag'

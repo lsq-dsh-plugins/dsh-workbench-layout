@@ -78,6 +78,37 @@ describe('Git output parsers', () => {
 })
 
 describe('GitBackend single-file diffs', () => {
+  it('loads editable line-decoration baselines from HEAD for tracked, untracked, ignored, and binary files', async () => {
+    const fixture = await createRepository()
+    await writeFile(join(fixture.root, '.gitignore'), '*.ignored\n')
+    await writeFile(join(fixture.root, 'tracked.txt'), 'head content\n')
+    await writeFile(join(fixture.root, 'asset.bin'), Buffer.from([0, 1, 2, 3]))
+    git(fixture.root, ['add', '.'])
+    git(fixture.root, ['commit', '--quiet', '-m', 'baseline'])
+    const head = gitOutput(fixture.root, ['rev-parse', 'HEAD'])
+
+    await writeFile(join(fixture.root, 'tracked.txt'), 'staged content\n')
+    git(fixture.root, ['add', 'tracked.txt'])
+    await writeFile(join(fixture.root, 'tracked.txt'), 'working content\n')
+    await writeFile(join(fixture.root, 'new.txt'), 'new content\n')
+    await writeFile(join(fixture.root, 'private.ignored'), 'ignored content\n')
+
+    await expect(fixture.backend.editorBaseline('workspace-1', 'tracked.txt')).resolves.toEqual({
+      path: 'tracked.txt', available: true, original: 'head content\n', binary: false, revision: head,
+    })
+    await expect(fixture.backend.editorBaseline('workspace-1', 'new.txt')).resolves.toEqual({
+      path: 'new.txt', available: true, original: '', binary: false, revision: head,
+    })
+    await expect(fixture.backend.editorBaseline('workspace-1', 'private.ignored')).resolves.toEqual({
+      path: 'private.ignored', available: false, original: '', binary: false, revision: head,
+    })
+    await expect(fixture.backend.editorBaseline('workspace-1', 'asset.bin')).resolves.toEqual({
+      path: 'asset.bin', available: true, original: '', binary: true, revision: head,
+    })
+    await expect(fixture.backend.status('workspace-1')).resolves.toMatchObject({ head })
+    expect(fixture.logger.info).toHaveBeenCalledWith('workbench-layout: loaded Git editor baseline for "tracked.txt" from HEAD')
+  })
+
   it('stages, commits, and reads one root-commit file as before/after content', async () => {
     const fixture = await createRepository()
     await writeFile(join(fixture.root, 'note.txt'), 'one\n')

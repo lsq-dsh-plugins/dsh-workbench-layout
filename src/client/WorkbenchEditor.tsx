@@ -28,8 +28,14 @@ export function WorkbenchEditor({ sessionId, useWorkspaces, controller, activate
   const tab = state.tabs.find(candidate => candidate.id === state.activeTabId)
   const terminalTabs = state.tabs.filter(candidate => candidate.kind === 'terminal')
   const closeTab = pendingClose === null ? undefined : state.tabs.find(candidate => candidate.id === pendingClose)
+  const baselineTabId = tab?.kind === 'file' && tab.file !== null && !tab.preview ? tab.id : undefined
+  const baselineFileVersion = tab?.kind === 'file' ? tab.file?.version : undefined
+  const baselineLineVersion = tab?.kind === 'file' ? state.gitLineVersions?.[tab.path] : undefined
 
   useEffect(() => { activateWorkspace(workspaceId) }, [activateWorkspace, workspaceId])
+  useEffect(() => {
+    if (baselineTabId !== undefined) void controller.ensureGitBaseline(baselineTabId)
+  }, [baselineFileVersion, baselineLineVersion, baselineTabId, controller, state.gitHead])
   useEffect(() => {
     if (pendingClose !== null && (closeTab?.kind !== 'file' || (!closeTab.dirty && !closeTab.saving))) {
       setPendingClose(null)
@@ -164,6 +170,9 @@ export function WorkbenchEditor({ sessionId, useWorkspaces, controller, activate
                     value={tab.draft}
                     ariaLabel={tab.path}
                     onChange={value => { controller.setDraft(value) }}
+                    {...tab.gitBaseline?.available === true && !tab.gitBaseline.binary
+                      ? { gitOriginal: tab.gitBaseline.original }
+                      : {}}
                   />
                 ))}
       </div>
