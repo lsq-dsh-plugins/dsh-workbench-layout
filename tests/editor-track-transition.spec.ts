@@ -70,6 +70,20 @@ describe('中栏轨道过渡', () => {
     expect(frame.hasAttribute(EDITOR_TRANSITION_ATTRIBUTE)).toBe(false)
     expect(end).toHaveBeenCalledTimes(2)
   })
+
+  it('展开时采用响应式右栏偏好而不是官方固定默认值', () => {
+    const { frame, conversation, editor } = frameFixture()
+    const transition = createEditorTrackTransition(frame, { info: vi.fn() }, false, () => 614)
+    vi.spyOn(conversation, 'getBoundingClientRect').mockReturnValue(rect(920))
+    vi.spyOn(editor, 'getBoundingClientRect').mockReturnValue(rect(0))
+
+    transition.setExpanded(true)
+    flushAnimationFrame()
+
+    expect(frame.style.getPropertyValue(TRANSITION_EDITOR_WIDTH)).toBe('306px')
+    expect(frame.style.getPropertyValue(TRANSITION_CONVERSATION_WIDTH)).toBe('614px')
+    transition.dispose()
+  })
 })
 
 function frameFixture() {

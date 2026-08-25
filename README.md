@@ -53,7 +53,7 @@ The layout, icons, colors, menus, dialogs, tooltips, and responsive behavior reu
 ### Conversation and layout
 
 - Keep the official DSH conversation and input flow intact in the right column.
-- Resize the middle and right columns with the official AppFrame divider behavior.
+- Resize the middle and right columns with the official AppFrame divider behavior. The initial conversation width scales with the viewport, and its drag range grows on large displays while preserving the middle editor's usable width.
 - Collapse the middle editor from the sidebar footer; selecting a file, Diff, or terminal opens it again.
 - Keep files and Git available for a Workspace even before its Session contains messages.
 - Adapt the composer, menus, failure messages, Session Log action, and assistant timing statistics when the conversation becomes narrow.

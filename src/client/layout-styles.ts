@@ -33,14 +33,16 @@ import {
   TRANSITION_SIDEBAR_WIDTH,
 } from './editor-layout-contract.ts'
 import {
-  createFallbackDetailsTrack,
-  FALLBACK_DETAILS_ATTRIBUTE,
-  FALLBACK_DETAILS_WIDTH,
-  FALLBACK_DRAGGING_ATTRIBUTE,
-  FALLBACK_HANDLE_ATTRIBUTE,
-  FALLBACK_SIDEBAR_WIDTH,
-  type FallbackDetailsTrack,
-} from './fallback-details-layout.ts'
+  createDetailsTrackLayout,
+  DETAILS_TRACK_ATTRIBUTE,
+  DETAILS_TRACK_DRAGGING_ATTRIBUTE,
+  DETAILS_TRACK_FALLBACK_ATTRIBUTE,
+  DETAILS_TRACK_HANDLE_ATTRIBUTE,
+  DETAILS_TRACK_NATIVE_HANDLE_ATTRIBUTE,
+  DETAILS_TRACK_SIDEBAR_WIDTH,
+  DETAILS_TRACK_WIDTH,
+  type DetailsTrackLayout,
+} from './details-track-layout.ts'
 
 export { EDITOR_COLLAPSED_ATTRIBUTE } from './editor-layout-contract.ts'
 
@@ -69,7 +71,7 @@ const CSS = `
 }
 
 [${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2),
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2),
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${DETAILS_TRACK_FALLBACK_ATTRIBUTE}] > :nth-child(2),
 [${FRAME_ATTRIBUTE}][${EDITOR_TRANSITION_ATTRIBUTE}] > :nth-child(2) {
   grid-column: 3;
   grid-row: 1;
@@ -81,7 +83,7 @@ const CSS = `
    receives the workbench surface. InputBar and its phase-bearing textarea stay
    wholly owned by DSH's official component styles. */
 [${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}],
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}],
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${DETAILS_TRACK_FALLBACK_ATTRIBUTE}] > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}],
 [${FRAME_ATTRIBUTE}][${EDITOR_TRANSITION_ATTRIBUTE}] > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}] {
   background: var(--dsw-specific-sidebar-fill);
 }
@@ -89,7 +91,7 @@ const CSS = `
 /* The official active composer mask references the original center surface;
    only its backdrop stop follows the relocated conversation surface. */
 [${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}][data-phase='active'] [data-composer-seat],
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}][data-phase='active'] [data-composer-seat],
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${DETAILS_TRACK_FALLBACK_ATTRIBUTE}] > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}][data-phase='active'] [data-composer-seat],
 [${FRAME_ATTRIBUTE}][${EDITOR_TRANSITION_ATTRIBUTE}] > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}][data-phase='active'] [data-composer-seat] {
   background: linear-gradient(
     180deg,
@@ -99,18 +101,19 @@ const CSS = `
 }
 
 [${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(3),
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${FALLBACK_DETAILS_ATTRIBUTE}] > :nth-child(3),
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${DETAILS_TRACK_FALLBACK_ATTRIBUTE}] > :nth-child(3),
 [${FRAME_ATTRIBUTE}][${EDITOR_TRANSITION_ATTRIBUTE}] > :nth-child(3) {
   grid-column: 2;
   grid-row: 1;
   border-left: none !important;
 }
 
-[${FRAME_ATTRIBUTE}][${FALLBACK_DETAILS_ATTRIBUTE}] {
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${DETAILS_TRACK_ATTRIBUTE}]:not([data-details-collapsed]),
+[${FRAME_ATTRIBUTE}][${DETAILS_TRACK_FALLBACK_ATTRIBUTE}] {
   grid-template-columns:
-    var(${FALLBACK_SIDEBAR_WIDTH})
+    var(${DETAILS_TRACK_SIDEBAR_WIDTH})
     minmax(0, 1fr)
-    var(${FALLBACK_DETAILS_WIDTH}) !important;
+    var(${DETAILS_TRACK_WIDTH}) !important;
 }
 
 /* During a visibility toggle, keep the reordered occupants fixed and animate
@@ -133,15 +136,19 @@ const CSS = `
   transition: none !important;
 }
 
-[${FRAME_ATTRIBUTE}][${FALLBACK_DRAGGING_ATTRIBUTE}] {
+[${FRAME_ATTRIBUTE}][${DETAILS_TRACK_DRAGGING_ATTRIBUTE}] {
   transition: none !important;
 }
 
-[${FRAME_ATTRIBUTE}] > [${FALLBACK_HANDLE_ATTRIBUTE}] {
+[${FRAME_ATTRIBUTE}][${DETAILS_TRACK_ATTRIBUTE}]:not([${DETAILS_TRACK_FALLBACK_ATTRIBUTE}]) > [${DETAILS_TRACK_NATIVE_HANDLE_ATTRIBUTE}] {
+  left: calc(100% - var(${DETAILS_TRACK_WIDTH})) !important;
+}
+
+[${FRAME_ATTRIBUTE}] > [${DETAILS_TRACK_HANDLE_ATTRIBUTE}] {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: calc(100% - var(${FALLBACK_DETAILS_WIDTH}));
+  left: calc(100% - var(${DETAILS_TRACK_WIDTH}));
   width: 8px;
   margin-left: -4px;
   cursor: col-resize;
@@ -150,7 +157,8 @@ const CSS = `
   transition: left var(--ds-transition-duration-slow) var(--ds-ease-in-out);
 }
 
-[${FRAME_ATTRIBUTE}][${FALLBACK_DRAGGING_ATTRIBUTE}] > [${FALLBACK_HANDLE_ATTRIBUTE}] {
+[${FRAME_ATTRIBUTE}][${DETAILS_TRACK_DRAGGING_ATTRIBUTE}] > [${DETAILS_TRACK_HANDLE_ATTRIBUTE}],
+[${FRAME_ATTRIBUTE}][${DETAILS_TRACK_DRAGGING_ATTRIBUTE}] > [${DETAILS_TRACK_NATIVE_HANDLE_ATTRIBUTE}] {
   transition: none;
 }
 
@@ -283,7 +291,7 @@ const CSS = `
 }
 `
 
-/** 安装可收起的列顺序样式，并仅为空会话补足 AppFrame 主动隐藏的详情轨道。 */
+/** 安装可收起的列顺序样式，并为工作台右栏提供响应式会话轨道。 */
 export function installWorkbenchLayout(
   ctx: ClientContext,
   visibility: WorkbenchEditorVisibilityStore,
@@ -296,7 +304,7 @@ export function installWorkbenchLayout(
     document.head.appendChild(style)
 
     let frame: HTMLElement | null = null
-    let fallbackTrack: FallbackDetailsTrack | undefined
+    let detailsTrack: DetailsTrackLayout | undefined
     let conversationLayout: ConversationLayout | undefined
     let conversationFileRouting: ConversationFileRouting | undefined
     let editorTransition: EditorTrackTransition | undefined
@@ -306,7 +314,7 @@ export function installWorkbenchLayout(
       editorTransition?.setExpanded(nextExpanded)
       editorExpanded = nextExpanded
       frame?.toggleAttribute(EDITOR_COLLAPSED_ATTRIBUTE, !nextExpanded)
-      fallbackTrack?.setEnabled(nextExpanded)
+      detailsTrack?.setEnabled(nextExpanded)
     }
     const attach = (): void => {
       const next = document.querySelector<HTMLElement>('[data-shell-overlay]')?.parentElement ?? null
@@ -317,16 +325,21 @@ export function installWorkbenchLayout(
       conversationFileRouting = undefined
       editorTransition?.dispose()
       editorTransition = undefined
-      fallbackTrack?.dispose()
-      fallbackTrack = undefined
+      detailsTrack?.dispose()
+      detailsTrack = undefined
       frame?.removeAttribute(FRAME_ATTRIBUTE)
       frame?.removeAttribute(EDITOR_COLLAPSED_ATTRIBUTE)
       frame = next
       if (frame === null) return
       frame.setAttribute(FRAME_ATTRIBUTE, '')
       frame.toggleAttribute(EDITOR_COLLAPSED_ATTRIBUTE, !editorExpanded)
-      fallbackTrack = createFallbackDetailsTrack(frame, ctx.logger, editorExpanded)
-      editorTransition = createEditorTrackTransition(frame, ctx.logger, editorExpanded)
+      detailsTrack = createDetailsTrackLayout(frame, ctx.logger, editorExpanded)
+      editorTransition = createEditorTrackTransition(
+        frame,
+        ctx.logger,
+        editorExpanded,
+        availableWidth => detailsTrack?.resolvePreferredWidth(availableWidth) ?? 0,
+      )
       const conversationColumn = frame.children.item(1)
       if (conversationColumn instanceof HTMLElement) {
         conversationLayout = createConversationLayout(conversationColumn, ctx.logger)
@@ -344,7 +357,7 @@ export function installWorkbenchLayout(
       conversationLayout?.dispose()
       conversationFileRouting?.dispose()
       editorTransition?.dispose()
-      fallbackTrack?.dispose()
+      detailsTrack?.dispose()
       frame?.removeAttribute(FRAME_ATTRIBUTE)
       frame?.removeAttribute(EDITOR_COLLAPSED_ATTRIBUTE)
       style.remove()

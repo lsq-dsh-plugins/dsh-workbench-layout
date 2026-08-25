@@ -1,6 +1,6 @@
 /** 中栏显隐期间同步 AppFrame 两个内容轨道，结束后交还官方布局。 */
 
-import { FALLBACK_DETAILS_WIDTH } from './fallback-details-layout.ts'
+import { DETAILS_TRACK_WIDTH } from './details-track-layout.ts'
 import {
   EDITOR_RELEASE_ATTRIBUTE,
   EDITOR_TRANSITION_ATTRIBUTE,
@@ -44,6 +44,7 @@ export function createEditorTrackTransition(
   frame: HTMLElement,
   logger: EditorTrackTransitionLogger,
   initiallyExpanded: boolean,
+  resolvePreferredWidth?: (availableWidth: number) => number,
 ): EditorTrackTransition {
   let targetExpanded = initiallyExpanded
   let animationFrame: number | null = null
@@ -157,7 +158,7 @@ export function createEditorTrackTransition(
       const currentSidebarWidth = Math.round(sidebar.getBoundingClientRect().width)
       const currentAvailableWidth = Math.max(0, currentFrameWidth - currentSidebarWidth)
       const targetConversationWidth = next
-        ? resolveExpandedConversationWidth(frame, currentAvailableWidth)
+        ? resolveExpandedConversationWidth(frame, currentAvailableWidth, resolvePreferredWidth)
         : currentAvailableWidth
       setPixels(frame, TRANSITION_SIDEBAR_WIDTH, currentSidebarWidth)
       setPixels(frame, TRANSITION_EDITOR_WIDTH, Math.max(0, currentAvailableWidth - targetConversationWidth))
@@ -177,8 +178,14 @@ export function createEditorTrackTransition(
   }
 }
 
-function resolveExpandedConversationWidth(frame: HTMLElement, availableWidth: number): number {
-  const fallbackWidth = parsePixels(frame.style.getPropertyValue(FALLBACK_DETAILS_WIDTH))
+function resolveExpandedConversationWidth(
+  frame: HTMLElement,
+  availableWidth: number,
+  resolvePreferredWidth?: (availableWidth: number) => number,
+): number {
+  const controlledWidth = resolvePreferredWidth?.(availableWidth) ?? 0
+  if (controlledWidth > 0) return Math.min(availableWidth, controlledWidth)
+  const fallbackWidth = parsePixels(frame.style.getPropertyValue(DETAILS_TRACK_WIDTH))
   const nativeWidth = parseLastTrack(frame.style.gridTemplateColumns)
   const preferredWidth = fallbackWidth > 0 ? fallbackWidth : nativeWidth > 0 ? nativeWidth : DETAILS_DEFAULT
   return Math.min(availableWidth, preferredWidth)

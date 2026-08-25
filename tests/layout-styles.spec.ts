@@ -14,7 +14,16 @@ import {
   EDITOR_TRANSITION_ATTRIBUTE,
   TRANSITION_EDITOR_WIDTH,
 } from '../src/client/editor-track-transition.ts'
-import { readNativeSidebarWidth, resolveFallbackDetailsWidth } from '../src/client/fallback-details-layout.ts'
+import {
+  DETAILS_TRACK_ATTRIBUTE,
+  DETAILS_TRACK_NATIVE_HANDLE_ATTRIBUTE,
+  DETAILS_TRACK_SIDEBAR_WIDTH,
+  DETAILS_TRACK_WIDTH,
+  readNativeSidebarWidth,
+  resolveDetailsTrackMaximum,
+  resolveDetailsTrackWidth,
+  resolveResponsiveDetailsDefault,
+} from '../src/client/details-track-layout.ts'
 import { EDITOR_COLLAPSED_ATTRIBUTE, installWorkbenchLayout } from '../src/client/layout-styles.ts'
 
 afterEach(() => {
@@ -23,10 +32,14 @@ afterEach(() => {
 })
 
 describe('workbench layout presentation', () => {
-  it('matches AppFrame details bounds and center concession', () => {
-    expect(resolveFallbackDetailsWidth(1400, 280, 360)).toBe(360)
-    expect(resolveFallbackDetailsWidth(1250, 280, 520)).toBe(330)
-    expect(resolveFallbackDetailsWidth(1200, 280, 360)).toBe(0)
+  it('uses a responsive default and preserves the AppFrame center concession', () => {
+    expect(resolveResponsiveDetailsDefault(1280)).toBe(420)
+    expect(resolveResponsiveDetailsDefault(1920)).toBe(614)
+    expect(resolveResponsiveDetailsDefault(2560)).toBe(720)
+    expect(resolveDetailsTrackMaximum(1920, 280)).toBe(1000)
+    expect(resolveDetailsTrackWidth(1920, 280, 900)).toBe(900)
+    expect(resolveDetailsTrackWidth(1400, 280, 900)).toBe(480)
+    expect(resolveDetailsTrackWidth(1200, 280, 420)).toBe(0)
   })
 
   it('reads AppFrame sidebar geometry from its inline grid before fallback CSS', () => {
@@ -38,9 +51,8 @@ describe('workbench layout presentation', () => {
     expect(readNativeSidebarWidth(frame, sidebar)).toBe(56)
   })
 
-  it('keeps the native active-Session track untouched', () => {
-    const { frame } = appFrameFixture('active', 312)
-    frame.removeAttribute('data-details-collapsed')
+  it('keeps the native active-Session divider while widening its workbench track', () => {
+    const { frame, detailsHandle } = appFrameFixture('active', 312)
     document.body.appendChild(frame)
     let dispose: (() => void) | undefined
     const ctx = contextWithDispose(value => { dispose = value })
@@ -49,8 +61,12 @@ describe('workbench layout presentation', () => {
     installWorkbenchLayout(ctx, visibility, fileController())
     expect(frame.hasAttribute('data-dsh-workbench-frame')).toBe(true)
     expect(frame.querySelector(`[${CONVERSATION_ROOT_ATTRIBUTE}]`)).not.toBeNull()
-    expect(frame.style.gridTemplateColumns).toBe('312px minmax(0, 1fr) 0px')
+    expect(frame.style.gridTemplateColumns).toBe('312px minmax(0, 1fr) 360px')
     expect(frame.hasAttribute('data-dsh-workbench-fallback-details')).toBe(false)
+    expect(frame.hasAttribute(DETAILS_TRACK_ATTRIBUTE)).toBe(true)
+    expect(frame.style.getPropertyValue(DETAILS_TRACK_SIDEBAR_WIDTH)).toBe('312px')
+    expect(frame.style.getPropertyValue(DETAILS_TRACK_WIDTH)).toBe('448px')
+    expect(detailsHandle?.hasAttribute(DETAILS_TRACK_NATIVE_HANDLE_ATTRIBUTE)).toBe(true)
     const style = document.head.querySelector<HTMLStyleElement>('[data-dsh-workbench-layout]')
     expect(style).not.toBeNull()
     expect(style?.textContent).toContain(':not([data-details-collapsed])')
@@ -92,7 +108,9 @@ describe('workbench layout presentation', () => {
 
     dispose?.()
     expect(frame.hasAttribute('data-dsh-workbench-frame')).toBe(false)
-    expect(frame.style.gridTemplateColumns).toBe('312px minmax(0, 1fr) 0px')
+    expect(frame.style.gridTemplateColumns).toBe('312px minmax(0, 1fr) 360px')
+    expect(frame.style.getPropertyValue(DETAILS_TRACK_WIDTH)).toBe('')
+    expect(detailsHandle?.hasAttribute(DETAILS_TRACK_NATIVE_HANDLE_ATTRIBUTE)).toBe(false)
     expect(document.head.querySelector('[data-dsh-workbench-layout]')).toBeNull()
   })
 
@@ -135,8 +153,8 @@ describe('workbench layout presentation', () => {
 
     installWorkbenchLayout(ctx, visibility, fileController())
     expect(frame.hasAttribute('data-dsh-workbench-fallback-details')).toBe(true)
-    expect(frame.style.getPropertyValue('--dsh-workbench-fallback-sidebar-width')).toBe('280px')
-    expect(frame.style.getPropertyValue('--dsh-workbench-fallback-details-width')).toBe('360px')
+    expect(frame.style.getPropertyValue(DETAILS_TRACK_SIDEBAR_WIDTH)).toBe('280px')
+    expect(frame.style.getPropertyValue(DETAILS_TRACK_WIDTH)).toBe('448px')
     expect(frame.querySelector('[data-dsh-workbench-fallback-handle]')).not.toBeNull()
     expect(ctx.logger.info).toHaveBeenCalledWith(expect.stringContaining('activated blank-Session'))
 
@@ -153,7 +171,7 @@ describe('workbench layout presentation', () => {
     await vi.waitFor(() => {
       expect(frame.hasAttribute('data-dsh-workbench-fallback-details')).toBe(false)
     })
-    expect(ctx.logger.info).toHaveBeenCalledWith(expect.stringContaining('released blank-Session'))
+    expect(ctx.logger.info).toHaveBeenCalledWith(expect.stringContaining('released responsive conversation track'))
 
     dispose?.()
     expect(frame.querySelector('[data-dsh-workbench-fallback-handle]')).toBeNull()
@@ -166,31 +184,53 @@ describe('workbench layout presentation', () => {
     const ctx = contextWithDispose(value => { dispose = value })
 
     installWorkbenchLayout(ctx, editorVisibility(), fileController())
-    expect(frame.style.getPropertyValue('--dsh-workbench-fallback-sidebar-width')).toBe('280px')
+    expect(frame.style.getPropertyValue(DETAILS_TRACK_SIDEBAR_WIDTH)).toBe('280px')
 
     frame.style.gridTemplateColumns = '56px minmax(0, 1fr) 0px'
     frame.toggleAttribute('data-sidebar-collapsed', true)
     await vi.waitFor(() => {
-      expect(frame.style.getPropertyValue('--dsh-workbench-fallback-sidebar-width')).toBe('56px')
+      expect(frame.style.getPropertyValue(DETAILS_TRACK_SIDEBAR_WIDTH)).toBe('56px')
     })
-    expect(frame.style.getPropertyValue('--dsh-workbench-fallback-details-width')).toBe('360px')
+    expect(frame.style.getPropertyValue(DETAILS_TRACK_WIDTH)).toBe('448px')
 
     frame.style.gridTemplateColumns = '344px minmax(0, 1fr) 0px'
     frame.removeAttribute('data-sidebar-collapsed')
     await vi.waitFor(() => {
-      expect(frame.style.getPropertyValue('--dsh-workbench-fallback-sidebar-width')).toBe('344px')
+      expect(frame.style.getPropertyValue(DETAILS_TRACK_SIDEBAR_WIDTH)).toBe('344px')
     })
-    expect(ctx.logger.info).toHaveBeenCalledWith(expect.stringContaining('collapsed sidebar track at 56px'))
-    expect(ctx.logger.info).toHaveBeenCalledWith(expect.stringContaining('expanded sidebar track at 344px'))
+    expect(frame.style.getPropertyValue(DETAILS_TRACK_WIDTH)).toBe('416px')
+    expect(ctx.logger.info).toHaveBeenCalledWith(expect.stringContaining('collapsed sidebar at 56px'))
+    expect(ctx.logger.info).toHaveBeenCalledWith(expect.stringContaining('expanded sidebar at 344px'))
+
+    dispose?.()
+  })
+
+  it('drags the native divider past the former 520px ceiling on a large screen', () => {
+    const { frame, detailsHandle } = appFrameFixture('active', 280, 1920)
+    document.body.appendChild(frame)
+    let dispose: (() => void) | undefined
+    const ctx = contextWithDispose(value => { dispose = value })
+
+    installWorkbenchLayout(ctx, editorVisibility(), fileController())
+    expect(frame.style.getPropertyValue(DETAILS_TRACK_WIDTH)).toBe('614px')
+    expect(detailsHandle).not.toBeNull()
+
+    dispatchPointer(detailsHandle!, 'pointerdown', 1200)
+    dispatchPointer(detailsHandle!, 'pointerup', 900)
+
+    expect(frame.style.getPropertyValue(DETAILS_TRACK_WIDTH)).toBe('914px')
+    expect(detailsHandle?.getAttribute('aria-valuemax')).toBe('1000')
+    expect(detailsHandle?.getAttribute('aria-valuenow')).toBe('914')
+    expect(ctx.logger.info).toHaveBeenCalledWith(expect.stringContaining('resized conversation track to 914px'))
 
     dispose?.()
   })
 })
 
-function appFrameFixture(phase: 'hero' | 'active', sidebarWidth = 280) {
+function appFrameFixture(phase: 'hero' | 'active', sidebarWidth = 280, frameWidth = 1400) {
   const frame = document.createElement('div')
-  frame.style.gridTemplateColumns = `${sidebarWidth}px minmax(0, 1fr) 0px`
-  frame.toggleAttribute('data-details-collapsed', true)
+  frame.style.gridTemplateColumns = `${sidebarWidth}px minmax(0, 1fr) ${phase === 'active' ? 360 : 0}px`
+  frame.toggleAttribute('data-details-collapsed', phase !== 'active')
   const sidebar = document.createElement('div')
   const conversationColumn = document.createElement('div')
   const conversationSlot = document.createElement('div')
@@ -209,12 +249,21 @@ function appFrameFixture(phase: 'hero' | 'active', sidebarWidth = 280) {
   details.appendChild(document.createElement('div'))
   const overlay = document.createElement('div')
   overlay.dataset.shellOverlay = ''
+  const detailsHandle = phase === 'active' ? document.createElement('div') : null
+  if (detailsHandle !== null) detailsHandle.dataset.side = 'details'
   frame.append(sidebar, conversationColumn, details, overlay)
-  vi.spyOn(frame, 'getBoundingClientRect').mockReturnValue(rect(1400))
+  if (detailsHandle !== null) frame.appendChild(detailsHandle)
+  vi.spyOn(frame, 'getBoundingClientRect').mockReturnValue(rect(frameWidth))
   vi.spyOn(sidebar, 'getBoundingClientRect').mockReturnValue(rect(sidebarWidth))
   expect(conversationColumn.querySelector(":scope > [data-slot='conversation'] > [data-phase]")).toBe(conversation)
   expect(conversationColumn.querySelector(':scope > textarea[data-phase]')).toBeNull()
-  return { frame, conversation }
+  return { frame, conversation, detailsHandle }
+}
+
+function dispatchPointer(target: HTMLElement, type: string, clientX: number): void {
+  const event = new MouseEvent(type, { bubbles: true, button: 0, clientX })
+  Object.defineProperty(event, 'pointerId', { value: 1 })
+  target.dispatchEvent(event)
 }
 
 function contextWithDispose(onDispose: (dispose: () => void) => void): ClientContext {
