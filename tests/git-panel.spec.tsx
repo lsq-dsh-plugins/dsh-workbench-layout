@@ -123,24 +123,32 @@ describe('Git panel', () => {
   it('reuses the changes header button style for overlaid per-file Git actions', async () => {
     const { controller } = harness()
     const view = renderPanel(controller)
+    const longRootPath = 'a-very-long-root-file-name-that-reaches-the-actions.ts'
 
     const stageButton = await view.findByRole('button', { name: '暂存 src/nested/a.ts' })
     const actionOverlay = stageButton.closest('[data-git-row-actions]')
     const changeRow = actionOverlay?.closest('[data-git-change-row]')
     const openButton = changeRow?.querySelector<HTMLButtonElement>('button[title="src/nested/a.ts"]')
     const stageAllButton = view.getByRole('button', { name: '暂存全部更改' })
+    const rootOpenButton = view.getAllByTitle(longRootPath)[1]
+    const rootFileText = rootOpenButton?.querySelector('[data-git-file-text]')
 
     expect(actionOverlay).not.toBeNull()
     expect(changeRow?.querySelector('[data-status]')?.textContent).toBe('M')
     expect(openButton?.contains(actionOverlay ?? null)).toBe(false)
     for (const className of stageAllButton.classList) expect(stageButton.classList.contains(className)).toBe(true)
+    expect(rootFileText?.hasAttribute('data-has-directory')).toBe(false)
+    expect(rootFileText?.querySelector('[data-git-file-directory]')).toBeNull()
 
     const stylesheet = readFileSync(resolve(process.cwd(), 'src/client/Workbench.module.css'), 'utf8')
     const changeRowRule = stylesheet.match(/\.gitChangeRow\s*\{[^}]+\}/u)?.[0]
+    const rootNameRule = stylesheet.match(/\.gitFileText > \.rowName\s*\{[^}]+\}/u)?.[0]
     const overlayRule = stylesheet.match(/\.gitRowActions\s*\{[^}]+\}/u)?.[0]
     const rowActionRule = stylesheet.match(/\.gitRowAction\s*\{[^}]+\}/u)?.[0]
-    const rowActionHoverRule = stylesheet.match(/\.gitRowAction:hover:not\(:disabled\)\s*\{[^}]+\}/u)?.[0]
+    const sharedActionHoverRule = stylesheet.match(/\.gitSectionAction:hover:not\(:disabled\)\s*\{[^}]+\}/u)?.[0]
     expect(changeRowRule).toContain('height: 28px')
+    expect(rootNameRule).toContain('flex: 1 1 auto')
+    expect(rootNameRule).toContain('max-width: 100%')
     expect(overlayRule).toContain('position: absolute')
     expect(overlayRule).toContain('right: 24px')
     expect(overlayRule).toContain('pointer-events: none')
@@ -148,7 +156,7 @@ describe('Git panel', () => {
     expect(rowActionRule).toContain('width: 20px')
     expect(rowActionRule).toContain('height: 20px')
     expect(rowActionRule).not.toContain('background:')
-    expect(rowActionHoverRule).toContain('background: transparent')
+    expect(sharedActionHoverRule).toContain('background: var(--dsw-alias-interactive-bg-active)')
   })
 
   it('switches list/tree layouts and opens only the selected change', async () => {
@@ -391,7 +399,10 @@ function harness() {
     behind: 2,
     hasRemote: true,
     remotes: ['origin'],
-    files: [{ path: 'src/nested/a.ts', index: 'M', worktree: 'M' }],
+    files: [
+      { path: 'src/nested/a.ts', index: 'M', worktree: 'M' },
+      { path: 'a-very-long-root-file-name-that-reaches-the-actions.ts', index: 'M', worktree: 'M' },
+    ],
   }
   const controller = {
     api: {

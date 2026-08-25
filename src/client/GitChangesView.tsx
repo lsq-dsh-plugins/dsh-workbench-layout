@@ -212,6 +212,7 @@ interface ChangeRowProps {
 
 function ChangeRow(props: ChangeRowProps) {
   const renamed = props.file.originalPath !== undefined && props.file.originalPath !== props.file.path
+  const directory = props.showDirectory === true ? directoryName(props.file.path) : ''
   return (
     <div
       className={css.gitChangeRow}
@@ -222,9 +223,9 @@ function ChangeRow(props: ChangeRowProps) {
     >
       <button type="button" className={css.gitChangeMain} onClick={props.onOpen} title={renamed ? `${props.file.originalPath} → ${props.file.path}` : props.file.path}>
         <IconCodeOutline16 size={15} />
-        <span className={css.gitFileText}>
+        <span className={css.gitFileText} data-git-file-text="" data-has-directory={directory === '' ? undefined : ''}>
           <span className={css.rowName}>{fileName(props.file.path)}</span>
-          {props.showDirectory === true && <span className={css.gitFileDirectory}>{directoryName(props.file.path)}</span>}
+          {directory !== '' && <span className={css.gitFileDirectory} data-git-file-directory="">{directory}</span>}
         </span>
         <span className={css.statusBadge} data-status={props.status}>{props.status}</span>
       </button>

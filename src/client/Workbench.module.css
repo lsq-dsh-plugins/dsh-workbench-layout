@@ -844,6 +844,11 @@
 }
 
 .gitFileText > .rowName {
+  flex: 1 1 auto;
+  max-width: 100%;
+}
+
+.gitFileText[data-has-directory] > .rowName {
   flex: 0 0 auto;
   max-width: 68%;
 }
@@ -897,11 +902,6 @@
 .gitRowAction {
   width: 20px;
   height: 20px;
-}
-
-.gitRowAction:hover:not(:disabled) {
-  background: transparent;
-  color: var(--dsw-alias-label-primary);
 }
 
 .gitChangeRow:hover .gitRowActions,
