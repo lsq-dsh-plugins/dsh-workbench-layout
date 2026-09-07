@@ -21,7 +21,7 @@ describe('published package metadata', () => {
     expect(manifest.dependencies['@xterm/xterm']).toMatch(/^\^6\./u)
     expect(manifest.dependencies['node-pty']).toMatch(/^\^1\./u)
     expect(manifest.dependencies.ws).toMatch(/^\^8\./u)
-    expect(manifest.peerDependencies['@deepseek-ai/dsh-workspace']).toBe('^0.1.1-rc.2')
+    expect(manifest.peerDependencies['@deepseek-ai/dsh-workspace']).toBe('^0.1.1-rc.2 || ^0.1.2-rc.1')
     expect(manifest.dsh).toEqual(expect.objectContaining({
       bundle: { patch: './cordis.patch.yml' },
       client: expect.objectContaining({

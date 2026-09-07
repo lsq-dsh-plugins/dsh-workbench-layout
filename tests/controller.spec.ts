@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { resolveWorkbenchWorkspaceId } from '../src/client/workspace-binding.ts'
 
-vi.mock('@deepseek-ai/dsh-client-runtime/client', () => ({
+vi.mock('@deepseek-ai/dsh-client-store', () => ({
   createSnapshotStore: <T,>(initial: T) => {
     let state = initial
     const listeners = new Set<() => void>()

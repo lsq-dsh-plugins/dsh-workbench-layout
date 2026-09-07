@@ -2,6 +2,7 @@
 
 export interface WorkspaceMembership {
   workspaceId: string
+  path: string
   sessionIds: readonly string[]
 }
 

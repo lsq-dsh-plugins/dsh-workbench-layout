@@ -152,6 +152,7 @@ export function GitRemoteDialog(props: GitRemoteDialogProps) {
         description={props.t('git.remoteDialog.deleteDescription', { name: selectedRemote?.name ?? '' })}
         acknowledgeLabel={props.t('git.remoteDialog.deleteAcknowledge')}
         cancelLabel={props.t('git.remoteDialog.cancel')}
+        closeLabel={props.t('git.remoteDialog.cancel')}
         confirmLabel={props.t('git.remoteDialog.delete')}
         acknowledged={deleteAcknowledged}
         disabled={props.busy}
