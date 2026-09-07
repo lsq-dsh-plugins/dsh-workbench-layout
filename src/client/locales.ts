@@ -229,6 +229,9 @@ export const zh = {
   'editor.gitRevertChange': '还原',
   'editor.gitClosePeek': '关闭',
   'editor.gitResizePeekWidth': '调整局部 Diff 宽度',
+  'markdown.copy': '复制',
+  'markdown.copied': '已复制',
+  'markdown.footnotes': '脚注',
 } as const
 
 export const en: Record<keyof typeof zh, string> = {
@@ -462,6 +465,9 @@ export const en: Record<keyof typeof zh, string> = {
   'editor.gitRevertChange': 'Revert',
   'editor.gitClosePeek': 'Close',
   'editor.gitResizePeekWidth': 'Resize local Diff width',
+  'markdown.copy': 'Copy',
+  'markdown.copied': 'Copied',
+  'markdown.footnotes': 'Footnotes',
 }
 
 export type WorkbenchKey = keyof typeof zh

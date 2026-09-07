@@ -621,6 +621,7 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
         })}
         acknowledgeLabel={t('git.discardDialog.acknowledge')}
         cancelLabel={t('git.discardDialog.cancel')}
+        closeLabel={t('git.discardDialog.cancel')}
         confirmLabel={t('git.discardDialog.confirm')}
         acknowledged={discardAcknowledged}
         disabled={busy === 'discard'}

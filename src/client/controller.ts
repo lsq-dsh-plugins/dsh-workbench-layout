@@ -1,6 +1,6 @@
 /** Shared browser state joining the root-scoped sidebar and Session-scoped editor. */
 
-import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { GitCommit, GitEditorBaseline, GitFileDiff, GitStatus, WorkspaceFile } from '../contracts.ts'
 import { WorkbenchApi } from './api.ts'
 import { buildGitDecorations, type GitDecorationMap } from './git-decorations.ts'

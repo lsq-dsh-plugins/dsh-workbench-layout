@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Button, FishLogo, MarkdownText, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, FishLogo, MarkdownText, type MarkdownLabels, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { WorkbenchController } from './controller.ts'
 import { CodeEditor } from './CodeEditor.tsx'
@@ -42,6 +42,10 @@ export function WorkbenchEditor({ sessionId, useWorkspaces, controller, activate
     revert: t('editor.gitRevertChange'),
     close: t('editor.gitClosePeek'),
     resizeWidth: t('editor.gitResizePeekWidth'),
+  }), [t])
+  const markdownLabels = useMemo<MarkdownLabels>(() => ({
+    code: { copyLabel: t('markdown.copy'), copiedLabel: t('markdown.copied') },
+    footnotes: t('markdown.footnotes'),
   }), [t])
 
   useEffect(() => { activateWorkspace(workspaceId) }, [activateWorkspace, workspaceId])
@@ -175,7 +179,7 @@ export function WorkbenchEditor({ sessionId, useWorkspaces, controller, activate
             : tab.file === null
               ? <EditorEmpty text={tab.error ?? t('editor.loading')} />
               : tab.file.markdown && tab.preview
-                ? <div className={css.markdownPreview}><MarkdownText text={tab.draft} /></div>
+                ? <div className={css.markdownPreview}><MarkdownText text={tab.draft} labels={markdownLabels} /></div>
                 : (
                   <CodeEditor
                     key={tab.id}

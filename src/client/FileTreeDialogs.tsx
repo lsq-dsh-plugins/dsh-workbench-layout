@@ -76,6 +76,7 @@ export function FileTreeDialogs(props: FileTreeDialogsProps) {
         })}
         acknowledgeLabel={props.t('files.deleteAcknowledge')}
         cancelLabel={props.t('files.cancel')}
+        closeLabel={props.t('files.cancel')}
         confirmLabel={props.t('files.deleteConfirm')}
         acknowledged={acknowledged}
         disabled={props.busy}

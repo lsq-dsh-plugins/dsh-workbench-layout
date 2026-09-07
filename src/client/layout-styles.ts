@@ -1,6 +1,6 @@
 /** 通过稳定属性调整 DSH 现有 AppFrame 内部组件的列顺序。 */
 
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import {
   ASSISTANT_ACTIONS_ATTRIBUTE,
   ASSISTANT_METRICS_ATTRIBUTE,
