@@ -24,7 +24,7 @@ const exports = registration.factory((id) => {
 })
 assert.equal(typeof exports.apply, 'function')
 assert.deepEqual(required.sort(), [
-  '@deepseek-ai/dsh-client-runtime/client',
+  '@deepseek-ai/dsh-client-store',
   '@deepseek-ai/dsh-client-ui-primitives',
   'react',
   'react-dom',
