@@ -192,7 +192,7 @@ export function createDetailsTrackLayout(
     const phase = conversation?.querySelector<HTMLElement>('[data-phase]')?.dataset.phase
     const blankSurface = phase === 'hero' || phase === 'settling'
     const nativeCollapsed = frame.hasAttribute('data-details-collapsed')
-    const fallback = blankSurface && nativeCollapsed
+    const fallback = nativeCollapsed
     const native = !blankSurface && !nativeCollapsed
     if ((!fallback && !native) || details === null || details.childElementCount === 0 || sidebar === null) {
       clearPresentation()

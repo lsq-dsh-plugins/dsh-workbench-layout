@@ -124,6 +124,7 @@ export class WorkbenchController {
   private readonly gitRefreshes = new Map<string, Promise<void>>()
   private readonly gitRefreshFailures = new Set<string>()
   private readonly gitStatusGenerations = new Map<string, number>()
+  readonly fileTreeExpanded = new Map<string, Set<string>>()
 
   constructor(
     api: WorkbenchApi = new WorkbenchApi(),

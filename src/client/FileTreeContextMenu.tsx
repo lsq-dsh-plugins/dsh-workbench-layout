@@ -21,6 +21,8 @@ export type FileTreeMenuAction =
   | 'copy-relative-path'
   | 'copy-absolute-path'
   | 'refresh'
+  | 'expand-all'
+  | 'collapse-all'
 
 export interface FileTreeMenuTarget {
   entry: WorkspaceEntry | null
@@ -78,6 +80,9 @@ function entryItems(entry: WorkspaceEntry, expanded: boolean, t: TranslateNS<'wo
       disabled: entry.kind !== 'file' && entry.kind !== 'directory',
     },
     ...(entry.kind === 'directory' ? [
+      { type: 'separator' as const, id: 'entry-expand-separator' },
+      { id: 'expand-all', label: t('files.expandAll'), icon: <IconFolderOpenOutline16 size={14} /> },
+      { id: 'collapse-all', label: t('files.collapseAll'), icon: <IconFolderOpenOutline16 size={14} /> },
       { type: 'separator' as const, id: 'entry-create-separator' },
       { id: 'new-file', label: t('files.newFile'), icon: <IconFileAddOutline16 size={14} /> },
       { id: 'new-directory', label: t('files.newDirectory'), icon: <IconFolderAddOutline16 size={14} /> },
@@ -100,4 +105,6 @@ function isFileTreeMenuAction(id: string): id is FileTreeMenuAction {
     || id === 'copy-relative-path'
     || id === 'copy-absolute-path'
     || id === 'refresh'
+    || id === 'expand-all'
+    || id === 'collapse-all'
 }

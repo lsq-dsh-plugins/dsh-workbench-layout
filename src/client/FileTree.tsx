@@ -17,6 +17,8 @@ import { useFileTreeMutations } from './use-file-tree-mutations.ts'
 import { useWorkbench } from './use-workbench.ts'
 import css from './Workbench.module.css'
 
+const FILE_TREE_REFRESH_INTERVAL_MS = 3_000
+
 interface FileTreeProps {
   controller: WorkbenchController
   workspaceId: string | undefined
@@ -39,7 +41,6 @@ export function FileTree({ controller, workspaceId, workspacePath, t }: FileTree
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['']))
   const [loading, setLoading] = useState<Set<string>>(() => new Set())
   const [error, setError] = useState<string | null>(null)
-  const [revision, setRevision] = useState(0)
   const [selection, setSelection] = useState<TreeSelection | null | undefined>(undefined)
   const [createDraft, setCreateDraft] = useState<FileTreeCreateDraft | null>(null)
   const [contextTarget, setContextTarget] = useState<FileTreeMenuTarget | null>(null)
@@ -53,7 +54,9 @@ export function FileTree({ controller, workspaceId, workspacePath, t }: FileTree
 
   useEffect(() => {
     setListings({})
-    setExpanded(new Set(['']))
+    const cached = controller.fileTreeExpanded.get(workspaceId ?? '')
+    const restoredExpanded = cached ?? new Set([''])
+    setExpanded(restoredExpanded)
     setError(null)
     setSelection(undefined)
     setCreateDraft(null)
@@ -62,10 +65,21 @@ export function FileTree({ controller, workspaceId, workspacePath, t }: FileTree
     if (workspaceId === undefined) return
     void controller.refreshGitDecorations?.(workspaceId)
     let active = true
-    setLoading(new Set(['']))
-    void controller.api.listDirectory(workspaceId, '').then((listing) => {
+    const expandedPaths = [...restoredExpanded].filter(path => path !== '')
+    setLoading(new Set(['', ...expandedPaths]))
+    void controller.api.listDirectory(workspaceId, '').then(async (rootListing) => {
       if (!active) return
-      setListings({ '': listing })
+      const baseListings: Record<string, DirectoryListing> = { '': rootListing }
+      await Promise.all(
+        expandedPaths.map(path =>
+          controller.api.listDirectory(workspaceId, path).then(
+            (listing) => { baseListings[path] = listing },
+            () => {},
+          ),
+        ),
+      )
+      if (!active) return
+      setListings(baseListings)
       setLoading(new Set())
     }, (reason: unknown) => {
       if (!active) return
@@ -73,7 +87,11 @@ export function FileTree({ controller, workspaceId, workspacePath, t }: FileTree
       setError(messageOf(reason))
     })
     return () => { active = false }
-  }, [controller, workspaceId, revision])
+  }, [controller, workspaceId])
+
+  useEffect(() => {
+    if (workspaceId !== undefined) controller.fileTreeExpanded.set(workspaceId, expanded)
+  }, [controller, workspaceId, expanded])
 
   const loadDirectory = async (path: string): Promise<void> => {
     if (workspaceId === undefined) return
@@ -171,6 +189,45 @@ export function FileTree({ controller, workspaceId, workspacePath, t }: FileTree
     }
   }
 
+  const refreshAllExpanded = async (): Promise<void> => {
+    if (workspaceId === undefined) return
+    const targetWorkspace = workspaceId
+    const paths = [...expanded].filter(path => listings[path] !== undefined)
+    if (paths.length === 0) return
+    const results = await Promise.allSettled(
+      paths.map(path => controller.api.listDirectory(targetWorkspace, path)),
+    )
+    if (activeWorkspace.current !== targetWorkspace) return
+    setListings(previous => {
+      const next = { ...previous }
+      for (let index = 0; index < paths.length; index += 1) {
+        const result = results[index]
+        const path = paths[index]
+        if (result !== undefined && path !== undefined && result.status === 'fulfilled' && !listingEqual(previous[path], result.value)) {
+          next[path] = result.value
+        }
+      }
+      return next
+    })
+  }
+
+  useEffect(() => {
+    if (workspaceId === undefined) return
+    const targetWorkspace = workspaceId
+    const poll = (): void => {
+      if (document.visibilityState === 'hidden') return
+      void refreshAllExpanded()
+    }
+    const timer = window.setInterval(poll, FILE_TREE_REFRESH_INTERVAL_MS)
+    window.addEventListener('focus', poll)
+    document.addEventListener('visibilitychange', poll)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', poll)
+      document.removeEventListener('visibilitychange', poll)
+    }
+  }, [workspaceId, expanded, listings])
+
   const mutations = useFileTreeMutations({
     controller,
     workspaceId,
@@ -193,7 +250,54 @@ export function FileTree({ controller, workspaceId, workspacePath, t }: FileTree
     setError(null)
     setResult(null)
     if (action === 'refresh') {
-      setRevision(value => value + 1)
+      void refreshAllExpanded()
+      return
+    }
+    if (action === 'expand-all') {
+      if (entry === null || entry.kind !== 'directory') return
+      const basePath = entry.path
+      void (async (): Promise<void> => {
+        const collected: Record<string, DirectoryListing> = {}
+        const newExpanded = new Set(expanded)
+        const queue: string[] = [basePath]
+        let count = 0
+        while (queue.length > 0 && count < 500) {
+          const batch = queue.splice(0, 10)
+          const results = await Promise.allSettled(
+            batch.map(path => controller.api.listDirectory(targetWorkspace, path)),
+          )
+          for (let index = 0; index < batch.length; index += 1) {
+            const result = results[index]
+            const path = batch[index]
+            if (result === undefined || path === undefined || result.status !== 'fulfilled') continue
+            collected[path] = result.value
+            count += 1
+            newExpanded.add(path)
+            for (const childEntry of result.value.entries) {
+              if (childEntry.kind === 'directory') {
+                queue.push(childEntry.path)
+              }
+            }
+          }
+        }
+        if (activeWorkspace.current !== targetWorkspace) return
+        setListings(previous => ({ ...previous, ...collected }))
+        setExpanded(newExpanded)
+      })()
+      return
+    }
+    if (action === 'collapse-all') {
+      if (entry === null || entry.kind !== 'directory') return
+      const basePath = entry.path
+      setExpanded(previous => {
+        const next = new Set(previous)
+        for (const path of next) {
+          if (path !== basePath && (path.startsWith(`${basePath}/`) )) {
+            next.delete(path)
+          }
+        }
+        return next
+      })
       return
     }
     if (action === 'new-file' || action === 'new-directory') {
@@ -260,7 +364,7 @@ export function FileTree({ controller, workspaceId, workspacePath, t }: FileTree
             </button>
           </Tooltip>
           <Tooltip label={t('files.refresh')} delayMs={500}>
-            <button type="button" className={css.iconButton} aria-label={t('files.refresh')} onClick={() => { setRevision(value => value + 1) }}>
+            <button type="button" className={css.iconButton} aria-label={t('files.refresh')} onClick={() => { void refreshAllExpanded() }}>
               <IconRefreshOutline14 size={14} />
             </button>
           </Tooltip>
@@ -355,6 +459,18 @@ function omitExpandedPaths(expanded: Set<string>, path: string): Set<string> {
 
 function isSameOrDescendantPath(candidate: string, parent: string): boolean {
   return candidate === parent || candidate.startsWith(`${parent}/`)
+}
+
+function listingEqual(a: DirectoryListing | undefined, b: DirectoryListing): boolean {
+  if (a === undefined) return false
+  if (a.entries.length !== b.entries.length) return false
+  for (let index = 0; index < a.entries.length; index += 1) {
+    const ae = a.entries[index]
+    const be = b.entries[index]
+    if (ae === undefined || be === undefined) return false
+    if (ae.name !== be.name || ae.kind !== be.kind || ae.size !== be.size) return false
+  }
+  return true
 }
 
 function pointerRect(x: number, y: number): DOMRect {

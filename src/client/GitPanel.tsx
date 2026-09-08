@@ -27,6 +27,8 @@ import { copyTextToClipboard } from './clipboard.ts'
 import { useWorkbench } from './use-workbench.ts'
 import css from './Workbench.module.css'
 
+const GIT_PANEL_REFRESH_INTERVAL_MS = 5_000
+
 interface GitPanelProps {
   controller: WorkbenchController
   workspaceId: string | undefined
@@ -126,6 +128,25 @@ export function GitPanel({ controller, workspaceId, t }: GitPanelProps) {
     setCommitActionError(null)
     void refresh()
   }, [refresh])
+
+  const busyRef = useRef(busy)
+  busyRef.current = busy
+
+  useEffect(() => {
+    if (workspaceId === undefined) return
+    const poll = (): void => {
+      if (document.visibilityState === 'hidden' || busyRef.current !== null) return
+      void refresh()
+    }
+    const timer = window.setInterval(poll, GIT_PANEL_REFRESH_INTERVAL_MS)
+    window.addEventListener('focus', poll)
+    document.addEventListener('visibilitychange', poll)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', poll)
+      document.removeEventListener('visibilitychange', poll)
+    }
+  }, [workspaceId, refresh])
 
   const loadMoreGraph = useCallback(async (): Promise<void> => {
     if (workspaceId === undefined || graph === null || loading || !graph.truncated || graphPagePending.current) return
