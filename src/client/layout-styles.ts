@@ -70,7 +70,7 @@ const CSS = `
   initial-value: 0px;
 }
 
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2),
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-rightbar-collapsed]):not([data-rightbar-fullscreen]) > :nth-child(2),
 [${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${DETAILS_TRACK_FALLBACK_ATTRIBUTE}] > :nth-child(2),
 [${FRAME_ATTRIBUTE}][${EDITOR_TRANSITION_ATTRIBUTE}] > :nth-child(2) {
   grid-column: 3;
@@ -82,7 +82,7 @@ const CSS = `
 /* Only the native ConversationRoot inside CenterColumn's official slot wrapper
    receives the workbench surface. InputBar and its phase-bearing textarea stay
    wholly owned by DSH's official component styles. */
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}],
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-rightbar-collapsed]):not([data-rightbar-fullscreen]) > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}],
 [${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${DETAILS_TRACK_FALLBACK_ATTRIBUTE}] > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}],
 [${FRAME_ATTRIBUTE}][${EDITOR_TRANSITION_ATTRIBUTE}] > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}] {
   background: var(--dsw-specific-sidebar-fill);
@@ -90,7 +90,7 @@ const CSS = `
 
 /* The official active composer mask references the original center surface;
    only its backdrop stop follows the relocated conversation surface. */
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}][data-phase='active'] [data-composer-seat],
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-rightbar-collapsed]):not([data-rightbar-fullscreen]) > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}][data-phase='active'] [data-composer-seat],
 [${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${DETAILS_TRACK_FALLBACK_ATTRIBUTE}] > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}][data-phase='active'] [data-composer-seat],
 [${FRAME_ATTRIBUTE}][${EDITOR_TRANSITION_ATTRIBUTE}] > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}][data-phase='active'] [data-composer-seat] {
   background: linear-gradient(
@@ -100,7 +100,7 @@ const CSS = `
   );
 }
 
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(3),
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-rightbar-collapsed]):not([data-rightbar-fullscreen]) > :nth-child(3),
 [${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${DETAILS_TRACK_FALLBACK_ATTRIBUTE}] > :nth-child(3),
 [${FRAME_ATTRIBUTE}][${EDITOR_TRANSITION_ATTRIBUTE}] > :nth-child(3) {
   grid-column: 2;
@@ -108,7 +108,7 @@ const CSS = `
   border-left: none !important;
 }
 
-[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${DETAILS_TRACK_ATTRIBUTE}]:not([data-details-collapsed]),
+[${FRAME_ATTRIBUTE}]:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[${DETAILS_TRACK_ATTRIBUTE}]:not([data-rightbar-collapsed]):not([data-rightbar-fullscreen]),
 [${FRAME_ATTRIBUTE}][${DETAILS_TRACK_FALLBACK_ATTRIBUTE}] {
   grid-template-columns:
     var(${DETAILS_TRACK_SIDEBAR_WIDTH})
@@ -162,7 +162,7 @@ const CSS = `
   transition: none;
 }
 
-[${FRAME_ATTRIBUTE}] > [data-side='details']::after {
+[${FRAME_ATTRIBUTE}] > [data-rightbar-col]::after {
   display: none !important;
 }
 

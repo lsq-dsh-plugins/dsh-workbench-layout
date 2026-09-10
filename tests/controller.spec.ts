@@ -583,7 +583,7 @@ describe('WorkbenchController', () => {
   })
 
   it('collapses the middle editor explicitly and reveals it for files, Diffs, terminals, and tab selections', async () => {
-    const layout = { openDetails: vi.fn(), closeDetails: vi.fn() }
+    const layout = { openRightbar: vi.fn(), closeRightbar: vi.fn() }
     const api = {
       readFile: vi.fn(() => Promise.resolve(file('src/a.ts', 'content', '1'))),
       gitDiff: vi.fn(() => Promise.resolve({
@@ -594,11 +594,11 @@ describe('WorkbenchController', () => {
     const controller = new WorkbenchController(api as never, logger, layout)
     controller.setWorkspace('workspace-1')
     controller.synchronizeEditorLayout()
-    expect(layout.openDetails).toHaveBeenCalledOnce()
+    expect(layout.openRightbar).toHaveBeenCalledOnce()
 
     controller.toggleEditor()
     expect(controller.store.getSnapshot().editorExpanded).toBe(false)
-    expect(layout.closeDetails).toHaveBeenCalledOnce()
+    expect(layout.closeRightbar).toHaveBeenCalledOnce()
     await controller.openFile('workspace-1', 'src/a.ts')
     expect(controller.store.getSnapshot().editorExpanded).toBe(true)
 
@@ -613,7 +613,7 @@ describe('WorkbenchController', () => {
     controller.toggleEditor()
     controller.selectTab(terminalId!)
     expect(controller.store.getSnapshot().editorExpanded).toBe(true)
-    expect(layout.openDetails).toHaveBeenCalledTimes(5)
+    expect(layout.openRightbar).toHaveBeenCalledTimes(5)
     expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('collapsed middle editor from sidebar control'))
     expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('expanded middle editor from content selection'))
   })

@@ -102,8 +102,8 @@ export interface WorkbenchLogger {
 }
 
 export interface WorkbenchEditorLayout {
-  openDetails(): void
-  closeDetails(): void
+  openRightbar(track: boolean, fullscreen: boolean): void
+  closeRightbar(): void
 }
 
 /** Own unified tabs, editor visibility, async races, dirty state, and the sidebar shadow. */
@@ -282,8 +282,8 @@ export class WorkbenchController {
 
   /** Reapply the remembered middle-column state after AppFrame or Session remounts. */
   synchronizeEditorLayout(): void {
-    if (this.store.getSnapshot().editorExpanded) this.editorLayout?.openDetails()
-    else this.editorLayout?.closeDetails()
+    if (this.store.getSnapshot().editorExpanded) this.editorLayout?.openRightbar(true, false)
+    else this.editorLayout?.closeRightbar()
   }
 
   toggleEditor(): void {
@@ -870,8 +870,8 @@ export class WorkbenchController {
       this.store.update((state) => { state.editorExpanded = expanded })
       this.logger.info(`workbench-layout: ${expanded ? 'expanded' : 'collapsed'} middle editor from ${source}`)
     }
-    if (expanded) this.editorLayout?.openDetails()
-    else this.editorLayout?.closeDetails()
+    if (expanded) this.editorLayout?.openRightbar(true, false)
+    else this.editorLayout?.closeRightbar()
   }
 }
 

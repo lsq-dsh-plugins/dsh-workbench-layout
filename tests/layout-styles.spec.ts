@@ -69,8 +69,8 @@ describe('workbench layout presentation', () => {
     expect(detailsHandle?.hasAttribute(DETAILS_TRACK_NATIVE_HANDLE_ATTRIBUTE)).toBe(true)
     const style = document.head.querySelector<HTMLStyleElement>('[data-dsh-workbench-layout]')
     expect(style).not.toBeNull()
-    expect(style?.textContent).toContain(':not([data-details-collapsed])')
-    expect(style?.textContent).toContain("[data-side='details']::after")
+    expect(style?.textContent).toContain(':not([data-rightbar-collapsed])')
+    expect(style?.textContent).toContain("[data-rightbar-col]::after")
     expect(style?.textContent).toContain('data-dsh-workbench-conversation-narrow')
     expect(style?.textContent).toContain("[role='status']:has(> code) > code")
     expect(style?.textContent).toContain(`[${ASSISTANT_ACTIONS_ATTRIBUTE}]`)
@@ -83,7 +83,7 @@ describe('workbench layout presentation', () => {
     expect(style?.textContent).toContain("[data-slot='conversation.input.model'] > div {\n  flex: 0 1 auto;")
     expect(style?.textContent).toContain("button[aria-haspopup='menu'] {\n  width: auto;")
     expect(style?.textContent).toContain('padding-inline: 8px')
-    expect(style?.textContent).toContain(`:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-details-collapsed]) > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}]`)
+    expect(style?.textContent).toContain(`:not([${EDITOR_COLLAPSED_ATTRIBUTE}]):not([data-rightbar-collapsed]):not([data-rightbar-fullscreen]) > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}]`)
     expect(style?.textContent).toContain(`:not([${EDITOR_COLLAPSED_ATTRIBUTE}])[data-dsh-workbench-fallback-details] > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}]`)
     expect(style?.textContent).toContain(`[${EDITOR_TRANSITION_ATTRIBUTE}] > :nth-child(2) [${CONVERSATION_ROOT_ATTRIBUTE}]`)
     expect(style?.textContent).toContain(`@property ${TRANSITION_EDITOR_WIDTH}`)
@@ -168,6 +168,7 @@ describe('workbench layout presentation', () => {
     expect(frame.hasAttribute('data-dsh-workbench-fallback-details')).toBe(true)
 
     conversation.dataset.phase = 'active'
+    frame.removeAttribute('data-rightbar-collapsed')
     await vi.waitFor(() => {
       expect(frame.hasAttribute('data-dsh-workbench-fallback-details')).toBe(false)
     })
@@ -230,11 +231,11 @@ describe('workbench layout presentation', () => {
 function appFrameFixture(phase: 'hero' | 'active', sidebarWidth = 280, frameWidth = 1400) {
   const frame = document.createElement('div')
   frame.style.gridTemplateColumns = `${sidebarWidth}px minmax(0, 1fr) ${phase === 'active' ? 360 : 0}px`
-  frame.toggleAttribute('data-details-collapsed', phase !== 'active')
+  frame.toggleAttribute('data-rightbar-collapsed', phase !== 'active')
   const sidebar = document.createElement('div')
   const conversationColumn = document.createElement('div')
   const conversationSlot = document.createElement('div')
-  conversationSlot.dataset.slot = 'conversation'
+  conversationSlot.dataset.slot = 'conversation.session'
   const conversation = document.createElement('div')
   conversation.dataset.phase = phase
   const conversationScroll = document.createElement('div')
@@ -250,12 +251,12 @@ function appFrameFixture(phase: 'hero' | 'active', sidebarWidth = 280, frameWidt
   const overlay = document.createElement('div')
   overlay.dataset.shellOverlay = ''
   const detailsHandle = phase === 'active' ? document.createElement('div') : null
-  if (detailsHandle !== null) detailsHandle.dataset.side = 'details'
+  if (detailsHandle !== null) detailsHandle.dataset.side = 'rightbar'
   frame.append(sidebar, conversationColumn, details, overlay)
   if (detailsHandle !== null) frame.appendChild(detailsHandle)
   vi.spyOn(frame, 'getBoundingClientRect').mockReturnValue(rect(frameWidth))
   vi.spyOn(sidebar, 'getBoundingClientRect').mockReturnValue(rect(sidebarWidth))
-  expect(conversationColumn.querySelector(":scope > [data-slot='conversation'] > [data-phase]")).toBe(conversation)
+  expect(conversationColumn.querySelector(":scope > [data-slot='conversation.session'] > [data-phase]")).toBe(conversation)
   expect(conversationColumn.querySelector(':scope > textarea[data-phase]')).toBeNull()
   return { frame, conversation, detailsHandle }
 }

@@ -70,6 +70,7 @@ describe('文件目录', () => {
       'README.md': 'modified',
     }
     const controller = {
+      fileTreeExpanded: new Map<string, Set<string>>(),
       api: { listDirectory: vi.fn(() => Promise.resolve({
         path: '',
         truncated: false,
@@ -101,6 +102,7 @@ describe('文件目录', () => {
     }
     const src = { path: 'src', truncated: false, entries: [] }
     const controller = {
+      fileTreeExpanded: new Map<string, Set<string>>(),
       api: {
         listDirectory: vi.fn((_workspaceId: string, path: string) => Promise.resolve(path === 'src' ? src : root)),
         createFile: vi.fn(() => Promise.resolve({ name: 'new.ts', path: 'src/new.ts', kind: 'file' })),
@@ -154,6 +156,7 @@ describe('文件目录', () => {
       sidebarAction: { id: 7, action: 'files.newFile', workspaceId: 'workspace-1' },
     }
     const controller = {
+      fileTreeExpanded: new Map<string, Set<string>>(),
       api: {
         listDirectory: vi.fn(() => Promise.resolve({ path: '', truncated: false, entries: [] })),
       },
@@ -181,6 +184,7 @@ describe('文件目录', () => {
       entries: [{ name: 'README.md', path: 'README.md', kind: 'file' as const }],
     }
     const controller = {
+      fileTreeExpanded: new Map<string, Set<string>>(),
       api: {
         listDirectory: vi.fn(() => Promise.resolve(root)),
         createDirectory: vi.fn(() => Promise.resolve({ name: 'docs', path: 'docs', kind: 'directory' })),
@@ -219,6 +223,7 @@ describe('文件目录', () => {
       ],
     }
     const controller = {
+      fileTreeExpanded: new Map<string, Set<string>>(),
       api: {
         listDirectory: vi.fn(() => Promise.resolve(root)),
         absolutePath: vi.fn(() => Promise.resolve({ path: 'README.md', absolutePath: '/resolved/project/README.md' })),
@@ -270,6 +275,7 @@ describe('文件目录', () => {
       sidebarAction: undefined,
     }
     const controller = {
+      fileTreeExpanded: new Map<string, Set<string>>(),
       api: {
         listDirectory: vi.fn(() => Promise.resolve({
           path: '', truncated: false, entries: [{ name: 'src', path: 'src', kind: 'directory' as const }],
@@ -292,6 +298,7 @@ describe('文件目录', () => {
 
   it('在目录空白处通过鼠标或键盘打开根目录菜单', async () => {
     const controller = {
+      fileTreeExpanded: new Map<string, Set<string>>(),
       api: { listDirectory: vi.fn(() => Promise.resolve({ path: '', truncated: false, entries: [] })) },
       openFile: vi.fn(),
     }

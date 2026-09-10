@@ -191,9 +191,10 @@ export function createDetailsTrackLayout(
     const details = frame.children.item(2) as HTMLElement | null
     const phase = conversation?.querySelector<HTMLElement>('[data-phase]')?.dataset.phase
     const blankSurface = phase === 'hero' || phase === 'settling'
-    const nativeCollapsed = frame.hasAttribute('data-details-collapsed')
+    const nativeCollapsed = frame.hasAttribute('data-rightbar-collapsed')
+    const rightbarFullscreen = frame.hasAttribute('data-rightbar-fullscreen')
     const fallback = nativeCollapsed
-    const native = !blankSurface && !nativeCollapsed
+    const native = !blankSurface && !nativeCollapsed && !rightbarFullscreen
     if ((!fallback && !native) || details === null || details.childElementCount === 0 || sidebar === null) {
       clearPresentation()
       return
@@ -296,7 +297,7 @@ export function createDetailsTrackLayout(
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ['data-phase', 'data-details-collapsed', 'data-sidebar-collapsed', 'style'],
+    attributeFilter: ['data-phase', 'data-rightbar-collapsed', 'data-rightbar-fullscreen', 'data-sidebar-collapsed', 'style'],
   })
   const resizeObserver = typeof ResizeObserver === 'undefined'
     ? undefined
@@ -326,7 +327,7 @@ function findNativeDetailsHandle(frame: HTMLElement, fallbackHandle: HTMLElement
   return Array.from(frame.children).find((child): child is HTMLElement => (
     child instanceof HTMLElement
       && child !== fallbackHandle
-      && child.dataset.side === 'details'
+      && child.dataset.side === 'rightbar'
   )) ?? null
 }
 

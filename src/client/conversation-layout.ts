@@ -15,10 +15,10 @@ const VIEWPORT_PADDING = 12
 const MENU_GAP = 8
 const MODEL_MENU_SELECTOR = "[data-slot='conversation.input.model'] [role='menu']"
 const MODEL_TRIGGER_SELECTOR = "button[aria-haspopup='menu']"
-const CONVERSATION_SLOT_SELECTOR = ":scope > [data-slot='conversation']"
+const CONVERSATION_SLOT_SELECTOR = ":scope > [data-slot='conversation.session']"
 const SESSION_HEADER_UTILITIES_SELECTOR = "[data-slot='conversation.session.header.utilities']"
 const SESSION_LOG_LABEL = 'Session log'
-const ASSISTANT_TAIL_SELECTOR = '[data-turn-tail][data-time-hover-root]'
+const ASSISTANT_TAIL_SELECTOR = '[data-turn-tail]'
 
 export interface ConversationLayoutLogger {
   info(message: string): void

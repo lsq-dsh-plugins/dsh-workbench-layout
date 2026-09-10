@@ -149,7 +149,7 @@ describe('右侧原生会话窄栏适配', () => {
 function conversationFixture() {
   const column = document.createElement('div')
   const conversationSlot = document.createElement('div')
-  conversationSlot.dataset.slot = 'conversation'
+  conversationSlot.dataset.slot = 'conversation.session'
   const conversationRoot = document.createElement('div')
   conversationRoot.dataset.phase = 'active'
   const conversationScroll = document.createElement('div')

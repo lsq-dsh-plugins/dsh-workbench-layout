@@ -10,7 +10,7 @@ import { useWorkbench } from './use-workbench.ts'
 import { resolveWorkbenchWorkspaceId } from './workspace-binding.ts'
 import css from './Workbench.module.css'
 
-export type WorkbenchEditorProps = PropsRuntime<'details'> & PropsLocale<'workbench'> & {
+export type WorkbenchEditorProps = PropsRuntime<'rightbar.session'> & PropsLocale<'workbench'> & {
   controller: WorkbenchController
   activateWorkspace: (workspaceId: string | undefined) => void
 }

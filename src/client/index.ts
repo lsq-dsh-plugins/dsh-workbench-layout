@@ -62,8 +62,8 @@ export function apply(ctx: ClientContext): void {
     }
   })
 
-  ctx.slots.inject('details', () => ctx.slots.register({
-    name: 'details',
+  ctx.slots.inject('rightbar.session', () => ctx.slots.register({
+    name: 'rightbar.session',
     priority: -100,
     locale: 'workbench',
     inject: () => ({ controller, activateWorkspace }),
